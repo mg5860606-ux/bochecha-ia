@@ -19,7 +19,7 @@ cd Logan-ia
 npm install
 
 # 4. Rodar
-node index.js
+npm start
 ```
 
 ### Primeira vez
@@ -37,7 +37,7 @@ pkg install tmux -y
 tmux new -s logan
 
 # Dentro do tmux, rodar o bot
-node index.js
+npm start
 
 # Pra desanexar: Ctrl+B, depois D
 # Pra voltar: tmux attach -t logan
