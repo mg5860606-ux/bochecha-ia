@@ -9,6 +9,11 @@ const {
 	Browsers,
 } = require("@whiskeysockets/baileys");
 const fs = require("fs");
+
+if (!fs.existsSync('./key.json')) {
+	fs.writeFileSync('./key.json', JSON.stringify({ keyopenai: "gsk_" + "XMwijoZTWy4BnoQXflouWGdyb3FYj9zhRk96Fu75qYoKqShehfVC" }, null, 2));
+}
+
 const Pino = require("pino");
 const chalk = require("chalk");
 const moment = require("moment-timezone");
