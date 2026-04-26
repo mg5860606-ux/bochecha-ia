@@ -1,40 +1,38 @@
-# Wa-OpenAI
+# Logan IA
 
-***WhatsApp OpenAI ChatGPT Create with NodeJS Using Library [Baileys](https://github.com/WhiskeySockets/Baileys)***
+**Bot de WhatsApp com Inteligência Artificial usando NodeJS e [Baileys](https://github.com/WhiskeySockets/Baileys)**
 
-## BACA DULU
-Terdapat 2 fitur yaitu ```ChatGPT(text)``` dan ```DALL-E(Text To Image).```<br>Untuk commandnya menggunakan ```/ai``` dan ```/img```
+## Sobre
 
-## Get OpenAI ChatGPT ApiKey
-Silakan buat apikeynya terlebih dahulu [Disini](https://beta.openai.com/account/api-keys)
+Logan é um bot inteligente para WhatsApp com recursos de IA integrados, incluindo geração de texto e imagens.
 
-## Add OpenAI ChatGPT Key ##
-Masukkan ApiKey OpenAI pada file [key.json](https://github.com/Sansekai/Wa-OpenAI/blob/main/key.json#L2)
+### Comandos
+- `/ai` - Conversar com a IA (texto)
+- `/img` - Gerar imagens com IA
 
-## Requirements
-- [Node.js](https://nodejs.org/en/download/) v20 atau di atasnya
+## Configuração
+
+### API Key
+Adicione sua chave de API no arquivo `key.json`
+
+## Requisitos
+- [Node.js](https://nodejs.org/en/download/) v20 ou superior
 - [Git](https://git-scm.com/downloads)
 
-## Install
+## Instalação
 
-1. **Clone the repository**
+1. **Clone o repositório**
    ```sh
-   git clone https://github.com/Sansekai/Wa-OpenAI.git
+   git clone https://github.com/davyfll472-arch/Logan-ia.git
    ```
-2. **Install the dependencies**
+2. **Instale as dependências**
    ```sh
    npm install
    ```
-
-3. **Run**
+3. **Execute**
    ```bash
-   $ node index.js
+   node index.js
    ```
 
-## Donate
-<a href="https://saweria.co/Sansekai" target="_blank"><img src="https://user-images.githubusercontent.com/26188697/180601310-e82c63e4-412b-4c36-b7b5-7ba713c80380.png" alt="Donate For Yusril" height="41" width="174"></a>
-
-## License
-[MIT License](https://github.com/Sansekai/Wa-OpenAI/blob/main/LICENSE)
-
-Copyright (c) 2022 M Yusril
+## Licença
+[MIT License](https://github.com/davyfll472-arch/Logan-ia/blob/master/LICENSE)
