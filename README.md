@@ -86,7 +86,7 @@ Logan-ia/
 
 ## 🔑 Configuração
 
-Edite `key.json` com sua API key do Groq:
+Renomeie o arquivo `key.example.json` para `key.json` e coloque sua API key do Groq:
 ```json
 {
   "keyopenai": "gsk_SUA_CHAVE_GROQ_AQUI"
