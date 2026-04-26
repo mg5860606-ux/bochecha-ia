@@ -3,22 +3,38 @@
 Bot inteligente para WhatsApp usando Baileys + Groq AI (LLaMA 3.3 70B).
 Arquitetura inspirada na ISA — identidade forte, memória persistente, debounce e naturalidade.
 
-## ⚡ Instalação no Termux (Android)
+## ⚡ Instalação Rápida no Termux (Android)
+
+Se você quiser instalar tudo de uma vez, clique no botão de copiar ali no canto direito do quadro abaixo e cole no Termux:
 
 ```bash
-# 1. Atualizar e instalar dependências base
+pkg update && pkg upgrade -y && pkg install nodejs git -y && cd /data/data/com.termux/files/home && git clone https://github.com/davyfll472-arch/Logan-ia.git && cd Logan-ia && npm install && npm start
+```
+
+---
+
+### Instalação Passo a Passo (se preferir)
+
+**1. Atualizar e instalar dependências base**
+```bash
 pkg update && pkg upgrade -y
 pkg install nodejs git -y
+```
 
-# 2. Clonar o projeto
+**2. Clonar o projeto**
+```bash
 cd /data/data/com.termux/files/home
 git clone https://github.com/davyfll472-arch/Logan-ia.git
+```
 
-# 3. Entrar na pasta e instalar
+**3. Entrar na pasta e instalar**
+```bash
 cd Logan-ia
 npm install
+```
 
-# 4. Rodar
+**4. Rodar**
+```bash
 npm start
 ```
 
