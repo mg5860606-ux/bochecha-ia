@@ -51,6 +51,7 @@ const moment = require("moment-timezone");
 const readline = require("readline");
 moment.tz.setDefault("America/Bahia").locale("pt-br");
 const { Messages } = require("./lib/messages.js");
+require("./sansekai.js"); // Pré-carrega o módulo e as skills na inicialização
 
 const question = (text) => {
 	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
