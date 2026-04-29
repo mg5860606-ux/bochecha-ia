@@ -317,169 +317,31 @@ module.exports = sansekai = async (upsert, sock, store, message) => {
         // Se a mensagem contiver a marca d'água invisível, foi enviada pelo próprio bot. Ignorar para evitar loop.
         if (budy.includes('\u200B')) return;
 
-        var prefix = /^[\\/!#.]/gi.test(budy) ? budy.match(/^[\\/!#.]/gi)[0] : "/";
-        const isCmd = budy.startsWith(prefix);
-        const command = isCmd ? budy.replace(prefix, "").trim().split(/ +/).shift().toLowerCase() : "";
-        const args = budy.trim().split(/ +/).slice(1);
         const pushname = message.pushName || "Usuário";
         const from = message.chat;
 
-        // Extrair número real do remetente (usando o sender já normalizado pelo lib/messages.js)
         const rawSender = message.sender || message.key?.participant || message.key?.remoteJid || "";
         const sender = rawSender.split('@')[0];
 
-        // Verificação de dono (só pra comandos admin)
         const isOwner = OWNERS.some(num => sender === num || sender.endsWith(num));
         const isAutorizado = settings.isPublic || isOwner || autorizados.includes(sender);
 
         const shortText = budy.length > 60 ? budy.substring(0, 60) + "..." : budy;
         console.log(`${chalk.yellow('[💬]')} ${chalk.cyan(pushname)} ${chalk.gray(`(${sender})`)}: ${chalk.white(shortText)}`);
 
-        let text = args.join(" ");
-
-        // ═══════════════════════════════
-        //  COMANDOS (prefixo /)
-        // ═══════════════════════════════
-        if (isCmd) {
-            switch (command) {
-                case "publico":
-                    if (!isOwner) return message.reply('negado.');
-                    if (text === "on") {
-                        settings.isPublic = true;
-                        salvarSettings();
-                        message.reply('Modo p�blico ATIVADO. Respondendo a qualquer pessoa.');
-                    } else if (text === "off") {
-                        settings.isPublic = false;
-                        salvarSettings();
-                        message.reply('Modo p�blico DESATIVADO. Somente autorizados.');
-                    } else {
-                        message.reply('Uso: /publico on ou /publico off (Atual: ' + (settings.isPublic ? 'ATIVADO' : 'DESATIVADO') + ')');
-                    }
-                    break;
-                case "autorizar":
-                    if (!isOwner) return message.reply('negado. só o luan manda aqui');
-                    if (!text) return message.reply('uso: /autorizar 5511...');
-                    let numAdd = text.replace(/\D/g, '');
-                    if (!autorizados.includes(numAdd)) {
-                        autorizados.push(numAdd);
-                        salvarAutorizados();
-                        message.reply(`pronto, ${numAdd} tá autorizado`);
-                    } else {
-                        message.reply('esse número já tava na lista');
-                    }
-                    break;
-
-                case "remover":
-                    if (!isOwner) return message.reply('negado');
-                    let numRem = text.replace(/\D/g, '');
-                    autorizados = autorizados.filter(n => n !== numRem);
-                    salvarAutorizados();
-                    message.reply(`${numRem} removido da lista`);
-                    break;
-
-                case "limpar":
-                    if (!isOwner) return message.reply('negado');
-                    const memFile = path.join(MEMORY_DIR, `${from.replace(/[^a-zA-Z0-9@._-]/g, '_')}.json`);
-                    if (fs.existsSync(memFile)) fs.unlinkSync(memFile);
-                    if (notas[from]) { delete notas[from]; salvarNotas(); }
-                    message.reply('memória deste chat apagada, contexto zerado');
-                    break;
-
-                case "nota":
-                    if (!isOwner) return message.reply('negado');
-                    if (!text) return message.reply('uso: /nota texto da nota');
-                    if (!notas[from]) notas[from] = [];
-                    notas[from].push(text);
-                    salvarNotas();
-                    message.reply(`anotado`);
-                    break;
-
-                case "notas":
-                    if (!isOwner) return message.reply('negado');
-                    const chatNotas = notas[from] || [];
-                    if (chatNotas.length === 0) return message.reply('nenhuma nota nesse chat');
-                    message.reply(`notas desse chat:\n${chatNotas.map((n, i) => `${i + 1}. ${n}`).join('\n')}`);
-                    break;
-
-                case "delnota":
-                    if (!isOwner) return message.reply('negado');
-                    const idx = parseInt(text) - 1;
-                    if (!notas[from] || !notas[from][idx]) return message.reply('nota não encontrada');
-                    notas[from].splice(idx, 1);
-                    salvarNotas();
-                    message.reply('nota removida');
-                    break;
-
-                case "status":
-                    if (!isOwner) return;
-                    const memFiles = fs.readdirSync(MEMORY_DIR).filter(f => f.endsWith('.json'));
-                    const totalMem = memFiles.reduce((acc, f) => {
-                        try { return acc + JSON.parse(fs.readFileSync(path.join(MEMORY_DIR, f), 'utf8')).length; }
-                        catch { return acc; }
-                    }, 0);
-                    message.reply(
-                        `sarah status:\n` +
-                        `chats ativos: ${memFiles.length}\n` +
-                        `mensagens na memória: ${totalMem}\n` +
-                        `autorizados: ${autorizados.length}\n` +
-                        `notas salvas: ${Object.values(notas).flat().length}`
-                    );
-                    break;
-
-                case "sistema":
-                    if (!isOwner) return message.reply('negado');
-                    if (!text) {
-                        const current = fs.readFileSync(SYSTEM_FILE, 'utf8');
-                        return message.reply(`system prompt atual (${current.length} chars):\n\n${current.substring(0, 500)}...`);
-                    }
-                    // Append ao system prompt
-                    const currentSystem = fs.readFileSync(SYSTEM_FILE, 'utf8');
-                    fs.writeFileSync(SYSTEM_FILE, currentSystem + '\n\n## Instrução adicional\n' + text);
-                    message.reply('instrução adicionada ao sistema');
-                    break;
-
-                case "ping":
-                    const start = Date.now();
-                    await message.reply('pong');
-                    break;
-
-                case "help":
-                case "menu":
-                    message.reply(
-                        `sarah ai — comandos:\n\n` +
-                        `/autorizar [num] — liberar número\n` +
-                        `/remover [num] — revogar acesso\n` +
-                        `/limpar — zerar memória do chat\n` +
-                        `/nota [texto] — salvar nota no chat\n` +
-                        `/notas — ver notas do chat\n` +
-                        `/delnota [n] — apagar nota\n` +
-                        `/status — status do bot\n` +
-                        `/sistema — ver/editar system prompt\n` +
-                        `/ping — testar latência\n` +
-                        `/todos — marcar todos (grupo)`
-                    );
-                    break;
-
-                case "todos":
-                case "totag": {
-                    if (!from.endsWith('@g.us')) return message.reply('só funciona em grupo');
-                    try {
-                        const groupMeta = await sock.groupMetadata(from);
-                        const participants = groupMeta.participants;
-                        let mentions = participants.map(p => p.id);
-                        let mentionText = text || "📢";
-                        await sock.sendMessage(from, {
-                            text: mentionText,
-                            mentions: mentions
-                        }, { quoted: message });
-                    } catch (e) {
-                        logError("totag", e);
-                        message.reply('não consegui marcar todo mundo');
-                    }
-                    break;
+        if (isOwner && budy.startsWith('/addkey ')) {
+            const newKey = budy.replace('/addkey', '').trim();
+            if (newKey) {
+                const added = apiKeyManager.addKey(newKey);
+                if (added) {
+                    await message.reply('✅ Chave Groq adicionada com sucesso! O bot já pode usar a IA.');
+                } else {
+                    await message.reply('⚠️ Essa chave já existe ou é inválida.');
                 }
+            } else {
+                await message.reply('Uso: /addkey gsk_SUA_CHAVE_AQUI');
             }
-            return; // Comandos não ativam a IA
+            return;
         }
 
         // ═══════════════════════════════
