@@ -86,22 +86,6 @@ Logan-ia/
     └── messages.js   # Parser de mensagens do Baileys
 ```
 
-## 📋 Comandos
-
-| Comando | Descrição | Permissão |
-|---------|-----------|-----------|
-| `/menu` | Lista de comandos | Todos |
-| `/ping` | Testa latência | Todos |
-| `/autorizar [num]` | Libera um número | Dono |
-| `/remover [num]` | Remove acesso | Dono |
-| `/limpar` | Zera memória do chat | Dono |
-| `/nota [texto]` | Salva nota no chat | Dono |
-| `/notas` | Ver notas do chat | Dono |
-| `/delnota [n]` | Apagar nota | Dono |
-| `/status` | Status do bot | Dono |
-| `/sistema` | Ver/editar system prompt | Dono |
-| `/todos` | Marcar todos no grupo | Todos |
-
 ## 🔧 Como funciona
 
 - **Em DMs**: Responde sempre (se o número for autorizado)
