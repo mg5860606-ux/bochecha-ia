@@ -1,4 +1,4 @@
-# 🐺 LOGAN AI — Bot WhatsApp
+# 🐺 SARAH AI — Bot WhatsApp
 
 Bot inteligente para WhatsApp usando Baileys + Groq AI (LLaMA 3.3 70B).
 Arquitetura inspirada na ISA — identidade forte, memória persistente, debounce e naturalidade.
@@ -76,7 +76,7 @@ npm start
 Logan-ia/
 ├── index.js          # Conexão WhatsApp (Baileys)
 ├── sansekai.js       # Handler de mensagens + IA
-├── SYSTEM.md         # Identidade/alma do Logan
+├── SYSTEM.md         # Identidade/alma do Sarah
 ├── key.json          # API key do Groq
 ├── autorizados.json  # Lista de números autorizados
 ├── notas.json        # Notas persistentes por chat
@@ -105,7 +105,7 @@ Logan-ia/
 ## 🔧 Como funciona
 
 - **Em DMs**: Responde sempre (se o número for autorizado)
-- **Em Grupos**: Só responde se chamar "Logan" ou marcar o bot
+- **Em Grupos**: Só responde se chamar "Sarah" ou marcar o bot
 - **Debounce**: Espera 1.5s após a última msg antes de responder (agrupa msgs rápidas)
 - **Memória**: Cada chat tem memória isolada (últimas 30 mensagens)
 - **Fallback**: Se o modelo principal falhar, usa llama-3.1-8b como backup
@@ -124,4 +124,4 @@ Pegue sua chave grátis em: https://console.groq.com/keys
 
 ## 📝 Editando a personalidade
 
-Edite o arquivo `SYSTEM.md` — ele contém toda a identidade e regras de comportamento do Logan. Pode editar pelo próprio WhatsApp com `/sistema [nova regra]`.
+Edite o arquivo `SYSTEM.md` — ele contém toda a identidade e regras de comportamento do Sarah. Pode editar pelo próprio WhatsApp com `/sistema [nova regra]`.
