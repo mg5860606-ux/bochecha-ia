@@ -1,36 +1,41 @@
 const { BufferJSON, WA_DEFAULT_EPHEMERAL, generateWAMessageFromContent, proto, generateWAMessageContent, generateWAMessage, prepareWAMessageMedia, areJidsSameUser, getContentType } = require("@whiskeysockets/baileys");
-const fs = require("fs"), util = require("util"), chalk = require("chalk"), Groq = require("groq-sdk");
+const fs = require("fs"), util = require("util"), chalk = require("chalk"), path = require("path");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { exec } = require("child_process");
 let setting = require("./key.json");
 const apiKeyManager = require("./apiKeyManager");
-let currentApiKey = apiKeyManager.getKey() || setting.keyopenai;
-let groq = new Groq({ apiKey: currentApiKey || "placeholder" });
+let currentApiKey = apiKeyManager.getKey() || (setting.keys && setting.keys[0]) || "placeholder";
 
-async function executeGroqWithRotation(payload) {
+async function executeGeminiWithRotation(history, messageOrParts, tools, systemInstruction) {
     let attempts = 0;
     const numKeys = apiKeyManager.listKeys().length;
     const maxAttempts = numKeys > 0 ? numKeys : 1;
     
     while (attempts <= maxAttempts) {
         try {
-            return await groq.chat.completions.create(payload);
-        } catch (e) {
-            const status = e.status || (e.response && e.response.status);
+            const genAI = new GoogleGenerativeAI(currentApiKey);
+            const modelConfig = { model: "gemini-1.5-flash" };
+            if (systemInstruction) modelConfig.systemInstruction = systemInstruction;
+            if (tools && tools.length > 0) modelConfig.tools = [{ functionDeclarations: tools }];
             
-            if (status === 401 || String(e.message).includes('401')) {
-                console.log(chalk.red(`[ERRO] Chave inválida (401). Removendo: ...${(currentApiKey||"").slice(-4)}`));
+            const model = genAI.getGenerativeModel(modelConfig);
+            const chat = model.startChat({ history });
+            const response = await chat.sendMessage(messageOrParts);
+            return { chat, response };
+        } catch (e) {
+            const msg = String(e.message || e);
+            if (msg.includes('401') || msg.includes('API_KEY_INVALID')) {
+                console.log(chalk.red(`[ERRO] Chave inválida Gemini. Removendo... ${(currentApiKey||"").slice(-4)}`));
                 apiKeyManager.markFailure(currentApiKey);
                 currentApiKey = apiKeyManager.getKey();
                 if (!currentApiKey) throw new Error("Sem chaves válidas no sistema.");
-                groq = new Groq({ apiKey: currentApiKey });
                 attempts++;
                 continue;
             } 
-            else if (status === 429 || String(e.message).includes('429') || String(e.message).includes('Rate limit')) {
-                console.log(chalk.yellow(`[RATE LIMIT 429] Limite atingido na chave ...${(currentApiKey||"").slice(-4)}. Rotacionando para próxima chave da fila...`));
+            else if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
+                console.log(chalk.yellow(`[RATE LIMIT 429] Limite atingido na chave Gemini ...${(currentApiKey||"").slice(-4)}. Rotacionando...`));
                 currentApiKey = apiKeyManager.getKey();
                 if (!currentApiKey) throw new Error("Sem chaves no sistema para rotacionar.");
-                groq = new Groq({ apiKey: currentApiKey });
                 attempts++;
                 continue;
             } 
@@ -39,9 +44,28 @@ async function executeGroqWithRotation(payload) {
             }
         }
     }
-    throw new Error("Todas as chaves falharam ao tentar completar a requisição.");
+    throw new Error("Falha após rotacionar todas as chaves.");
 }
-const path = require("path");
+
+function convertToolToGemini(openaiDef) {
+    const fn = openaiDef.function;
+    function convertType(prop) {
+        const out = { ...prop };
+        if (out.type) out.type = out.type.toUpperCase();
+        if (out.properties) {
+            for (const k in out.properties) {
+                out.properties[k] = convertType(out.properties[k]);
+            }
+        }
+        if (out.items) out.items = convertType(out.items);
+        return out;
+    }
+    return {
+        name: fn.name,
+        description: fn.description,
+        parameters: convertType(fn.parameters)
+    };
+}
 
 // ══════════════════════════════════════════
 //        ARQUITETURA MODULAR
@@ -176,144 +200,85 @@ fs.readdirSync(SKILLS_DIR).forEach(file => {
 async function callAI(chatId, pushname, input, isOwner) {
     let history = getMemory(chatId);
     let systemPrompt = fs.readFileSync(SYSTEM_FILE, 'utf8');
+    const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    systemPrompt += `\n\n[SISTEMA]: A data e hora atual do servidor é ${agora}.`;
 
-    // Montar contexto
-    let messages = [{ role: 'system', content: systemPrompt }];
-
-    // Adicionar notas/contexto persistente se existir para este chat
     const chatNotas = notas[chatId];
     if (chatNotas && chatNotas.length > 0) {
-        messages.push({
-            role: 'system',
-            content: `[Notas sobre este chat]: ${chatNotas.join(' | ')}`
-        });
+        systemPrompt += `\n\n[Notas sobre este chat]: ${chatNotas.join(' | ')}`;
     }
 
-    messages = messages.concat(history);
-    messages.push({ role: 'user', content: `[De: ${pushname}] ${input}` });
-
-    // Limitar contexto pra não estourar tokens
-    if (messages.length > MAX_HISTORY + 3) {
+    if (history.length > MAX_HISTORY) {
         let cortado = history.slice(-MAX_HISTORY);
         if (cortado.length > 0 && cortado[0].role === 'assistant') {
             cortado.shift();
         }
         history = cortado;
-        messages = [{ role: 'system', content: systemPrompt }].concat(history);
-        messages.push({ role: 'user', content: `[De: ${pushname}] ${input}` });
+    }
+
+    // Converter history pro formato do Gemini
+    const geminiHistory = history.map(msg => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }]
+    }));
+
+    let geminiTools = [];
+    if (isOwner && groqTools.length > 0) {
+        geminiTools = groqTools.map(convertToolToGemini);
     }
 
     let finalResponse = "";
-    let maxLoops = 5;
-    let currentLoop = 0;
-
-    while (currentLoop < maxLoops) {
-        const payload = {
-            messages: messages,
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.75,
-            max_tokens: 1024,
-            top_p: 0.9,
-            frequency_penalty: 0.3
-        };
-
-        if (isOwner && groqTools.length > 0) {
-            payload.tools = groqTools;
-            payload.tool_choice = "auto";
-        }
-
-        let res;
-        try {
-            res = await executeGroqWithRotation(payload);
-        } catch (err) {
-            const errStr = String(err.message || err.error || err);
-            if (errStr.includes('tool_use_failed') && errStr.includes('<function=')) {
-                let failedGen = errStr;
-                try {
-                    const parsedErr = JSON.parse(errStr.substring(errStr.indexOf('{')));
-                    if (parsedErr.error && parsedErr.error.failed_generation) {
-                        failedGen = parsedErr.error.failed_generation;
-                    }
-                } catch(e) {}
-                
-                console.log(require('chalk').yellow(`[RECOVERY] Interceptado erro 400 da Groq. Recuperando tool_calls...`));
-                res = { choices: [{ message: { role: 'assistant', content: failedGen } }] };
-            } else {
-                throw err;
-            }
-        }
-        const responseMessage = res.choices[0].message;
-        let hasTool = false;
-
-        if (responseMessage.tool_calls) {
-            hasTool = true;
-            responseMessage.content = responseMessage.content || "";
-            messages.push(responseMessage);
-            for (const toolCall of responseMessage.tool_calls) {
-                const funcName = toolCall.function.name;
+    const promptFormatado = `[De: ${pushname}] ${input}`;
+    
+    try {
+        let { chat, response } = await executeGeminiWithRotation(geminiHistory, promptFormatado, geminiTools, systemPrompt);
+        let result = response.response;
+        
+        const functionCalls = result.functionCalls && result.functionCalls();
+        
+        if (functionCalls && functionCalls.length > 0) {
+            const functionResponses = [];
+            
+            for (const call of functionCalls) {
+                const funcName = call.name;
                 const skill = loadedSkills[funcName];
                 
                 if (skill) {
-                    let args;
-                    try { args = JSON.parse(toolCall.function.arguments); } catch (e) { args = {}; }
                     console.log(chalk.blue(`[⚙️ FERRAMENTA] Executando: ${funcName}`));
-                    const result = await skill.execute(args);
-                    messages.push({
-                        role: 'tool',
-                        tool_call_id: toolCall.id,
-                        content: String(result).substring(0, 4000)
+                    const res = await skill.execute(call.args, { chatId });
+                    functionResponses.push({
+                        functionResponse: {
+                            name: funcName,
+                            response: { result: String(res).substring(0, 4000) }
+                        }
                     });
                 } else {
-                    messages.push({
-                        role: 'tool',
-                        tool_call_id: toolCall.id,
-                        content: `[Erro]: Ferramenta ${funcName} não encontrada.`
+                    functionResponses.push({
+                        functionResponse: {
+                            name: funcName,
+                            response: { result: "Erro: Ferramenta não encontrada." }
+                        }
                     });
                 }
             }
-        } 
-        else if (responseMessage.content && responseMessage.content.includes('<function=')) {
-            hasTool = true;
-            messages.push(responseMessage);
-            const regex = /<function=([a-zA-Z0-9_]+)[^a-zA-Z0-9_]*(\{.*?\})[\s\S]*?<\/function>/g;
-            let match;
-            while ((match = regex.exec(responseMessage.content)) !== null) {
-                const funcName = match[1];
-                const skill = loadedSkills[funcName];
-                
-                if (skill) {
-                    try {
-                        const args = JSON.parse(match[2]);
-                        console.log(chalk.blue(`[⚙️ VAZADA] Recuperando: ${funcName}`));
-                        const result = await skill.execute(args);
-                        messages.push({
-                            role: 'system',
-                            content: `[Comando executado]: ${String(result).substring(0, 4000)}`
-                        });
-                    } catch(e) {
-                        messages.push({ role: 'system', content: `[Erro JSON na ferramenta]: ${e.message}` });
-                    }
-                }
-            }
+            
+            const toolResult = await executeGeminiWithRotation(chat.getHistory(), functionResponses, geminiTools, systemPrompt);
+            result = toolResult.response.response;
         }
 
-        if (hasTool) {
-            currentLoop++;
-        } else {
-            finalResponse = (responseMessage.content || "").replace(/<function=.*?<\/function>/gs, '').trim();
-            break;
-        }
+        finalResponse = result.text();
+    } catch (e) {
+        console.error(chalk.red("[ERRO] Gemini API:"), e);
+        finalResponse = "Opa, deu um erro de conexão com a IA (Gemini). Fala de novo?";
     }
 
     if (!finalResponse) finalResponse = "Fiz o que pediu, mas não tenho texto pra responder.";
 
-    const newHistory = messages.filter(m => m.role !== 'system');
-    if (!newHistory.find(m => m.content === finalResponse && m.role === 'assistant')) {
-        newHistory.push({ role: 'assistant', content: finalResponse });
-    }
-    saveMemory(chatId, newHistory);
+    history.push({ role: 'user', content: promptFormatado });
+    history.push({ role: 'assistant', content: finalResponse });
+    saveMemory(chatId, history);
 
-    logEvent(`AI chamada | Chat: ${chatId} | User: ${pushname} | Loops: ${currentLoop}`);
+    logEvent(`AI chamada | Chat: ${chatId} | User: ${pushname}`);
 
     return finalResponse;
 }
@@ -456,16 +421,13 @@ module.exports = sansekai = async (upsert, sock, store, message) => {
                 logError(`AI response (${from})`, e);
                 // Tentar com modelo fallback
                 try {
-                    const fallbackRes = await executeGroqWithRotation({
-                        messages: [
-                            { role: 'system', content: 'você é a sarah, responda brevemente e naturalmente em português' },
-                            { role: 'user', content: textoFinal }
-                        ],
-                        model: 'llama-3.1-8b-instant',
-                        temperature: 0.7,
-                        max_tokens: 256
-                    });
-                    const fallbackTexto = fallbackRes.choices[0].message.content;
+                    const fallbackRes = await executeGeminiWithRotation(
+    [], 
+    `[De: ${pending.pushname}] ${textoFinal}`, 
+    [], 
+    "Você é a Sarah. Responda brevemente em português."
+);
+                    const fallbackTexto = fallbackRes.response.response.text();
                     recentSentTexts.add(fallbackTexto.trim());
                     setTimeout(() => recentSentTexts.delete(fallbackTexto.trim()), 60000);
                     await sock.sendMessage(from, { text: fallbackTexto + '\u200B' }, { quoted: pending.msgRef });
