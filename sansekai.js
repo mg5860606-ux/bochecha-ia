@@ -24,7 +24,7 @@ async function executeGeminiWithRotation(history, messageOrParts, tools, systemI
             return { chat, response };
         } catch (e) {
             const msg = String(e.message || e);
-            if (msg.includes('401') || msg.includes('API_KEY_INVALID')) {
+            if (msg.includes('401') || msg.includes('API_KEY_INVALID') || msg.includes('404')) {
                 console.log(chalk.red(`[ERRO] Chave inválida Gemini. Removendo... ${(currentApiKey||"").slice(-4)}`));
                 apiKeyManager.markFailure(currentApiKey);
                 currentApiKey = apiKeyManager.getKey();
