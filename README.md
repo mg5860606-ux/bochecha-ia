@@ -8,7 +8,7 @@ Arquitetura inspirada na ISA — identidade forte, memória persistente, debounc
 Se você quiser instalar tudo de uma vez, clique no botão de copiar ali no canto direito do quadro abaixo e cole no Termux:
 
 ```bash
-pkg update && pkg upgrade -y && pkg install nodejs git -y && cd /data/data/com.termux/files/home && git clone https://github.com/davyfll472-arch/Logan-ia.git && cd Logan-ia && npm install && npm start
+pkg update && pkg upgrade -y && pkg install nodejs git -y && cd /data/data/com.termux/files/home && git clone https://github.com/davyfll472-arch/Sarah-ia.git && cd Sarah-ia && npm install && npm start
 ```
 
 ---
@@ -24,12 +24,12 @@ pkg install nodejs git -y
 **2. Clonar o projeto**
 ```bash
 cd /data/data/com.termux/files/home
-git clone https://github.com/davyfll472-arch/Logan-ia.git
+git clone https://github.com/davyfll472-arch/Sarah-ia.git
 ```
 
 **3. Entrar na pasta e instalar**
 ```bash
-cd Logan-ia
+cd Sarah-ia
 npm install
 ```
 
@@ -64,7 +64,7 @@ npm start
 Quando sair uma versão nova no GitHub, você não precisa apagar nada, é só puxar a atualização:
 
 ```bash
-cd /data/data/com.termux/files/home/Logan-ia
+cd /data/data/com.termux/files/home/Sarah-ia
 git pull
 npm install
 npm start
@@ -73,7 +73,7 @@ npm start
 ## 🧠 Arquitetura
 
 ```
-Logan-ia/
+Sarah-ia/
 ├── index.js          # Conexão WhatsApp (Baileys)
 ├── sansekai.js       # Handler de mensagens + IA
 ├── SYSTEM.md         # Identidade/alma do Sarah
