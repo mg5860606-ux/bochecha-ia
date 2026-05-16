@@ -102,10 +102,27 @@ async function startBot() {
 	const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
 	const { version } = await fetchLatestBaileysVersion();
 
+	let useQRCode = false;
+	if (!state.creds.registered) {
+		console.log(chalk.cyan('\n======================================='));
+		console.log(chalk.cyan('   COMO DESEJA CONECTAR O Bochecha?'));
+		console.log(chalk.cyan('======================================='));
+		console.log(chalk.white(' [1] - QR Code (Escanear com a câmera)'));
+		console.log(chalk.white(' [2] - Código de Pareamento (Número)'));
+		console.log(chalk.cyan('======================================='));
+		const opcao = await question(chalk.yellow('Digite 1 ou 2: '));
+		if (opcao.trim() === '1') {
+			useQRCode = true;
+			console.log(chalk.green('Aguarde a geração do QR Code...'));
+		} else {
+			console.log(chalk.green('Iniciando pareamento por código...'));
+		}
+	}
+
 	const sock = makeWASocket({
 		version,
 		logger,
-		printQRInTerminal: true,
+		printQRInTerminal: useQRCode,
 		auth: {
 			creds: state.creds,
 			keys: makeCacheableSignalKeyStore(state.keys, logger),
@@ -150,13 +167,20 @@ async function startBot() {
         return content;
     };
 
-	// Se não tiver credenciais registradas, pedir código de pareamento
-	if (!sock.authState.creds.registered) {
+	// Se não tiver credenciais registradas, pedir código de pareamento se a opção 2 foi escolhida
+	if (!sock.authState.creds.registered && !useQRCode) {
 		setTimeout(async () => {
-			const phoneNumber = await question('Deseja conectar com Codigo? Digite o numero (ex: 557199999999) ou DEIXE EM BRANCO para ler o QR Code acima: ');
+			const phoneNumber = await question(chalk.yellow('\nDigite o número do WhatsApp com DDI (ex: 557199999999): '));
 			if (phoneNumber && phoneNumber.trim().length > 5) {
-				const code = await sock.requestPairingCode(phoneNumber.trim());
-				console.log(chalk.green(`\nCÓDIGO DE PAREAMENTO: ${code}\n`));
+				try {
+					const code = await sock.requestPairingCode(phoneNumber.trim());
+					console.log(chalk.bgGreen.black(`\n CÓDIGO DE PAREAMENTO: ${code} \n`));
+					console.log(chalk.white('Insira este código no seu WhatsApp em: Aparelhos Conectados > Conectar com número de telefone.'));
+				} catch (e) {
+					console.error(chalk.red('\nErro ao solicitar código de pareamento. Verifique se o número está correto.'), e);
+				}
+			} else {
+				console.log(chalk.red('\nNúmero inválido. Reinicie o bot e tente novamente.'));
 			}
 		}, 3000);
 	}
