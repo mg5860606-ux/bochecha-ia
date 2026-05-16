@@ -242,7 +242,7 @@ async function callAI(chatId, pushname, input, isOwner, sock, from, message) {
     }));
 
     let geminiTools = [];
-    if (isOwner && groqTools.length > 0) {
+    if (groqTools.length > 0) {
         geminiTools = groqTools.map(convertToolToGemini);
     }
 
@@ -325,39 +325,7 @@ async function callAI(chatId, pushname, input, isOwner, sock, from, message) {
 
     if (!finalResponse) finalResponse = "Fiz o que pediu, mas não tenho texto pra responder.";
 
-    // ═══════════════════════════════
-    //  AÇÃO AUTÔNOMA: Executar comandos via IA
-    // ═══════════════════════════════
-    const cmdRegex = /\[CMD:\s*(\/\S+)(.*?)\]/g;
-    let match;
-    while ((match = cmdRegex.exec(finalResponse)) !== null) {
-        const cmdToRun = match[1] + (match[2] || '');
-        if (cmdToRun) {
-            // Criar um contexto fake para execução do comando
-            const fakeBudy = cmdToRun.trim();
-            const args = fakeBudy.split(/ +/).slice(1);
-            const command = fakeBudy.split(/ +/)[0].toLowerCase().slice(1);
-            const q = args.join(' ');
 
-            console.log(chalk.magenta(`[🤖 AUTÔNOMO] Executando comando legado via IA: ${command}`));
-
-            // Tentar executar via legado
-            await handleLegacyCommand({
-                sock, from, sender: rawSender, command, args, q, info: message,
-                isGroup: from.endsWith('@g.us'),
-                isGroupAdmins: false, // IA assume permissão se solicitou
-                isBotGroupAdmins: true,
-                SoDono: true, // IA atuando como dono
-                prefix: '/', pushname: "Bochecha-IA", groupName: "Grupo",
-                reply: (txt) => sock.sendMessage(from, { text: txt }),
-                mention: (txt, m) => sock.sendMessage(from, { text: txt, mentions: m }),
-                reagir: (f, e) => sock.sendPresenceUpdate('composing', from), // Troca reação por digitando
-                selo: message, nmrdn: OWNERS[0], NomeDoBot: "Bochecha-IA", budy
-            });
-
-            finalResponse = finalResponse.replace(match[0], '').trim();
-        }
-    }
 
     history.push({ role: 'user', content: promptFormatado });
     history.push({ role: 'assistant', content: finalResponse });
