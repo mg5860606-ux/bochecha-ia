@@ -1,7 +1,7 @@
 {
-  "name": "sarah-ia",
+  "name": "bochecha-ia",
   "version": "1.0.0",
-  "description": "Sarah - Bot de WhatsApp com IA",
+  "description": "𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀 - Bot de WhatsApp com IA",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
@@ -13,19 +13,29 @@
     "bot-ia",
     "groq"
   ],
-  "author": "Luan",
+  "author": "Marcos",
   "license": "MIT",
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
+    "@google/generative-ai": "^0.24.1",
     "@hapi/boom": "^10.0.0",
     "@whiskeysockets/baileys": "^6.7.16",
     "chalk": "^4.1.2",
+    "fluent-ffmpeg": "^2.1.3",
     "groq-sdk": "^1.1.2",
     "moment-timezone": "^0.5.46",
-    "pino": "^7.0.5"
+    "node-webpmux": "^3.2.1",
+    "openai": "^6.38.0",
+    "pino": "^7.0.5",
+    "wa-sticker-formatter": "^4.4.4",
+    "yt-search": "^2.13.1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/davyfll472-arch/Logan-ia.git"
+    "url": "git+https://github.com/marcos-dev/bochecha-ia.git"
   },
-  "homepage": "https://github.com/davyfll472-arch/Logan-ia#readme"
+  "bugs": {
+    "url": "https://github.com/marcos-dev/bochecha-ia/issues"
+  },
+  "homepage": "https://github.com/marcos-dev/bochecha-ia#readme"
 }
