@@ -67,6 +67,7 @@ function convertToolToGemini(openaiDef) {
     function convertType(prop) {
         const out = { ...prop };
         if (out.type) out.type = out.type.toUpperCase();
+        if (out.enum) out.enum = out.enum.map(String);
         if (out.properties) {
             for (const k in out.properties) {
                 out.properties[k] = convertType(out.properties[k]);

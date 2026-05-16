@@ -11,7 +11,7 @@ module.exports = {
             parameters: {
                 type: "object",
                 properties: {
-                    modelo: { type: "number", enum: [1, 2], description: "O modelo de BV a ser usado (1 ou 2)." },
+                    modelo: { type: "string", enum: ["1", "2"], description: "O modelo de BV a ser usado (1 ou 2)." },
                     legenda: { type: "string", description: "O texto da legenda (use @user para mencionar o novato)." },
                     acao: { type: "string", enum: ["definir_modelo", "definir_legenda"], description: "Ação a ser feita." }
                 },
