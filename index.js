@@ -105,7 +105,7 @@ async function startBot() {
 	const sock = makeWASocket({
 		version,
 		logger,
-		printQRInTerminal: false,
+		printQRInTerminal: true,
 		auth: {
 			creds: state.creds,
 			keys: makeCacheableSignalKeyStore(state.keys, logger),
@@ -153,9 +153,11 @@ async function startBot() {
 	// Se não tiver credenciais registradas, pedir código de pareamento
 	if (!sock.authState.creds.registered) {
 		setTimeout(async () => {
-			const phoneNumber = await question('Digite o numero do WhatsApp com DDI (ex: 557199999999): ');
-			const code = await sock.requestPairingCode(phoneNumber.trim());
-			console.log(chalk.green(`CÓDIGO DE PAREAMENTO: ${code}`));
+			const phoneNumber = await question('Deseja conectar com Codigo? Digite o numero (ex: 557199999999) ou DEIXE EM BRANCO para ler o QR Code acima: ');
+			if (phoneNumber && phoneNumber.trim().length > 5) {
+				const code = await sock.requestPairingCode(phoneNumber.trim());
+				console.log(chalk.green(`\nCÓDIGO DE PAREAMENTO: ${code}\n`));
+			}
 		}, 3000);
 	}
 
