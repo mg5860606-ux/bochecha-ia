@@ -376,7 +376,7 @@ module.exports = sansekai = async (upsert, sock, store, message) => {
         // Ignorar se não tem mensagem (notificações, reações, etc)
         if (!message.message) return;
 
-        let budy = (typeof message.text == 'string' ? message.text : '');
+        let budy = (typeof message.body == 'string' ? message.body : '');
         if (!budy) return;
 
         // Se a mensagem contiver a marca d'água invisível, foi enviada pelo próprio bot. Ignorar para evitar loop.
