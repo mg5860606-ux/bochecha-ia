@@ -384,7 +384,7 @@ module.exports = sansekai = async (upsert, sock, store, message) => {
         if (message.key.fromMe && recentSentTexts.has(budy.trim())) return;
 
         const pushname = message.pushName || "Usuário";
-        const from = message.chat;
+        const from = message.from || message.key.remoteJid;
 
         const rawSender = message.sender || message.key?.participant || message.key?.remoteJid || "";
         const sender = rawSender.split('@')[0];
