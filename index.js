@@ -41,6 +41,7 @@ const {
 const fs = require('fs');
 const path = require('path');
 const pino = require('pino');
+const qrcode = require('qrcode-terminal');
 const gamesController = require('./skills/games_controller');
 
 // Cache para Anti-Delete e Ranking
@@ -122,7 +123,6 @@ async function startBot() {
 	const sock = makeWASocket({
 		version,
 		logger,
-		printQRInTerminal: useQRCode,
 		auth: {
 			creds: state.creds,
 			keys: makeCacheableSignalKeyStore(state.keys, logger),
@@ -192,7 +192,12 @@ async function startBot() {
 
 	// Atualização de conexão
 	sock.ev.on('connection.update', async (update) => {
-		const { connection, lastDisconnect } = update;
+		const { connection, lastDisconnect, qr } = update;
+
+		if (qr && useQRCode) {
+			console.log(chalk.cyan('\nEscaneie o QR Code abaixo com o WhatsApp:\n'));
+			qrcode.generate(qr, { small: true });
+		}
 
 		if (connection === 'close') {
 			const lastStatus = lastDisconnect?.error?.output?.statusCode ?? lastDisconnect?.error?.status;
