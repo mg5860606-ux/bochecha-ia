@@ -382,7 +382,7 @@ async function startBot() {
 					"hahaha": "risada.mp3",
 					"safado": "safado.mp3",
 					"corvo": "corvo.mp3",
-					"bochecha": "menu.mp3"
+					"menu": "menu.mp3"
 				};
 
 				for (const [key, file] of Object.entries(audioReactions)) {

@@ -326,47 +326,7 @@ async function callAI(chatId, pushname, input, isOwner, sock, from, message) {
 
     if (!finalResponse) finalResponse = "Fiz o que pediu, mas não tenho texto pra responder.";
 
-    // ═══════════════════════════════
-    //  AÇÃO AUTÔNOMA: Executar comandos via IA
-    // ═══════════════════════════════
-    const cmdRegex = /\[CMD:\s*(\/\S+)(.*?)\]/g;
-    let match;
-    while ((match = cmdRegex.exec(finalResponse)) !== null) {
-        const cmdToRun = match[1] + (match[2] || '');
-        if (cmdToRun) {
-            // Criar um contexto fake para execução do comando
-            const fakeBudy = cmdToRun.trim();
-            const args = fakeBudy.split(/ +/).slice(1);
-            const command = fakeBudy.split(/ +/)[0].toLowerCase().slice(1);
-            const q = args.join(' ');
 
-            console.log(chalk.magenta(`[🤖 AUTÔNOMO] Executando comando legado via IA: ${command}`));
-
-            // Tentar executar via legado
-            try {
-                if (typeof handleLegacyCommand === 'function') {
-                    await handleLegacyCommand({
-                        sock, from, sender: rawSender, command, args, q, info: message,
-                        isGroup: from.endsWith('@g.us'),
-                        isGroupAdmins: false, // IA assume permissão se solicitou
-                        isBotGroupAdmins: true,
-                        SoDono: true, // IA atuando como dono
-                        prefix: '/', pushname: "Bochecha-IA", groupName: "Grupo",
-                        reply: (txt) => sock.sendMessage(from, { text: txt }),
-                        mention: (txt, m) => sock.sendMessage(from, { text: txt, mentions: m }),
-                        reagir: (f, e) => sock.sendPresenceUpdate('composing', from), // Troca reação por digitando
-                        selo: message, nmrdn: OWNERS[0], NomeDoBot: "Bochecha-IA", budy
-                    });
-                } else {
-                    console.log(chalk.yellow(`[AVISO] handleLegacyCommand não definido. Ignorando comando legado.`));
-                }
-            } catch (errLegacy) {
-                console.error(chalk.red(`[ERRO] Falha no comando legado:`), errLegacy);
-            }
-
-            finalResponse = finalResponse.replace(match[0], '').trim();
-        }
-    }
 
     history.push({ role: 'user', content: promptFormatado });
     history.push({ role: 'assistant', content: finalResponse });
@@ -464,23 +424,22 @@ module.exports = sansekai = async (upsert, sock, store, message) => {
         // Mostrar digitando antes da IA responder
         await sock.sendPresenceUpdate('composing', from);
 
-        const startsWithBochecha = budy.toLowerCase().startsWith('bochecha');
+        const includesBochecha = budy.toLowerCase().includes('bochecha');
+        const startsWithSlash = budy.startsWith('/');
 
         let shouldReply = false;
         let textoLimpo = budy;
 
         if (isGroup) {
-            // Em grupos: só responde se chamar pelo nome, marcar ou responder a ela
-            if (startsWithBochecha || isMentioned) {
+            // Em grupos: responde se tiver a palavra bochecha, se marcar, responder a ela ou usar comando com /
+            if (includesBochecha || isMentioned || startsWithSlash) {
                 shouldReply = true;
-                if (startsWithBochecha) textoLimpo = budy.replace(/^bochecha\s*/i, '').trim() || "oi";
                 // Limpa a menção por arroba do texto pra IA não ficar confusa
                 textoLimpo = textoLimpo.replace(new RegExp(`@${myNumber}`, 'g'), '').trim() || textoLimpo;
             }
         } else {
             // Em DM: responde sempre
             shouldReply = true;
-            if (startsWithBochecha) textoLimpo = budy.replace(/^bochecha\s*/i, '').trim() || "oi";
         }
 
         if (!shouldReply || textoLimpo.length === 0) return;
