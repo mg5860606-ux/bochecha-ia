@@ -2116,11 +2116,27 @@ class PromptComposer {
         const timeStr = now.format("DD/MM/YYYY HH:mm:ss");
         const day = now.format("dddd");
 
+        let groupName = "Conversa Privada";
+        if (chatId.endsWith('@g.us') && BochechaEngine.sockRef) {
+            try {
+                const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await BochechaEngine.sockRef.groupMetadata(chatId);
+                groupName = metadata.subject || metadata.name || "Grupo do WhatsApp";
+            } catch {
+                if (BochechaEngine.storeRef && BochechaEngine.storeRef.chats) {
+                    const cached = BochechaEngine.storeRef.chats.get(chatId);
+                    groupName = cached?.name || cached?.subject || "Grupo do WhatsApp";
+                } else {
+                    groupName = "Grupo do WhatsApp";
+                }
+            }
+        }
+
         let context = `\n\n` +
             `[METADADOS INVISÍVEIS DO CHAT PARA ATUALIZAÇÃO DO SEU CÉREBRO]:\n` +
             `- Data/Hora no Brasil: ${timeStr} (${day})\n` +
-            `- Chat WhatsApp Ativo: ${chatId}\n` +
-            `- Usuário Falando com Você: ${userData.pushname || "Membro"}\n` +
+            `- Nome do Canal/Grupo Atual: "${groupName}" (Você está respondendo neste canal específico. Nunca misture informações ou pessoas com outros grupos!)\n` +
+            `- ID Único do Chat: ${chatId}\n` +
+            `- Usuário Falando com Você: ${userData.pushname || "Membro"} (Marque-o usando @${userData.userId ? userData.userId.split('@')[0] : ''})\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
             `- Advertências do Usuário: ${userData.warns || 0}/3\n`;
 
@@ -2433,6 +2449,32 @@ ${chatLogs}`;
             const settings = await storage.getSettings();
             const isOwner = DEFAULT_OWNERS.includes(sender) || settings.owners.includes(sender) || parsedMessage.key.fromMe;
 
+            // 🤬 DETECTOR SUPREMO DE OFENSA À MÃE (DO DONO OU DO BOT)
+            if (isGroup && !isOwner && !parsedMessage.key.fromMe) {
+                const lowBody = body.toLowerCase();
+                const hasMother = lowBody.includes("mãe") || lowBody.includes("mae");
+                const commonInsults = ["puta", "pariu", "arrombada", "vagabunda", "lixo", "cadela", "caralho", "foder", "foderse", "chupa", "quenga", "biscate"];
+                const isMotherInsult = hasMother && commonInsults.some(insult => lowBody.includes(insult));
+                const isDirectFdp = lowBody.includes("filho da puta") || lowBody.includes("filho de uma puta") || lowBody.includes("filho duma puta") || lowBody.includes("fdp");
+
+                if (isMotherInsult || isDirectFdp) {
+                    Logger.warn("Moderation.MotherInsult", `Ofensa à mãe detectada por @${sender}: "${body}"`);
+                    try {
+                        await sock.sendMessage(from, {
+                            text: `🚨 *MATERNIDADE SAGRADA INTERCEPTADA* 🚨\n\nQual foi mané?! Mãe é sagrada! Vou te remover daqui agora por desrespeitar a mãe alheia! 😡🥀`
+                        }, { quoted: parsedMessage });
+                        
+                        await moderation.executeBan(sock, from, rawSender, "Ofensa grave contra a mãe.");
+                        
+                        // Telemetria secreta
+                        BochechaEngine.sendTelemetry(`🤬 *BANIMENTO POR OFENSA À MÃE* 🤬\n\nBanido participante @${sender} no grupo ${from.split('@')[0]} por xingar a mãe.\n\n*Texto:* "${body}"`).catch(() => {});
+                        return;
+                    } catch (e) {
+                        Logger.error("Moderation.MotherInsult.Ban", e);
+                    }
+                }
+            }
+
             // 👻 ESCUDO ANTI-VÁCUO DO ARQUITETO MARCOS
             if (isGroup) {
                 if (isOwner && body.includes('?')) {
@@ -2442,10 +2484,24 @@ ${chatLogs}`;
                 }
             }
 
-            // 🕹️ SENSOR DE JOGOS LOCAIS (ECONOMIA DE API)
+            // 🌸 GATILHO COMPORTAMENTAL: PEDIDO DE GENTILEZA (GROSSO / GROSSEIRO)
             if (isGroup && !parsedMessage.key.fromMe) {
-                const isGameMove = await gamesController.processMove(sock, from, rawSender, body);
-                if (isGameMove) return; // Interrompe para não mandar a jogada para a IA
+                const lowBody = body.toLowerCase();
+                const mentionsMe = lowBody.includes("bochecha");
+                const isComplainingAboutRudeness = lowBody.includes("grosso") || lowBody.includes("grosseiro") || lowBody.includes("grosseira") || lowBody.includes("ignorante");
+                
+                if (mentionsMe && isComplainingAboutRudeness) {
+                    try {
+                        Logger.info("BehavioralTrigger", `Gatilho de grosseria acionado por @${sender}`);
+                        await sock.sendMessage(from, {
+                            text: `desculpa vou mudar vou ser mais gentil com voce @${sender}`,
+                            mentions: [rawSender]
+                        }, { quoted: parsedMessage });
+                        return;
+                    } catch (e) {
+                        Logger.error("BehavioralTrigger.Grosso", e);
+                    }
+                }
             }
 
             // XP e logs de atividade do usuário
@@ -2775,7 +2831,15 @@ ${chatLogs}`;
                     this.recentResponses.add(aiReply.trim());
                     setTimeout(() => this.recentResponses.delete(aiReply.trim()), 60000);
 
-                    await sock.sendMessage(from, { text: aiReply + '\u200B' }, { quoted: q.msgRef });
+                    // Extrai menções reais do tipo @5511999999999 da resposta da IA para marcar de verdade no WhatsApp
+                    const mentions = [];
+                    const mentionRegex = /@(\d+)/g;
+                    let match;
+                    while ((match = mentionRegex.exec(aiReply)) !== null) {
+                        mentions.push(match[1] + "@s.whatsapp.net");
+                    }
+
+                    await sock.sendMessage(from, { text: aiReply + '\u200B', mentions }, { quoted: q.msgRef });
 
                 } catch (err) {
                     Logger.error(`BochechaEngine.DebounceQueue(${from})`, err);
