@@ -2430,7 +2430,14 @@ ${chatLogs}`;
 
             let body = typeof parsedMessage.body === 'string' ? parsedMessage.body.trim() : '';
             const msgType = Object.keys(parsedMessage.message || {})[0] === 'senderKeyDistributionMessage' ? Object.keys(parsedMessage.message || {})[1] : Object.keys(parsedMessage.message || {})[0];
-            const hasMedia = parsedMessage.message && (parsedMessage.message.imageMessage || parsedMessage.message.videoMessage || parsedMessage.message[msgType]?.imageMessage || parsedMessage.message[msgType]?.videoMessage);
+            const hasMedia = parsedMessage.message && (
+                parsedMessage.message.imageMessage || 
+                parsedMessage.message.videoMessage || 
+                parsedMessage.message.audioMessage ||
+                parsedMessage.message[msgType]?.imageMessage || 
+                parsedMessage.message[msgType]?.videoMessage ||
+                parsedMessage.message[msgType]?.audioMessage
+            );
             
             if (!body && !hasMedia) return;
 
@@ -2472,6 +2479,44 @@ ${chatLogs}`;
                     } catch (e) {
                         Logger.error("Moderation.MotherInsult.Ban", e);
                     }
+                }
+            }
+
+            // 🎙️ TRANSCRIÇÃO AUTOMÁTICA DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
+            const audioMsg = parsedMessage.message?.audioMessage || parsedMessage.message[msgType]?.audioMessage;
+            if (isGroup && audioMsg && !parsedMessage.key.fromMe) {
+                Logger.info("AudioTranscriber", `Iniciando transcrição de áudio vindo de @${sender}...`);
+                try {
+                    const stream = await downloadContentFromMessage(audioMsg, 'audio');
+                    let buffer = Buffer.from([]);
+                    for await (const chunk of stream) {
+                        buffer = Buffer.concat([buffer, chunk]);
+                    }
+                    
+                    const base64Audio = buffer.toString("base64");
+                    
+                    // Chama a rotação da API Gemini para transcrever!
+                    const prompt = "transcreva este áudio em português brasileiro de forma idêntica, natural e sem alterar nenhuma palavra. retorne unicamente a transcrição textual do áudio.";
+                    const systemRule = "Você é um transcritor profissional e direto de áudios.";
+                    
+                    const { response } = await keyRotator.executeWithRotation(
+                        [], 
+                        [
+                            { text: prompt },
+                            { inlineData: { data: base64Audio, mimeType: "audio/ogg; codecs=opus" } }
+                        ], 
+                        [], 
+                        systemRule
+                    );
+                    
+                    const transcription = response.response.text().trim();
+                    if (transcription) {
+                        Logger.success("AudioTranscriber", `Áudio transcrito com sucesso!`);
+                        const replyText = `🎙️ *TRANSCRIÇÃO AUTOMÁTICA*\n\n@${sender} disse:\n"${transcription}"`;
+                        await sock.sendMessage(from, { text: replyText, mentions: [rawSender] }, { quoted: parsedMessage });
+                    }
+                } catch (e) {
+                    Logger.error("AudioTranscriber", e);
                 }
             }
 
