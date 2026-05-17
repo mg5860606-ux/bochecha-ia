@@ -501,7 +501,7 @@ class StorageManager {
     /**
      * Registra a atividade de uma mensagem enviada por um usuário em um grupo (sliding window de 12 horas).
      */
-    async logMessageActivity(chatId, userId, pushname) {
+    async logMessageActivity(chatId, userId, pushname, messageText = "") {
         try {
             const dbPath = path.join(__dirname, 'learnings', 'chat_activity.json');
             const db = await this.read(dbPath, {});
@@ -511,6 +511,7 @@ class StorageManager {
             db[chatId].push({
                 user: userId,
                 pushname: pushname,
+                text: messageText,
                 timestamp: Date.now()
             });
             
@@ -1320,6 +1321,7 @@ class KeyRotationEngine {
 
 // Instanciar singleton de controle de chave
 const keyRotator = new KeyRotationEngine();
+global.keyRotator = keyRotator;
 
 // ══════════════════════════════════════════════════════════════════════════
 // 5. DIALOG SESSION (MEMÓRIA DESLIZANTE E AUTO-SUMARIZADOR SEMÂNTICO)
@@ -2880,7 +2882,7 @@ ${chatLogs}`;
 
             // Registra a atividade da mensagem no grupo (para saber quem é o mais ativo nas últimas 12 horas)
             if (isGroup && !parsedMessage.key.fromMe) {
-                storage.logMessageActivity(from, rawSender, pushname).catch(() => {});
+                storage.logMessageActivity(from, rawSender, pushname, body).catch(() => {});
             }
 
             const lowBody = body.toLowerCase();
@@ -3340,6 +3342,23 @@ ${chatLogs}`;
                         await storage.clearChatNotes(from);
                         await parsedMessage.reply("🧹 Notas deste chat apagadas.");
                         return;
+
+                    case "/fofoca":
+                    case "/resumo": {
+                        const ctx = { 
+                            chatId: from, 
+                            sock, 
+                            from, 
+                            message: parsedMessage, 
+                            isOwner, 
+                            isGroup, 
+                            sender: rawSender, 
+                            pushname 
+                        };
+                        const res = await registry.execute("resumir_fofoca", {}, ctx);
+                        await parsedMessage.reply(res);
+                        return;
+                    }
                 }
             }
 
@@ -3566,6 +3585,9 @@ ${chatLogs}`;
      */
     async _callAI({ chatId, pushname, sender, prompt, isOwner, sock, messageRef }) {
         const warns = await storage.getWarnings(chatId, sender);
+        
+        // Ativação da Memória de Longo Prazo (LTM): Extrai e grava fatos novos em background
+        ltm.extractAndStoreFacts(chatId, sender, prompt, isOwner).catch(() => {});
         
         let level = 1;
         let xp = 0;
