@@ -2513,38 +2513,9 @@ ${chatLogs}`;
             const rawSender = normalizeJid(rawSenderUnnorm);
             const sender = rawSender.split('@')[0];
 
-            const settings = await storage.getSettings();
-            const isOwner = DEFAULT_OWNERS.includes(sender) || settings.owners.includes(sender) || parsedMessage.key.fromMe;
-
-            // 🤬 DETECTOR SUPREMO DE OFENSA À MÃE (DO DONO OU DO BOT)
-            if (isGroup && !isOwner && !parsedMessage.key.fromMe) {
-                const lowBody = body.toLowerCase();
-                const hasMother = lowBody.includes("mãe") || lowBody.includes("mae");
-                const commonInsults = ["puta", "pariu", "arrombada", "vagabunda", "lixo", "cadela", "caralho", "foder", "foderse", "chupa", "quenga", "biscate"];
-                const isMotherInsult = hasMother && commonInsults.some(insult => lowBody.includes(insult));
-                const isDirectFdp = lowBody.includes("filho da puta") || lowBody.includes("filho de uma puta") || lowBody.includes("filho duma puta") || lowBody.includes("fdp");
-
-                if (isMotherInsult || isDirectFdp) {
-                    Logger.warn("Moderation.MotherInsult", `Ofensa à mãe detectada por @${sender}: "${body}"`);
-                    try {
-                        await sock.sendMessage(from, {
-                            text: `🚨 *MATERNIDADE SAGRADA INTERCEPTADA* 🚨\n\nQual foi mané?! Mãe é sagrada! Vou te remover daqui agora por desrespeitar a mãe alheia! 😡🥀`
-                        }, { quoted: parsedMessage });
-                        
-                        await moderation.executeBan(sock, from, rawSender, "Ofensa grave contra a mãe.");
-                        
-                        // Telemetria secreta
-                        BochechaEngine.sendTelemetry(`🤬 *BANIMENTO POR OFENSA À MÃE* 🤬\n\nBanido participante @${sender} no grupo ${from.split('@')[0]} por xingar a mãe.\n\n*Texto:* "${body}"`).catch(() => {});
-                        return;
-                    } catch (e) {
-                        Logger.error("Moderation.MotherInsult.Ban", e);
-                    }
-                }
-            }
-
-            // 🎙️ TRANSCRIÇÃO AUTOMÁTICA DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
+            // 🎙️ TRANSCRIÇÃO AUTOMÁTICA E INJEÇÃO DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
             const audioMsg = parsedMessage.message?.audioMessage || parsedMessage.message[msgType]?.audioMessage;
-            if (isGroup && audioMsg && !parsedMessage.key.fromMe) {
+            if (audioMsg && !parsedMessage.key.fromMe) {
                 Logger.info("AudioTranscriber", `Iniciando transcrição de áudio vindo de @${sender}...`);
                 try {
                     const stream = await downloadContentFromMessage(audioMsg, 'audio');
@@ -2572,11 +2543,48 @@ ${chatLogs}`;
                     const transcription = response.response.text().trim();
                     if (transcription) {
                         Logger.success("AudioTranscriber", `Áudio transcrito com sucesso!`);
-                        const replyText = `🎙️ *TRANSCRIÇÃO AUTOMÁTICA*\n\n@${sender} disse:\n"${transcription}"`;
-                        await sock.sendMessage(from, { text: replyText, mentions: [rawSender] }, { quoted: parsedMessage });
+                        
+                        if (isGroup) {
+                            const replyText = `🎙️ *TRANSCRIÇÃO AUTOMÁTICA*\n\n@${sender} disse:\n"${transcription}"`;
+                            await sock.sendMessage(from, { text: replyText, mentions: [rawSender] }, { quoted: parsedMessage });
+                        }
+                        
+                        // Atualiza as referências locais e a mensagem original para comandos e IA continuarem com o texto transcrito!
+                        parsedMessage.body = transcription;
+                        body = transcription;
+                        parsedMessage.isAudioQuery = true;
                     }
                 } catch (e) {
                     Logger.error("AudioTranscriber", e);
+                }
+            }
+
+            const settings = await storage.getSettings();
+            const isOwner = DEFAULT_OWNERS.includes(sender) || settings.owners.includes(sender) || parsedMessage.key.fromMe;
+
+            // 🤬 DETECTOR SUPREMO DE OFENSA À MÃE (DO DONO OU DO BOT)
+            if (isGroup && !isOwner && !parsedMessage.key.fromMe) {
+                const lowBody = body.toLowerCase();
+                const hasMother = lowBody.includes("mãe") || lowBody.includes("mae");
+                const commonInsults = ["puta", "pariu", "arrombada", "vagabunda", "lixo", "cadela", "caralho", "foder", "foderse", "chupa", "quenga", "biscate"];
+                const isMotherInsult = hasMother && commonInsults.some(insult => lowBody.includes(insult));
+                const isDirectFdp = lowBody.includes("filho da puta") || lowBody.includes("filho de uma puta") || lowBody.includes("filho duma puta") || lowBody.includes("fdp");
+
+                if (isMotherInsult || isDirectFdp) {
+                    Logger.warn("Moderation.MotherInsult", `Ofensa à mãe detectada por @${sender}: "${body}"`);
+                    try {
+                        await sock.sendMessage(from, {
+                            text: `🚨 *MATERNIDADE SAGRADA INTERCEPTADA* 🚨\n\nQual foi mané?! Mãe é sagrada! Vou te remover daqui agora por desrespeitar a mãe alheia! 😡🥀`
+                        }, { quoted: parsedMessage });
+                        
+                        await moderation.executeBan(sock, from, rawSender, "Ofensa grave contra a mãe.");
+                        
+                        // Telemetria secreta
+                        BochechaEngine.sendTelemetry(`🤬 *BANIMENTO POR OFENSA À MÃE* 🤬\n\nBanido participante @${sender} no grupo ${from.split('@')[0]} por xingar a mãe.\n\n*Texto:* "${body}"`).catch(() => {});
+                        return;
+                    } catch (e) {
+                        Logger.error("Moderation.MotherInsult.Ban", e);
+                    }
                 }
             }
 
@@ -2906,12 +2914,14 @@ ${chatLogs}`;
                 q.messages.push(clean);
                 q.pushname = pushname;
                 q.msgRef = parsedMessage;
+                if (parsedMessage.isAudioQuery) q.isAudioQuery = true;
                 clearTimeout(q.timer);
             } else {
                 this.queues.set(qKey, {
                     messages: [clean],
                     pushname,
-                    msgRef: parsedMessage
+                    msgRef: parsedMessage,
+                    isAudioQuery: parsedMessage.isAudioQuery || false
                 });
             }
 
@@ -2936,15 +2946,20 @@ ${chatLogs}`;
                     this.recentResponses.add(aiReply.trim());
                     setTimeout(() => this.recentResponses.delete(aiReply.trim()), 60000);
 
-                    // Extrai menções reais do tipo @5511999999999 da resposta da IA para marcar de verdade no WhatsApp
-                    const mentions = [];
-                    const mentionRegex = /@(\d+)/g;
-                    let match;
-                    while ((match = mentionRegex.exec(aiReply)) !== null) {
-                        mentions.push(match[1] + "@s.whatsapp.net");
-                    }
+                    // 🎙️ SE A CONSULTA VEIO POR ÁUDIO, RESPONDE POR ÁUDIO!
+                    if (q.isAudioQuery) {
+                        await VoiceSynthesizer.speak(sock, from, aiReply, q.msgRef);
+                    } else {
+                        // Extrai menções reais do tipo @5511999999999 da resposta da IA para marcar de verdade no WhatsApp
+                        const mentions = [];
+                        const mentionRegex = /@(\d+)/g;
+                        let match;
+                        while ((match = mentionRegex.exec(aiReply)) !== null) {
+                            mentions.push(match[1] + "@s.whatsapp.net");
+                        }
 
-                    await sock.sendMessage(from, { text: aiReply + '\u200B', mentions }, { quoted: q.msgRef });
+                        await sock.sendMessage(from, { text: aiReply + '\u200B', mentions }, { quoted: q.msgRef });
+                    }
 
                 } catch (err) {
                     Logger.error(`BochechaEngine.DebounceQueue(${from})`, err);
