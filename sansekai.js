@@ -1169,6 +1169,216 @@ class DialogSession {
 const sessionManager = new DialogSession();
 
 // ══════════════════════════════════════════════════════════════════════════
+// 5.1. DYNAMIC SPEECH SYNTHESIS ENGINE (VOICE SYNTHESIZER)
+// ══════════════════════════════════════════════════════════════════════════
+const googleTTS = require('google-tts-api');
+const https = require('https');
+
+class VoiceSynthesizer {
+    static async speak(sock, chatId, text, msgRef) {
+        try {
+            Logger.info("VoiceSynthesizer", `Gerando voz para: "${text.substring(0, 40)}..."`);
+            
+            // Marcos pediu áudios de resposta de no máximo 40 segundos.
+            // 40 segundos equivale a aproximadamente 600 caracteres de texto.
+            // Vamos truncar o texto total para no máximo 500 caracteres por segurança.
+            const cleanText = text.substring(0, 500);
+
+            // Obtém as URLs de áudio separadas pelo limite de 200 caracteres da API do Google
+            const urls = googleTTS.getAllAudioUrls(cleanText, {
+                lang: 'pt-BR',
+                slow: false,
+                host: 'https://translate.google.com',
+                timeout: 10000,
+            });
+
+            Logger.info("VoiceSynthesizer", `Dividido em ${urls.length} parte(s) de áudio.`);
+
+            // Baixa todas as partes em paralelo
+            const bufferPromises = urls.map(item => {
+                return new Promise((resolve, reject) => {
+                    https.get(item.url, (res) => {
+                        const chunks = [];
+                        res.on('data', (chunk) => chunks.push(chunk));
+                        res.on('end', () => resolve(Buffer.concat(chunks)));
+                        res.on('error', reject);
+                    }).on('error', reject);
+                });
+            });
+
+            const buffers = await Promise.all(bufferPromises);
+            
+            // Concatena todos os buffers MP3 em um único arquivo de áudio final
+            const finalBuffer = Buffer.concat(buffers);
+
+            await sock.sendMessage(chatId, {
+                audio: finalBuffer,
+                mimetype: 'audio/mpeg',
+                ptt: true
+            }, { quoted: msgRef });
+
+            Logger.success("VoiceSynthesizer", "Áudio de resposta dinâmico enviado com sucesso!");
+            return true;
+        } catch (e) {
+            Logger.error("VoiceSynthesizer.speak", e);
+            return false;
+        }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// 5.2. OWNER PROTECTOR SYSTEM (ANTI-GHOSTING SHIELD)
+// ══════════════════════════════════════════════════════════════════════════
+class AntiGhostingSystem {
+    constructor() {
+        this.timers = new Map();
+    }
+
+    registerQuestion(sock, chatId, sender) {
+        // Limpa timer anterior para evitar múltiplos alertas no mesmo grupo
+        this.clearTimer(chatId);
+
+        Logger.info("AntiGhosting", `Dono Marcos fez uma pergunta no grupo ${chatId}. Iniciando vigilância de vácuo de 5 minutos.`);
+        
+        const timer = setTimeout(async () => {
+            try {
+                this.timers.delete(chatId);
+                Logger.warn("AntiGhosting", `Vácuo detectado no grupo ${chatId}! Disparando aviso.`);
+
+                const metadata = await sock.groupMetadata(chatId);
+                const botJid = sock.user.id.split(':')[0] + "@s.whatsapp.net";
+                
+                // Pega participantes ativos e filtra dono e bot
+                const candidates = metadata.participants
+                    .map(p => p.id)
+                    .filter(id => !DEFAULT_OWNERS.includes(id.split('@')[0]) && id !== botJid);
+
+                if (candidates.length === 0) return;
+
+                // Seleciona até 4 participantes aleatórios para marcar no esporro
+                const shuffled = candidates.sort(() => 0.5 - Math.random());
+                const tagged = shuffled.slice(0, 4);
+
+                const mentionText = tagged.map(id => `@${id.split('@')[0]}`).join(" ");
+                const text = `🚨 *ESCUDO ANTI-VÁCUO DO CRIADOR* 🚨\n\nO mestre Marcos fez uma pergunta importante aqui e vocês deixaram ele no vácuo por 5 minutos?! 😡\n\nBora responder, bando de preguiçosos: ${mentionText}! 👀`;
+
+                await sock.sendMessage(chatId, {
+                    text,
+                    mentions: tagged
+                });
+            } catch (e) {
+                Logger.error("AntiGhosting.trigger", e);
+            }
+        }, 5 * 60 * 1000); // 5 minutos
+
+        this.timers.set(chatId, timer);
+    }
+
+    clearTimer(chatId) {
+        if (this.timers.has(chatId)) {
+            clearTimeout(this.timers.get(chatId));
+            this.timers.delete(chatId);
+            Logger.info("AntiGhosting", `Vácuo quebrado ou resetado no grupo ${chatId}.`);
+        }
+    }
+}
+const antiGhosting = new AntiGhostingSystem();
+
+// ══════════════════════════════════════════════════════════════════════════
+// 5.3. NEURAL TIME SCHEDULER ENGINE (SCHEDULE ENGINE)
+// ══════════════════════════════════════════════════════════════════════════
+const schedule = require('node-schedule');
+const SCHEDULES_FILE = path.join(LEARNINGS_DIR, "schedules.json");
+
+class ScheduleEngine {
+    constructor() {
+        this.jobs = new Map();
+    }
+
+    async boot(sock) {
+        try {
+            Logger.info("ScheduleEngine", "Inicializando motor de agendamentos temporais...");
+            const db = await storage.read(SCHEDULES_FILE, []);
+            const now = Date.now();
+            let active = 0;
+
+            for (const item of db) {
+                const targetTime = new Date(item.time).getTime();
+                if (targetTime > now) {
+                    this._schedule(sock, item);
+                    active++;
+                }
+            }
+            Logger.success("ScheduleEngine", `${active} agendamentos futuros reativados com sucesso.`);
+        } catch (e) {
+            Logger.error("ScheduleEngine.boot", e);
+        }
+    }
+
+    _schedule(sock, item) {
+        const date = new Date(item.time);
+        
+        if (this.jobs.has(item.id)) {
+            this.jobs.get(item.id).cancel();
+        }
+
+        const job = schedule.scheduleJob(date, async () => {
+            try {
+                this.jobs.delete(item.id);
+                Logger.success("ScheduleEngine", `Executando lembrete agendado: ${item.message}`);
+                
+                const db = await storage.read(SCHEDULES_FILE, []);
+                const filtered = db.filter(x => x.id !== item.id);
+                await storage.write(SCHEDULES_FILE, filtered);
+
+                const mention = item.ownerOnly ? `🔔 *LEMBRETE PRIVADO* 🔔` : `🔔 *LEMBRETE DO GRUPO* 🔔`;
+                const text = `${mention}\n\nMarcos, aqui está o seu aviso agendado:\n\n💬 "${item.message}"`;
+
+                await sock.sendMessage(item.chatId, { text });
+            } catch (e) {
+                Logger.error("ScheduleEngine.executeJob", e);
+            }
+        });
+
+        this.jobs.set(item.id, job);
+    }
+
+    async addSchedule(sock, chatId, timeIso, message, ownerOnly = false) {
+        try {
+            const targetTime = new Date(timeIso);
+            if (isNaN(targetTime.getTime()) || targetTime.getTime() <= Date.now()) {
+                throw new Error("Data ou hora inválida ou no passado.");
+            }
+
+            const item = {
+                id: `sched_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                chatId,
+                time: timeIso,
+                message,
+                ownerOnly
+            };
+
+            const db = await storage.read(SCHEDULES_FILE, []);
+            db.push(item);
+            await storage.write(SCHEDULES_FILE, db);
+
+            this._schedule(sock, item);
+            Logger.info("ScheduleEngine", `Novo agendamento criado para ${timeIso}: ${message}`);
+            return item;
+        } catch (e) {
+            Logger.error("ScheduleEngine.addSchedule", e);
+            throw e;
+        }
+    }
+}
+const scheduleEngine = new ScheduleEngine();
+
+// Exposição global dos motores para acesso de skills dinâmicas e RCE
+global.VoiceSynthesizer = VoiceSynthesizer;
+global.antiGhosting = antiGhosting;
+global.scheduleEngine = scheduleEngine;
+
+// ══════════════════════════════════════════════════════════════════════════
 // 6. SKILL REGISTRY (MODULARIDADE E HOT-RELOAD DE FERRAMENTAS)
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -2148,6 +2358,9 @@ ${chatLogs}`;
         BochechaEngine.sockRef = sock;
         BochechaEngine.storeRef = store;
 
+        // Inicializa motor neural de agendamentos temporais
+        scheduleEngine.boot(sock).catch(() => {});
+
         // Sincroniza mapeamentos de LIDs no início e a cada 5 minutos
         setTimeout(() => BochechaEngine.syncLidMappings(), 5000);
         setInterval(() => BochechaEngine.syncLidMappings(), 300000);
@@ -2200,7 +2413,10 @@ ${chatLogs}`;
             this.hasDreamedThisSilence = false;
 
             let body = typeof parsedMessage.body === 'string' ? parsedMessage.body.trim() : '';
-            if (!body) return;
+            const msgType = Object.keys(parsedMessage.message || {})[0] === 'senderKeyDistributionMessage' ? Object.keys(parsedMessage.message || {})[1] : Object.keys(parsedMessage.message || {})[0];
+            const hasMedia = parsedMessage.message && (parsedMessage.message.imageMessage || parsedMessage.message.videoMessage || parsedMessage.message[msgType]?.imageMessage || parsedMessage.message[msgType]?.videoMessage);
+            
+            if (!body && !hasMedia) return;
 
             // Evita loops infinitos de bots
             if (body.includes('\u200B')) return;
@@ -2213,6 +2429,18 @@ ${chatLogs}`;
             const rawSenderUnnorm = parsedMessage.sender || parsedMessage.key?.participant || parsedMessage.key?.remoteJid || "";
             const rawSender = normalizeJid(rawSenderUnnorm);
             const sender = rawSender.split('@')[0];
+
+            const settings = await storage.getSettings();
+            const isOwner = DEFAULT_OWNERS.includes(sender) || settings.owners.includes(sender) || parsedMessage.key.fromMe;
+
+            // 👻 ESCUDO ANTI-VÁCUO DO ARQUITETO MARCOS
+            if (isGroup) {
+                if (isOwner && body.includes('?')) {
+                    antiGhosting.registerQuestion(sock, from, rawSender);
+                } else if (!parsedMessage.key.fromMe) {
+                    antiGhosting.clearTimer(from);
+                }
+            }
 
             // 🕹️ SENSOR DE JOGOS LOCAIS (ECONOMIA DE API)
             if (isGroup && !parsedMessage.key.fromMe) {
@@ -2246,8 +2474,6 @@ ${chatLogs}`;
                 }
             }
 
-            const settings = await storage.getSettings();
-
             // Setup inicial de privilégios de dono
             if (settings.owners.length === 0 && global.setupPin && body === `/setup ${global.setupPin}`) {
                 settings.owners = [sender];
@@ -2257,8 +2483,6 @@ ${chatLogs}`;
                 Logger.success("Security", `Novo dono supremo: ${sender}`);
                 return;
             }
-
-            const isOwner = DEFAULT_OWNERS.includes(sender) || settings.owners.includes(sender) || parsedMessage.key.fromMe;
 
             // 🧠 UPGRADE COGNITIVO SUPREMO: ANÁLISE EMOCIONAL E LTM (LONG TERM MEMORY)
             if (!parsedMessage.key.fromMe) {
@@ -2473,8 +2697,6 @@ ${chatLogs}`;
             // Ativação da IA
             const myNumber = sock.user.id.split(':')[0];
             const myLid = sock.authState?.creds?.me?.lid?.split(':')[0] || "SEMLID";
-            
-            const msgType = Object.keys(parsedMessage.message || {})[0] === 'senderKeyDistributionMessage' ? Object.keys(parsedMessage.message || {})[1] : Object.keys(parsedMessage.message || {})[0];
             const contextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
             const mentionedJids = contextInfo.mentionedJid || [];
             const quotedSender = contextInfo.participant || "";
@@ -2497,12 +2719,23 @@ ${chatLogs}`;
                     act = true;
                     clean = clean.replace(new RegExp(`@${myNumber}`, 'g'), '').trim();
                     if (clean === "") clean = "fui marcado";
+                } else if (hasMedia) {
+                    const triggerChance = isOwner ? 1.0 : 0.15;
+                    if (Math.random() < triggerChance) {
+                        act = true;
+                        const caption = parsedMessage.message[msgType]?.caption || "";
+                        clean = caption 
+                            ? `[Visão Autônoma] Comente de forma sarcástica, curta e inteligente sobre esta imagem que enviaram com a legenda: "${caption}"`
+                            : `[Visão Autônoma] Comente de forma inteligente, sarcástica e curta sobre esta imagem enviada no grupo.`;
+                        
+                        Logger.info("AutonomousVision", `Imagem interceptada de forma autônoma! Chance disparada para ${pushname}`);
+                    }
                 }
             } else {
                 act = true; // DM / Privado responde sempre
             }
 
-            if (!act || clean.length === 0) return;
+            if (!act || (clean.length === 0 && !hasMedia)) return;
 
             // Debounce / Agrupamento de Mensagens Rápidas
             const qKey = `${from}:${sender}`;
