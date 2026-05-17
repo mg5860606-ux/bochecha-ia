@@ -2335,7 +2335,8 @@ class PromptComposer {
             `- Data/Hora no Brasil: ${timeStr} (${day})\n` +
             `- Nome do Canal/Grupo Atual: "${groupName}" (Você está respondendo neste canal específico. Nunca misture informações ou pessoas com outros grupos!)\n` +
             `- ID Único do Chat: ${chatId}\n` +
-            `- Usuário Falando com Você: ${userData.pushname || "Membro"} (Marque-o usando @${userData.userId ? userData.userId.split('@')[0] : ''})\n` +
+            `- Usuário Falando com Você: ${userData.pushname || "Membro"} (Para marcá-lo de verdade, você DEVE escrever exatamente no formato @${userData.userId ? userData.userId.split('@')[0] : ''} colado, sem espaços e sem sinal de +!)\n` +
+            `- **REGRA DE MENÇÃO MANDATÓRIA**: Para marcar/mencionar qualquer pessoa no chat, use estritamente o formato @número (ex: @5511999999999). NUNCA insira sinal de "+", espaços ou traços no número da menção. Deve ser sempre o símbolo @ colado diretamente com os dígitos numéricos.\n` +
             `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
             `- Advertências do Usuário: ${userData.warns || 0}/3\n`;
@@ -3202,15 +3203,24 @@ ${chatLogs}`;
                     if (q.isAudioQuery) {
                         await VoiceSynthesizer.speak(sock, from, aiReply, q.msgRef);
                     } else {
-                        // Extrai menções reais do tipo @5511999999999 da resposta da IA para marcar de verdade no WhatsApp
+                        // Limpa e formata menções incorretas feitas pela IA (como @+55 11 9999-9999 ou @+1 76291932332072)
+                        const cleanedReply = aiReply.replace(/@\+?([\d\s-]+)/g, (match, g1) => {
+                            const digits = g1.replace(/[\s-]/g, '');
+                            if (digits.length >= 8) {
+                                return `@${digits}`;
+                            }
+                            return match;
+                        });
+
+                        // Extrai menções reais do tipo @5511999999999 da resposta limpa da IA para marcar de verdade no WhatsApp
                         const mentions = [];
                         const mentionRegex = /@(\d+)/g;
                         let match;
-                        while ((match = mentionRegex.exec(aiReply)) !== null) {
+                        while ((match = mentionRegex.exec(cleanedReply)) !== null) {
                             mentions.push(match[1] + "@s.whatsapp.net");
                         }
 
-                        await sock.sendMessage(from, { text: aiReply + '\u200B', mentions }, { quoted: q.msgRef });
+                        await sock.sendMessage(from, { text: cleanedReply + '\u200B', mentions }, { quoted: q.msgRef });
                     }
 
                 } catch (err) {
@@ -3385,15 +3395,18 @@ ${chatLogs}`;
      */
     async _fallback(sock, chatId, prompt, isOwner, pushname, messageRef) {
         try {
-            Logger.warn("Engine.Fallback", "IA principal indisponível. Enviando aviso de cooldown estático.");
-            const txt = `⚠️ *SISTEMA:* A API da inteligência artificial encontra-se temporariamente em cooldown ou limite de requisições esgotado. Aguarde alguns instantes e tente novamente.`;
+            Logger.warn("Engine.Fallback", `IA principal indisponível. Enviando aviso de esgotamento/cooldown para o PV do dono.`);
             
-            // Só envia se não tiver mandado recentemente para evitar flood de erros
-            if (!this.recentResponses.has("cooldown_warning")) {
-                this.recentResponses.add("cooldown_warning");
-                setTimeout(() => this.recentResponses.delete("cooldown_warning"), 30000); // 30s cooldown na mensagem
-                
-                await sock.sendMessage(chatId, { text: txt + '\u200B' }, { quoted: messageRef });
+            const groupName = chatId.endsWith('@g.us') ? "no grupo" : "no privado";
+            const warnText = `⚠️ *AVISO BOCHECHA-IA:* O limite de requisições das chaves Gemini foi esgotado ou as chaves entraram em cooldown temporário.\n\n*Origem:* Mensagem de ${pushname} ${groupName}.\n*Texto:* "${prompt.substring(0, 200)}..."`;
+
+            for (const owner of DEFAULT_OWNERS) {
+                const ownerJid = owner + '@s.whatsapp.net';
+                try {
+                    await sock.sendMessage(ownerJid, { text: warnText });
+                } catch (dmErr) {
+                    Logger.error(`Engine.Fallback.DM(${ownerJid})`, dmErr);
+                }
             }
         } catch (e) {
             Logger.error("Engine.Critical", e);
