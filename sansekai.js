@@ -2975,7 +2975,7 @@ ${chatLogs}`;
             for (const call of functionCalls) {
                 const fn = call.name;
                 const isGroup = chatId.endsWith("@g.us");
-                const ctx = { chatId, sock, from: chatId, message: messageRef, isOwner, isGroup };
+                const ctx = { chatId, sock, from: chatId, message: messageRef, isOwner, isGroup, sender, pushname };
                 const res = await registry.execute(fn, call.args, ctx);
 
                 replies.push({
