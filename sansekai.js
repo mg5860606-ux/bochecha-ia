@@ -2355,13 +2355,18 @@ class PromptComposer {
             Logger.error("PromptComposer.ActiveUserFetch", activeErr);
         }
 
+        const isLid = userData.userId && userData.userId.endsWith('@lid');
+        const mentionFormat = isLid 
+            ? `@${userData.pushname || "Membro"} (Não use menção numérica para ele, pois ele está usando conta Business com LID)`
+            : `@${userData.userId ? userData.userId.split('@')[0] : ''}`;
+
         let context = `\n\n` +
             `[METADADOS INVISÍVEIS DO CHAT PARA ATUALIZAÇÃO DO SEU CÉREBRO]:\n` +
             `- Data/Hora no Brasil: ${timeStr} (${day})\n` +
             `- Nome do Canal/Grupo Atual: "${groupName}" (Você está respondendo neste canal específico. Nunca misture informações ou pessoas com outros grupos!)\n` +
             `- ID Único do Chat: ${chatId}\n` +
-            `- Usuário Falando com Você: ${userData.pushname || "Membro"} (Para marcá-lo de verdade, você DEVE escrever exatamente no formato @${userData.userId ? userData.userId.split('@')[0] : ''} colado, sem espaços e sem sinal de +!)\n` +
-            `- **REGRA DE MENÇÃO MANDATÓRIA**: Para marcar/mencionar qualquer pessoa no chat, use estritamente o formato @número (ex: @5511999999999). NUNCA insira sinal de "+", espaços ou traços no número da menção. Deve ser sempre o símbolo @ colado diretamente com os dígitos numéricos.\n` +
+            `- Usuário Falando com Você: ${userData.pushname || "Membro"} (Para marcá-lo de verdade, você DEVE escrever exatamente no formato ${mentionFormat} colado, sem espaços e sem sinal de +!)\n` +
+            `- **REGRA DE MENÇÃO MANDATÓRIA**: Para marcar/mencionar qualquer pessoa no chat, use estritamente o formato @número (ex: @5511999999999) se for telefone normal, ou @Nome se for conta Business com LID. NUNCA insira sinal de "+", espaços ou traços no número da menção. Deve ser sempre o símbolo @ colado diretamente com os dígitos numéricos ou o nome.\n` +
             `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
             `- Advertências do Usuário: ${userData.warns || 0}/3\n`;
@@ -3248,6 +3253,7 @@ ${chatLogs}`;
                         // Exemplo: se a IA escreveu @Marcos ou @João, procuramos no grupo se há alguém com esse nome/pushname e substituímos por @número!
                         try {
                             const mentionsMatches = cleanedReply.match(/@([a-zA-Z0-9áéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ._-]+)/g) || [];
+                            const resolvedMentions = [];
                             if (mentionsMatches.length > 0) {
                                 const metadata = BochechaEngine.storeRef?.chats?.get(from) || (isGroup ? await sock.groupMetadata(from).catch(() => null) : null);
                                 const participants = metadata?.participants || [];
@@ -3310,11 +3316,18 @@ ${chatLogs}`;
                                             }
                                         }
 
-                                        // Se encontrou o JID real, substitui o nome pelo número no texto da mensagem!
+                                        // Se encontrou o JID real, substitui o nome pelo número no texto da mensagem se for telefone, ou mantém como texto e coloca nas menções se for LID!
                                         if (foundJid) {
-                                            const num = foundJid.split('@')[0];
-                                            cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
-                                            Logger.success("MentionResolver", `Resolvida menção textual [${mentionMatch}] -> [@${num}] (${foundJid})`);
+                                            if (foundJid.endsWith('@lid')) {
+                                                // Se for LID, não exibe o número feio do LID no chat, mantém o pushname textual original mas adiciona nas menções ocultas para taggear!
+                                                resolvedMentions.push(foundJid);
+                                                Logger.success("MentionResolver", `Resolvida menção de LID [${mentionMatch}] -> Mantido texto original, adicionado nos metadados (${foundJid})`);
+                                            } else {
+                                                const num = foundJid.split('@')[0];
+                                                cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
+                                                resolvedMentions.push(foundJid);
+                                                Logger.success("MentionResolver", `Resolvida menção de Telefone [${mentionMatch}] -> [@${num}] (${foundJid})`);
+                                            }
                                         }
                                     }
                                 }
@@ -3324,11 +3337,14 @@ ${chatLogs}`;
                         }
 
                         // Extrai menções reais do tipo @5511999999999 da resposta limpa da IA para marcar de verdade no WhatsApp
-                        const mentions = [];
+                        const mentions = [...resolvedMentions];
                         const mentionRegex = /@(\d+)/g;
                         let match;
                         while ((match = mentionRegex.exec(cleanedReply)) !== null) {
-                            mentions.push(match[1] + "@s.whatsapp.net");
+                            const jid = match[1] + "@s.whatsapp.net";
+                            if (!mentions.includes(jid)) {
+                                mentions.push(jid);
+                            }
                         }
 
                         await sock.sendMessage(from, { text: cleanedReply + '\u200B', mentions }, { quoted: q.msgRef });
