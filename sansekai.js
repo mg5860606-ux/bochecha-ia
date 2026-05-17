@@ -3203,14 +3203,81 @@ ${chatLogs}`;
                     if (q.isAudioQuery) {
                         await VoiceSynthesizer.speak(sock, from, aiReply, q.msgRef);
                     } else {
-                        // Limpa e formata menções incorretas feitas pela IA (como @+55 11 9999-9999 ou @+1 76291932332072)
-                        const cleanedReply = aiReply.replace(/@\+?([\d\s-]+)/g, (match, g1) => {
+                        // Limpa e formata menções de números incorretas feitas pela IA
+                        let cleanedReply = aiReply.replace(/@\+?([\d\s-]+)/g, (match, g1) => {
                             const digits = g1.replace(/[\s-]/g, '');
                             if (digits.length >= 8) {
                                 return `@${digits}`;
                             }
                             return match;
                         });
+
+                        // Resolução e substituição dinâmica de menções textuais por JIDs reais
+                        // Exemplo: se a IA escreveu @Marcos ou @João, procuramos no grupo se há alguém com esse nome/pushname e substituímos por @número!
+                        try {
+                            const mentionsMatches = cleanedReply.match(/@([a-zA-Z0-9áéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ._-]+)/g) || [];
+                            if (mentionsMatches.length > 0) {
+                                const metadata = BochechaEngine.storeRef?.chats?.get(from) || (isGroup ? await sock.groupMetadata(from).catch(() => null) : null);
+                                const participants = metadata?.participants || [];
+                                const storeContacts = BochechaEngine.storeRef?.contacts || {};
+
+                                for (const mentionMatch of mentionsMatches) {
+                                    const nameToSearch = mentionMatch.substring(1).toLowerCase().trim();
+                                    if (!/^\d+$/.test(nameToSearch)) { // Apenas se não for um número de telefone puro
+                                        let foundJid = null;
+                                        
+                                        // 1. Tenta buscar no banco de atividade recente (chat_activity.json) que tem pushnames reais recentes
+                                        try {
+                                            const dbPath = path.join(__dirname, 'learnings', 'chat_activity.json');
+                                            if (fs.existsSync(dbPath)) {
+                                                const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+                                                const entries = db[from] || [];
+                                                const matchedEntry = entries.find(e => e.pushname?.toLowerCase().includes(nameToSearch) || e.user?.split('@')[0] === nameToSearch);
+                                                if (matchedEntry) {
+                                                    foundJid = matchedEntry.user;
+                                                }
+                                            }
+                                        } catch {}
+
+                                        // 2. Se não achou, busca na lista de participantes do grupo
+                                        if (!foundJid && isGroup) {
+                                            for (const p of participants) {
+                                                const contact = storeContacts[p.id] || {};
+                                                const pName = (contact.name || contact.notify || "").toLowerCase();
+                                                const pNum = p.id.split('@')[0];
+                                                
+                                                if (pName.includes(nameToSearch) || pNum === nameToSearch) {
+                                                    foundJid = p.id;
+                                                    break;
+                                                }
+                                            }
+                                        }
+
+                                        // 3. Se não achou e for o Marcos/Owner, busca na lista de DEFAULT_OWNERS
+                                        if (!foundJid) {
+                                            for (const owner of DEFAULT_OWNERS) {
+                                                const ownerJid = owner + '@s.whatsapp.net';
+                                                const contact = storeContacts[ownerJid] || {};
+                                                const oName = (contact.name || contact.notify || "marcos").toLowerCase();
+                                                if (oName.includes(nameToSearch) || owner === nameToSearch) {
+                                                    foundJid = ownerJid;
+                                                    break;
+                                                }
+                                            }
+                                        }
+
+                                        // Se encontrou o JID real, substitui o nome pelo número no texto da mensagem!
+                                        if (foundJid) {
+                                            const num = foundJid.split('@')[0];
+                                            cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
+                                            Logger.success("MentionResolver", `Resolvida menção textual [${mentionMatch}] -> [@${num}] (${foundJid})`);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (resolverErr) {
+                            Logger.error("MentionResolver.Critical", resolverErr);
+                        }
 
                         // Extrai menções reais do tipo @5511999999999 da resposta limpa da IA para marcar de verdade no WhatsApp
                         const mentions = [];
