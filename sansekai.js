@@ -2658,13 +2658,23 @@ ${chatLogs}`;
                 storage.logMessageActivity(from, rawSender, pushname).catch(() => {});
             }
 
+            const lowBody = body.toLowerCase();
+            const myNumber = sock.user.id.split(':')[0];
+            const myLid = sock.authState?.creds?.me?.lid?.split(':')[0] || "SEMLID";
+            const audioContextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
+            const quotedSender = audioContextInfo.participant || "";
+            
+            const mentionedJids = audioContextInfo.mentionedJid || [];
+            const isTag = mentionedJids.some(jid => jid.includes(myNumber) || jid.includes(myLid));
+            const isTextTag = body.includes('@' + myNumber);
+            const isReply = quotedSender.includes(myNumber) || quotedSender.includes(myLid);
+            const isMentioned = isTag || isTextTag || isReply || lowBody.includes("bochecha");
+
             // 🎙️ TRANSCRIÇÃO AUTOMÁTICA E INJEÇÃO DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
             const audioMsg = parsedMessage.message?.audioMessage || parsedMessage.message[msgType]?.audioMessage;
             
             // Verifica se é um pedido explícito de transcrição em mensagem citada
-            const lowBody = body.toLowerCase();
             const isTranscribeRequest = lowBody === '/transcrever' || lowBody === 'transcreve' || lowBody === 'transcrever' || lowBody.startsWith('transcreve ') || lowBody.startsWith('/transcrever ');
-            const audioContextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
             const quotedMessage = audioContextInfo.quotedMessage;
             
             let activeAudioMsg = audioMsg;
@@ -2679,7 +2689,10 @@ ${chatLogs}`;
                 }
             }
 
-            if (activeAudioMsg && !parsedMessage.key.fromMe) {
+            // Só ativa a transcrição para economizar API se: for privado, for pedido explícito ou for menção/resposta direta à IA
+            const shouldTranscribe = !isGroup || shouldPrintTranscription || isMentioned;
+
+            if (activeAudioMsg && !parsedMessage.key.fromMe && shouldTranscribe) {
                 Logger.info("AudioTranscriber", `Iniciando transcrição de áudio vindo de @${sender}...`);
                 try {
                     const stream = await downloadContentFromMessage(activeAudioMsg, 'audio');
@@ -2770,15 +2783,7 @@ ${chatLogs}`;
 
             // 🌸 GATILHO COMPORTAMENTAL: PEDIDO DE GENTILEZA / INSULTOS / ELOGIOS (AUTO-DEFESA)
             if (!parsedMessage.key.fromMe) {
-                const lowBody = body.toLowerCase();
-                const myNumber = sock.user.id.split(':')[0];
-                const myLid = sock.authState?.creds?.me?.lid?.split(':')[0] || "SEMLID";
-                const contextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
-                const quotedSender = contextInfo.participant || "";
-                const isReplyToMe = quotedSender.includes(myNumber) || quotedSender.includes(myLid);
-                const mentionsMe = lowBody.includes("bochecha") || isReplyToMe;
-                
-                if (mentionsMe) {
+                if (isMentioned) {
                     const isComplainingAboutRudeness = lowBody.includes("grosso") || lowBody.includes("grosseiro") || lowBody.includes("grosseira") || lowBody.includes("ignorante");
                     if (isComplainingAboutRudeness) {
                         try {
@@ -3115,19 +3120,6 @@ ${chatLogs}`;
             if (!isAutorizado) return;
 
             // Ativação da IA
-            const myNumber = sock.user.id.split(':')[0];
-            const myLid = sock.authState?.creds?.me?.lid?.split(':')[0] || "SEMLID";
-            const contextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
-            const mentionedJids = contextInfo.mentionedJid || [];
-            const quotedSender = contextInfo.participant || "";
-
-            const isTag = mentionedJids.some(jid => jid.includes(myNumber) || jid.includes(myLid));
-            const isTextTag = body.includes('@' + myNumber);
-            const isReply = quotedSender.includes(myNumber) || quotedSender.includes(myLid);
-
-            const isMentioned = isTag || isTextTag || isReply;
-            const hasBochecha = body.toLowerCase().includes('bochecha');
-
             // Impede terminantemente que comandos de sistema sejam processados pela IA
             if (body.startsWith('/')) return;
 
@@ -3135,20 +3127,29 @@ ${chatLogs}`;
             let clean = body;
 
             if (isGroup) {
-                if (hasBochecha || isMentioned) {
+                if (isMentioned) {
                     act = true;
                     clean = clean.replace(new RegExp(`@${myNumber}`, 'g'), '').trim();
                     if (clean === "") clean = "fui marcado";
                 } else if (hasMedia) {
-                    const triggerChance = isOwner ? 1.0 : 0.15;
-                    if (Math.random() < triggerChance) {
+                    // Visão Autônoma com menção explícita
+                    const hasCaptionMention = lowBody.includes("bochecha") || isMentioned;
+                    if (hasCaptionMention) {
                         act = true;
                         const caption = parsedMessage.message[msgType]?.caption || "";
-                        clean = caption 
-                            ? `[Visão Autônoma] Comente de forma sarcástica, curta e inteligente sobre esta imagem que enviaram com a legenda: "${caption}"`
-                            : `[Visão Autônoma] Comente de forma inteligente, sarcástica e curta sobre esta imagem enviada no grupo.`;
-                        
-                        Logger.info("AutonomousVision", `Imagem interceptada de forma autônoma! Chance disparada para ${pushname}`);
+                        clean = caption;
+                    } else {
+                        // Sem menção, chance baixíssima (2%) e apenas para outros membros (evita floodar o dono sem ele pedir)
+                        const triggerChance = isOwner ? 0.0 : 0.02;
+                        if (Math.random() < triggerChance) {
+                            act = true;
+                            const caption = parsedMessage.message[msgType]?.caption || "";
+                            clean = caption 
+                                ? `[Visão Autônoma] Comente de forma sarcástica, curta e inteligente sobre esta imagem que enviaram com a legenda: "${caption}"`
+                                : `[Visão Autônoma] Comente de forma inteligente, sarcástica e curta sobre esta imagem enviada no grupo.`;
+                            
+                            Logger.info("AutonomousVision", `Imagem interceptada de forma autônoma (2% chance) de ${pushname}`);
+                        }
                     }
                 }
             } else {
