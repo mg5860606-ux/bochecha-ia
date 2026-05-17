@@ -2771,8 +2771,10 @@ class PromptComposer {
         }
 
         if (!chatId.endsWith('@g.us')) {
-            context += `\n- **AMBIENTE: CONVERSA PRIVADA (PV)**. Você está conversando no Privado. Sendo assim, dê SEMPRE respostas CURTAS, DIRETAS e EXTREMAMENTE INTELIGENTES. Não crie respostas muito longas, seja prático, gênio e sagaz!`;
+            context += `\n- **AMBIENTE: CONVERSA PRIVADA (PV)**. Você está conversando no Privado. Fale diretamente com o usuário sem marcações numéricas.`;
         }
+        
+        context += `\n- **REGRA GLOBAL DE COMUNICAÇÃO (SUPREMA)**: NUNCA crie textos longos ou "textões". Dê SEMPRE respostas CURTAS, DIRETAS e EXTREMAMENTE INTELIGENTES. Seja prático, sagaz, ácido e vá direto ao ponto!`;
 
         // Recupera emoções ativas e afinidade
         if (userData.userId) {
