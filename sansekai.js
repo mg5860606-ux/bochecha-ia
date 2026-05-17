@@ -1002,21 +1002,34 @@ class KeyRotationEngine {
                     // Grava métricas ativamente
                     this.saveKeyMetrics().catch(() => {});
 
+                    // Higieniza a mensagem removendo a própria API key para evitar falsos positivos com dígitos (como 401/403) contidos na chave!
+                    let cleanedMsg = msg;
+                    if (activeKey) {
+                        cleanedMsg = cleanedMsg.replace(new RegExp(activeKey.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), '[KEY]');
+                    }
+
                     // Tratamento de Quotas e Limites (Erro 429)
-                    if (msg.includes("429") || msg.includes("quota") || msg.includes("exhausted") || msg.includes("Too Many Requests")) {
+                    if (cleanedMsg.includes("429") || cleanedMsg.toLowerCase().includes("quota") || cleanedMsg.toLowerCase().includes("exhausted") || cleanedMsg.toLowerCase().includes("too many requests")) {
                         this._applyCooldown(activeKey);
                         break; // Quebra o ciclo de modelos desta chave e busca outra chave
                     }
 
                     // Tratamento de Chaves Leaked/Expiradas permanentemente
-                    if (msg.includes("401") || msg.includes("API_KEY_INVALID") || msg.includes("leaked") || msg.includes("403")) {
+                    const isPermanentInvalid = 
+                        cleanedMsg.includes("API_KEY_INVALID") || 
+                        cleanedMsg.toLowerCase().includes("leaked") ||
+                        cleanedMsg.toLowerCase().includes("api key not valid") ||
+                        /\b401\b/.test(cleanedMsg) || 
+                        /\b403\b/.test(cleanedMsg);
+
+                    if (isPermanentInvalid) {
                         Logger.error("KeyRotationEngine", `Chave inválida permanente! Expulsando do sistema: ${activeKey.substring(0, 8)}...`);
                         apiKeyManager.markFailure(activeKey);
                         break; // Descarta chave e pula para próxima
                     }
 
                     // Tratamento de modelos indisponíveis
-                    if (msg.includes("404") || msg.includes("not found")) {
+                    if (cleanedMsg.includes("404") || cleanedMsg.toLowerCase().includes("not found")) {
                         continue; // Passa para próximo modelo na mesma chave
                     }
 
