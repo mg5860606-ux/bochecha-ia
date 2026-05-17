@@ -22,9 +22,19 @@ module.exports = {
     async execute(args, { sock, from, message }) {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
         
-        let target = args.mencao.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-        if (message.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-            target = message.message.extendedTextMessage.contextInfo.mentionedJid[0];
+        let target = "";
+        const contextInfo = message.message?.extendedTextMessage?.contextInfo || message.message?.[Object.keys(message.message || {})[0]]?.contextInfo;
+        
+        if (contextInfo?.mentionedJid?.length > 0) {
+            target = contextInfo.mentionedJid[0];
+        } else if (contextInfo?.participant) {
+            target = contextInfo.participant;
+        } else if (args.mencao) {
+            target = args.mencao.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+        }
+
+        if (!target || target.length < 15) {
+            return "Aviso: Não consegui identificar a menção ou número da pessoa a ser advertida. Certifique-se de marcar ou citar a mensagem dela.";
         }
         
         // Proteção: Nunca advertir o próprio bot
@@ -39,11 +49,12 @@ module.exports = {
         const avisos = db[from][target];
         fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
         
-        let msg = `⚠️ *ADVERTÊNCIA OFICIAL* ⚠️\n\nMembro: @${target.split('@')[0]}\nAviso: ${avisos}/3`;
+        const targetNumber = target.split('@')[0];
+        let msg = `⚠️ *ADVERTÊNCIA OFICIAL* ⚠️\n\nMembro: @${targetNumber}\nAviso: ${avisos}/3`;
         if (args.motivo) msg += `\nMotivo: ${args.motivo}`;
         if (avisos >= 3) msg += "\n\n🚨 Limite de avisos atingido! O membro está sujeito a banimento.";
         
         await sock.sendMessage(from, { text: msg, mentions: [target] });
-        return `O membro tem ${avisos} de 3 avisos.`;
+        return `O membro @${targetNumber} tem ${avisos} de 3 avisos.`;
     }
 };

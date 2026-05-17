@@ -24,11 +24,19 @@ module.exports = {
     async execute(args, { sock, from, message }) {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
 
-        let target = args.mencao.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+        let target = "";
+        const contextInfo = message.message?.extendedTextMessage?.contextInfo || message.message?.[Object.keys(message.message || {})[0]]?.contextInfo;
         
-        // Se a IA capturou uma menção com @, o Baileys já pode ter isso no message.mentionedJid
-        if (message.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-            target = message.message.extendedTextMessage.contextInfo.mentionedJid[0];
+        if (contextInfo?.mentionedJid?.length > 0) {
+            target = contextInfo.mentionedJid[0];
+        } else if (contextInfo?.participant) {
+            target = contextInfo.participant;
+        } else if (args.mencao) {
+            target = args.mencao.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+        }
+
+        if (!target || target.length < 15) {
+            return "Aviso: Não consegui identificar a menção ou número da pessoa a ser removida. Certifique-se de marcar ou citar a mensagem dela.";
         }
 
         try {
@@ -43,7 +51,8 @@ module.exports = {
 
             console.log(chalk.red(`[🚫 BAN] Removendo: ${target}`));
             await sock.groupParticipantsUpdate(from, [target], "remove");
-            return `Membro ${target.split('@')[0]} removido com sucesso.${args.motivo ? ' Motivo: ' + args.motivo : ''}`;
+            const targetNumber = target.split('@')[0];
+            return `Membro @${targetNumber} removido com sucesso.${args.motivo ? ' Motivo: ' + args.motivo : ''}`;
         } catch (e) {
             console.error(e);
             return `Erro ao remover membro: Verifique se eu sou administradora do grupo.`;
