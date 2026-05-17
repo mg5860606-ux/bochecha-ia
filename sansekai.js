@@ -2485,19 +2485,21 @@ ${chatLogs}`;
 
             const isMentioned = isTag || isTextTag || isReply;
             const hasBochecha = body.toLowerCase().includes('bochecha');
-            const hasSlash = body.startsWith('/');
+
+            // Impede terminantemente que comandos de sistema sejam processados pela IA
+            if (body.startsWith('/')) return;
 
             let act = false;
             let clean = body;
 
             if (isGroup) {
-                if (hasBochecha || isMentioned || hasSlash) {
+                if (hasBochecha || isMentioned) {
                     act = true;
                     clean = clean.replace(new RegExp(`@${myNumber}`, 'g'), '').trim();
                     if (clean === "") clean = "fui marcado";
                 }
             } else {
-                act = true; // डीएम / Privado responde sempre
+                act = true; // DM / Privado responde sempre
             }
 
             if (!act || clean.length === 0) return;
@@ -2674,28 +2676,22 @@ ${chatLogs}`;
     }
 
     /**
-     * Canal de IA contingente caso o motor principal estoure os limites globais.
+     * Canal contingente caso o motor principal estoure os limites globais.
      */
     async _fallback(sock, chatId, prompt, isOwner, pushname, messageRef) {
         try {
-            Logger.warn("Engine.Fallback", "Executando canal de IA secundário...");
-            const sys = "Você é o Bochecha. Responda com pouquíssimas palavras e em tom sarcástico ou digital, justificando o engasgo central das APIs.";
-            const formatted = `[De: ${pushname}] ${prompt}`;
+            Logger.warn("Engine.Fallback", "IA principal indisponível. Enviando aviso de cooldown estático.");
+            const txt = `⚠️ *SISTEMA:* A API da inteligência artificial encontra-se temporariamente em cooldown ou limite de requisições esgotado. Aguarde alguns instantes e tente novamente.`;
             
-            const { response } = await keyRotator.executeWithRotation([], formatted, [], sys);
-            const txt = response.response.text();
-
-            this.recentResponses.add(txt.trim());
-            setTimeout(() => this.recentResponses.delete(txt.trim()), 60000);
-
-            await sock.sendMessage(chatId, { text: txt + '\u200B' }, { quoted: messageRef });
+            // Só envia se não tiver mandado recentemente para evitar flood de erros
+            if (!this.recentResponses.has("cooldown_warning")) {
+                this.recentResponses.add("cooldown_warning");
+                setTimeout(() => this.recentResponses.delete("cooldown_warning"), 30000); // 30s cooldown na mensagem
+                
+                await sock.sendMessage(chatId, { text: txt + '\u200B' }, { quoted: messageRef });
+            }
         } catch (e) {
-            Logger.error("Engine.Critical", "IA em pane total. Desparando estático.");
-            try {
-                await sock.sendMessage(chatId, {
-                    text: `♰ *ALERTA DO SISTEMA BOCHECHA-IA* ♰\n\nEstou com uma instabilidade geral em todos os meus canais de IA agora (limite diário esgotado nas chaves de API).\n\n*Tenta daqui a pouco, relíquia!* 🥀`
-                }, { quoted: messageRef });
-            } catch {}
+            Logger.error("Engine.Critical", e);
         }
     }
 }
