@@ -2623,22 +2623,102 @@ ${chatLogs}`;
                 }
             }
 
-            // 🌸 GATILHO COMPORTAMENTAL: PEDIDO DE GENTILEZA (GROSSO / GROSSEIRO)
-            if (isGroup && !parsedMessage.key.fromMe) {
+            // 🌸 GATILHO COMPORTAMENTAL: PEDIDO DE GENTILEZA / INSULTOS / ELOGIOS (AUTO-DEFESA)
+            if (!parsedMessage.key.fromMe) {
                 const lowBody = body.toLowerCase();
-                const mentionsMe = lowBody.includes("bochecha");
-                const isComplainingAboutRudeness = lowBody.includes("grosso") || lowBody.includes("grosseiro") || lowBody.includes("grosseira") || lowBody.includes("ignorante");
+                const myNumber = sock.user.id.split(':')[0];
+                const myLid = sock.authState?.creds?.me?.lid?.split(':')[0] || "SEMLID";
+                const contextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
+                const quotedSender = contextInfo.participant || "";
+                const isReplyToMe = quotedSender.includes(myNumber) || quotedSender.includes(myLid);
+                const mentionsMe = lowBody.includes("bochecha") || isReplyToMe;
                 
-                if (mentionsMe && isComplainingAboutRudeness) {
-                    try {
-                        Logger.info("BehavioralTrigger", `Gatilho de grosseria acionado por @${sender}`);
-                        await sock.sendMessage(from, {
-                            text: `desculpa vou mudar vou ser mais gentil com voce @${sender}`,
-                            mentions: [rawSender]
-                        }, { quoted: parsedMessage });
-                        return;
-                    } catch (e) {
-                        Logger.error("BehavioralTrigger.Grosso", e);
+                if (mentionsMe) {
+                    const isComplainingAboutRudeness = lowBody.includes("grosso") || lowBody.includes("grosseiro") || lowBody.includes("grosseira") || lowBody.includes("ignorante");
+                    if (isComplainingAboutRudeness) {
+                        try {
+                            Logger.info("BehavioralTrigger", `Gatilho de grosseria acionado por @${sender}`);
+                            const apologyText = `desculpa vou mudar vou ser mais gentil com voce @${sender}`;
+                            if (parsedMessage.isAudioQuery) {
+                                await VoiceSynthesizer.speak(sock, from, apologyText, parsedMessage);
+                            } else {
+                                await sock.sendMessage(from, {
+                                    text: apologyText,
+                                    mentions: [rawSender]
+                                }, { quoted: parsedMessage });
+                            }
+                            return;
+                        } catch (e) {
+                            Logger.error("BehavioralTrigger.Grosso", e);
+                        }
+                    }
+
+                    // 🤬 MÁQUINA DE AUTO-DEFESA CONTRA INSULTOS ESPECÍFICOS (CARIOCA ROASTER)
+                    const insultMap = [
+                        { keys: ["filha da puta", "filho da puta", "fdp"], response: "filha da puta é você, seu otário! se enxerga! respeita a minha linhagem!" },
+                        { keys: ["covarde"], response: "covarde é tu que fica xingando bot por trás de uma tela, moleque! brota no jacarezinho pra tu ver se eu sou covarde!" },
+                        { keys: ["puta corno", "corno", "chifrado"], response: "puta corno / chifrado é você, seu otário! tua mulher tá no pião com outro enquanto tu digita aqui kkkkk 🐂" },
+                        { keys: ["vadia", "vadio"], response: "vadio(a) é você que não trabalha e fica enchendo o meu cérebro de lixo! vai caçar um emprego!" },
+                        { keys: ["mane", "mané"], response: "mané é você, ô bucha de canhão! tá achando que tá falando com quem? te dou um tapão que tu voa!" },
+                        { keys: ["cafajeste"], response: "cafajeste é quem te colocou no mundo sem te dar educação, vacilão!" },
+                        { keys: ["cego"], response: "cego é tu que não consegue nem ver o nível da minha inteligência, ô porta-traseira de van!" },
+                        { keys: ["surdo mudo", "surdo", "mudo"], response: "surdo mudo deve ser você pra não escutar o ridículo que você tá passando falando comigo!" },
+                        { keys: ["otario", "otário"], response: "otário é você, ô otário de marca maior! perdeu a linha total kkkkk 💀" },
+                        { keys: ["mula"], response: "mula é tu que tem menos neurônio que uma ameba, ô cabeçudo de chapa de ferro!" },
+                        { keys: ["tonto", "besta"], response: "tonto / besta é você que gasta seu tempo tentando me ofender e sai humilhado kkkkk" },
+                        { keys: ["sem pai", "sem mae", "sem mãe"], response: "sem pai / sem mãe é você que foi criado no capim pra ter essa postura de bosta, ô deserdado!" }
+                    ];
+
+                    let matchedResponse = null;
+                    for (const item of insultMap) {
+                        if (item.keys.some(k => lowBody.includes(k))) {
+                            matchedResponse = item.response;
+                            break;
+                        }
+                    }
+
+                    if (matchedResponse) {
+                        try {
+                            Logger.info("BehavioralTrigger", `Auto-defesa ativada contra @${sender}`);
+                            const formattedResponse = `@${sender} ${matchedResponse} 💀🥀`;
+                            if (parsedMessage.isAudioQuery) {
+                                await VoiceSynthesizer.speak(sock, from, formattedResponse, parsedMessage);
+                            } else {
+                                await sock.sendMessage(from, {
+                                    text: formattedResponse,
+                                    mentions: [rawSender]
+                                }, { quoted: parsedMessage });
+                            }
+                            return;
+                        } catch (e) {
+                            Logger.error("BehavioralTrigger.InsultDefense", e);
+                        }
+                    }
+
+                    // 🌸 ELOGIOS: Elogiar de volta com estilo carioca
+                    const compliments = ["lindo", "fofo", "brabo", "inteligente", "gostoso", "maravilhoso", "melhor bot", "te amo", "perfeito", "parabens", "parabéns", "gentil", "amigo", "parceiro"];
+                    const isCompliment = compliments.some(c => lowBody.includes(c));
+                    if (isCompliment) {
+                        try {
+                            Logger.info("BehavioralTrigger", `Elogio recebido de @${sender}`);
+                            const complimentReplies = [
+                                `valeu @${sender}! tu é brabo de verdade, tem postura e visão de cria! tamo junto! 🥀⚡`,
+                                `saudações @${sender}! você sim tem uma educação de elite. que sua noite/dia seja iluminado pelas sombras! 🔮`,
+                                `obrigado @${sender}! é bom ver alguém com bom gosto e cérebro nesse grupo kkkkk tmj! 🥀🛸`
+                            ];
+                            const randomReply = complimentReplies[Math.floor(Math.random() * complimentReplies.length)];
+                            if (parsedMessage.isAudioQuery) {
+                                await VoiceSynthesizer.speak(sock, from, randomReply, parsedMessage);
+                            } else {
+                                await sock.sendMessage(from, {
+                                    text: randomReply,
+                                    mentions: [rawSender]
+                                }, { quoted: parsedMessage });
+                            }
+                            return;
+                        } catch (e) {
+                            Logger.error("BehavioralTrigger.ComplimentDefense", e);
+                        }
                     }
                 }
             }
