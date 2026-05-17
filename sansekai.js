@@ -882,9 +882,10 @@ function mapGeminiToolsToOpenRouter(geminiTools) {
 class KeyRotationEngine {
     constructor() {
         this.availableModels = [
-            "google/gemini-1.5-flash:free",
-            "google/gemini-2.0-flash:free",
-            "google/gemini-1.5-pro:free"
+            "google/gemma-4-31b-it:free",
+            "openrouter/free",
+            "google/gemini-2.0-flash-001",
+            "google/gemini-2.5-flash"
         ];
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
