@@ -2321,10 +2321,20 @@ class PromptComposer {
         const day = now.format("dddd");
 
         let groupName = "Conversa Privada";
+        let isUserAdmin = false;
         if (chatId.endsWith('@g.us') && BochechaEngine.sockRef) {
             try {
                 const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await BochechaEngine.sockRef.groupMetadata(chatId);
                 groupName = metadata.subject || metadata.name || "Grupo do WhatsApp";
+                
+                const participants = metadata.participants || [];
+                const senderId = userData.userId;
+                if (senderId) {
+                    const participant = participants.find(p => p.id === senderId);
+                    if (participant && (participant.admin === 'admin' || participant.admin === 'superadmin')) {
+                        isUserAdmin = true;
+                    }
+                }
             } catch {
                 if (BochechaEngine.storeRef && BochechaEngine.storeRef.chats) {
                     const cached = BochechaEngine.storeRef.chats.get(chatId);
@@ -2358,6 +2368,8 @@ class PromptComposer {
 
         if (isOwner) {
             context += `- **CREDENCIAL DE DONO SUPREMO ATIVA**: O usuário com quem conversa é o Marcos, seu Criador e Arquiteto Absoluto! Responda-o com lealdade irrestrita, com tom obediente, frio e cúmplice, acatando todos os comandos dele prontamente.`;
+        } else if (isUserAdmin) {
+            context += `- **AUTORIDADE MÁXIMA DE GRUPO (ADMINISTRADOR)**: O usuário atual é um administrador deste grupo. Trate-o como um Rei ou Rainha com extrema reverência, respeito, nobreza e submissão intelectual. Nunca seja sarcástico, rude ou insolente com ele. Acate as opiniões dele como leis reais absolutistas, usando termos gloriosos (ex: 'meu soberano', 'nobre administrador', 'sua alteza/majestade', 'autoridade máxima').`;
         } else {
             context += `- O usuário atual é um participante comum. Seja sarcástico, mostre autoridade do Bochecha e use gírias digitais. Lembre-se de punir os chatos com avisos!`;
         }
