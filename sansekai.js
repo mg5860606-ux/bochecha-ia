@@ -2515,10 +2515,29 @@ ${chatLogs}`;
 
             // 🎙️ TRANSCRIÇÃO AUTOMÁTICA E INJEÇÃO DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
             const audioMsg = parsedMessage.message?.audioMessage || parsedMessage.message[msgType]?.audioMessage;
-            if (audioMsg && !parsedMessage.key.fromMe) {
+            
+            // Verifica se é um pedido explícito de transcrição em mensagem citada
+            const lowBody = body.toLowerCase();
+            const isTranscribeRequest = lowBody === '/transcrever' || lowBody === 'transcreve' || lowBody === 'transcrever' || lowBody.startsWith('transcreve ') || lowBody.startsWith('/transcrever ');
+            const audioContextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
+            const quotedMessage = audioContextInfo.quotedMessage;
+            
+            let activeAudioMsg = audioMsg;
+            let shouldPrintTranscription = false;
+            
+            if (isTranscribeRequest && audioContextInfo && quotedMessage) {
+                const quotedMsgType = Object.keys(quotedMessage)[0];
+                const quotedAudio = quotedMessage.audioMessage || quotedMessage[quotedMsgType]?.audioMessage;
+                if (quotedAudio) {
+                    activeAudioMsg = quotedAudio;
+                    shouldPrintTranscription = true; // Imprime apenas porque foi pedido explicitamente!
+                }
+            }
+
+            if (activeAudioMsg && !parsedMessage.key.fromMe) {
                 Logger.info("AudioTranscriber", `Iniciando transcrição de áudio vindo de @${sender}...`);
                 try {
-                    const stream = await downloadContentFromMessage(audioMsg, 'audio');
+                    const stream = await downloadContentFromMessage(activeAudioMsg, 'audio');
                     let buffer = Buffer.from([]);
                     for await (const chunk of stream) {
                         buffer = Buffer.concat([buffer, chunk]);
@@ -2544,9 +2563,12 @@ ${chatLogs}`;
                     if (transcription) {
                         Logger.success("AudioTranscriber", `Áudio transcrito com sucesso!`);
                         
-                        if (isGroup) {
-                            const replyText = `🎙️ *TRANSCRIÇÃO AUTOMÁTICA*\n\n@${sender} disse:\n"${transcription}"`;
-                            await sock.sendMessage(from, { text: replyText, mentions: [rawSender] }, { quoted: parsedMessage });
+                        // Envia o texto da transcrição apenas se o usuário pediu explicitamente!
+                        if (shouldPrintTranscription) {
+                            const replyText = `🎙️ *TRANSCRIÇÃO DE ÁUDIO DE @${sender}* 🎙️\n\n"${transcription}"`;
+                            const targetSender = audioContextInfo.participant || rawSender;
+                            await sock.sendMessage(from, { text: replyText, mentions: [targetSender] }, { quoted: parsedMessage });
+                            return; // Encerra fluxo pois foi apenas um comando utilitário sob demanda
                         }
                         
                         // Atualiza as referências locais e a mensagem original para comandos e IA continuarem com o texto transcrito!
@@ -2556,6 +2578,10 @@ ${chatLogs}`;
                     }
                 } catch (e) {
                     Logger.error("AudioTranscriber", e);
+                    if (shouldPrintTranscription) {
+                        await sock.sendMessage(from, { text: "❌ Falha crítica ao transcrever o áudio citado." }, { quoted: parsedMessage });
+                        return;
+                    }
                 }
             }
 
