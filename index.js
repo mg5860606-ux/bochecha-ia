@@ -231,8 +231,10 @@ async function startBot() {
 			const lastStatus = lastDisconnect?.error?.output?.statusCode ?? lastDisconnect?.error?.status;
 			console.log(chalk.yellow(`[🔌 Conexão Fechada] Status: ${lastStatus} (Tentativa consecutiva: ${consecutiveFailures})`));
 			
-			// Somente consideramos desconectado em caso de logout explícito (status 401 ou DisconnectReason.loggedOut)
-			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401;
+			// Se o usuário ainda não conectou (não registrado), qualquer fechamento de conexão exige reiniciar
+			// a pasta de sessão para evitar o loop de status 428 e gerar um QR Code novo e limpo!
+			const isRegistered = sock.authState?.creds?.registered;
+			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401 || !isRegistered;
 			const shouldReconnect = !isLoggedOut;
 
 			if (shouldReconnect) {
