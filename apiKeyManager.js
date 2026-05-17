@@ -41,30 +41,52 @@ function init() {
   }
 }
 
+let currentKey = null;
+
 function getKey() {
   if (!keys || keys.length === 0) return null;
-  // Pega a primeira chave e joga pro final da fila (round-robin)
-  const k = keys.shift();
-  keys.push(k);
-  return k;
+  
+  // Se já temos uma chave ativa sendo usada, continuamos com ela!
+  if (currentKey && keys.indexOf(currentKey) !== -1) {
+    return currentKey;
+  }
+  
+  // Caso contrário, pegamos a primeira da fila
+  currentKey = keys[0];
+  return currentKey;
 }
 
 function listKeys() {
   return Array.from(keys);
 }
 
-function markFailure(failedKey) {
+function markFailure(failedKey, force = false) {
   if (!failedKey) return;
   const idx = keys.indexOf(failedKey);
   if (idx === -1) return;
   
+  if (!force) {
+    console.log(chalk.yellow(`[AVISO] apiKeyManager: Falha/Exaustão detectada na chave ${failedKey.substring(0, 8)}... - Rotacionando para a próxima chave.`));
+    // Move a chave que falhou para o final da fila (round-robin apenas sob falha)
+    keys.splice(idx, 1);
+    keys.push(failedKey);
+    // Limpa a chave atual para que a próxima requisição escolha a nova primeira chave
+    if (currentKey === failedKey) {
+      currentKey = null;
+    }
+    return;
+  }
+  
   keys.splice(idx, 1);
+  if (currentKey === failedKey) {
+    currentKey = null;
+  }
   try {
     const cfg = loadConfig();
     if (cfg.keys && Array.isArray(cfg.keys)) {
       cfg.keys = cfg.keys.filter(k => k !== failedKey);
       saveConfig(cfg);
-      console.log(chalk.yellow(`[AVISO] apiKeyManager: Chave Gemini removida permanentemente por falha/limite excedido: ${failedKey.substring(0, 8)}...`));
+      console.log(chalk.yellow(`[AVISO] apiKeyManager: Chave Gemini removida permanentemente por solicitação: ${failedKey.substring(0, 8)}...`));
     }
   } catch (e) {
     console.error(chalk.red('[ERRO] apiKeyManager: Falha ao persistir remoção de chave: ' + (e && e.message)));

@@ -922,14 +922,7 @@ class KeyRotationEngine {
      */
     _applyCooldown(key, isUserRequest = false) {
         if (!key) return;
-        const expire = Date.now() + this.cooldownDuration;
-        this.cooldowns.set(key, expire);
-        Logger.warn("KeyRotationEngine", `Chave ${key.substring(0, 8)}... colocada em repouso até ${new Date(expire).toLocaleTimeString()}.`);
-
-        // Só envia aviso por WhatsApp no PV do dono se for um pedido real de usuário tentando usar a IA!
-        if (isUserRequest) {
-            BochechaEngine.sendTelemetry(`🔑 *ROTAÇÃO DE CHAVES BOCHECHA* 🔑\n\nColoquei a chave API \`${key.substring(0, 10)}...${key.substring(key.length - 6)}\` em cooldown de 5 minutos por estouro de cota (Erro 429).`).catch(() => {});
-        }
+        Logger.warn("KeyRotationEngine", `Falha na chave ${key.substring(0, 8)}... - Cooldown ignorado por configuração.`);
     }
 
     /**
@@ -3029,7 +3022,7 @@ ${chatLogs}`;
 
                     case "/removekey":
                         if (arg) {
-                            apiKeyManager.markFailure(arg);
+                            apiKeyManager.markFailure(arg, true);
                             await parsedMessage.reply(`🗑️ Token ${arg.substring(0, 8)}... deletado.`);
                         } else {
                             await parsedMessage.reply("Uso: */removekey TOKEN*");
@@ -3251,9 +3244,9 @@ ${chatLogs}`;
 
                         // Resolução e substituição dinâmica de menções textuais por JIDs reais
                         // Exemplo: se a IA escreveu @Marcos ou @João, procuramos no grupo se há alguém com esse nome/pushname e substituímos por @número!
+                        const resolvedMentions = [];
                         try {
                             const mentionsMatches = cleanedReply.match(/@([a-zA-Z0-9áéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ._-]+)/g) || [];
-                            const resolvedMentions = [];
                             if (mentionsMatches.length > 0) {
                                 const metadata = BochechaEngine.storeRef?.chats?.get(from) || (isGroup ? await sock.groupMetadata(from).catch(() => null) : null);
                                 const participants = metadata?.participants || [];
