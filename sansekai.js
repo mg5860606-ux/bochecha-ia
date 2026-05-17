@@ -1504,7 +1504,7 @@ class SkillRegistry {
             let count = 0;
 
             for (const file of files) {
-                if (file.endsWith(".js")) {
+                if (file.endsWith(".js") && file !== "games_controller.js") {
                     const skillPath = path.join(SKILLS_DIR, file);
                     try {
                         delete require.cache[require.resolve(skillPath)];
