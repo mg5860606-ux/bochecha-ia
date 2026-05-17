@@ -3532,7 +3532,7 @@ ${chatLogs}`;
                 try {
                     await sock.sendPresenceUpdate('composing', from);
 
-                    const aiReply = await this._callAI({
+                    const { output: aiReply, modelName } = await this._callAI({
                         chatId: from,
                         pushname: isOwner ? "Marcos" : q.pushname,
                         sender: rawSender,
@@ -3551,6 +3551,12 @@ ${chatLogs}`;
                     } else {
                         // Remove caracteres isoladores unicode ocultos do WhatsApp (\u2068 e \u2069)
                         let cleanedReply = aiReply.replace(/[\u2068\u2069]/g, '');
+                        
+                        // Adiciona tag sutil da API/Modelo de IA utilizada
+                        if (modelName) {
+                            const prettyModel = modelName.split('/').pop().replace(':free', '');
+                            cleanedReply += `\n\n_🧠 Mente: ${prettyModel}_`;
+                        }
 
                         // Limpa e formata menções de números incorretas feitas pela IA (ex: @+55 11 99999-9999)
                         cleanedReply = cleanedReply.replace(/@\+?([\d\s()-]+)/g, (match, g1) => {
@@ -3844,6 +3850,7 @@ ${chatLogs}`;
                 true // isUserRequest = true
             );
             finalResponse = secondary.response.response;
+            modelName = secondary.modelName;
         }
 
         const output = finalResponse.text();
@@ -3855,7 +3862,7 @@ ${chatLogs}`;
         await sessionManager.addMessage(chatId, 'user', formatted);
         await sessionManager.addMessage(chatId, 'assistant', output);
 
-        return output;
+        return { output, modelName };
     }
 
     /**
