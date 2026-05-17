@@ -3092,6 +3092,14 @@ ${chatLogs}`;
                         }
                         return;
 
+                    case "/reiniciar":
+                    case "/restart":
+                        await parsedMessage.reply("🔄 *Reiniciando o Bochecha-IA...* Aguarde alguns instantes para a reconexão.");
+                        setTimeout(() => {
+                            process.exit(0);
+                        }, 1500);
+                        return;
+
                     case "/removekey":
                         if (arg) {
                             apiKeyManager.markFailure(arg, true);
