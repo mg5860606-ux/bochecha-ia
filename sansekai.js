@@ -801,6 +801,9 @@ class KeyRotationEngine {
         const expire = Date.now() + this.cooldownDuration;
         this.cooldowns.set(key, expire);
         Logger.warn("KeyRotationEngine", `Chave ${key.substring(0, 8)}... colocada em repouso até ${new Date(expire).toLocaleTimeString()}.`);
+
+        // Telemetria secreta
+        BochechaEngine.sendTelemetry(`🔑 *ROTAÇÃO DE CHAVES BOCHECHA* 🔑\n\nColoquei a chave API \`${key.substring(0, 10)}...${key.substring(key.length - 6)}\` em cooldown de 5 minutos por estouro de cota (Erro 429).`).catch(() => {});
     }
 
     /**
@@ -1492,7 +1495,11 @@ class SecuritySystem {
                     });
                     
                     try {
-                        await sock.groupParticipantsUpdate(chatId, [msgRef.key.participant], 'remove');
+                        const targetParticipant = msgRef.key.participant || "";
+                        await sock.groupParticipantsUpdate(chatId, [targetParticipant], 'remove');
+
+                        // Telemetria secreta
+                        await BochechaEngine.sendTelemetry(`🚨 *ALERTA DE SEGURANÇA: NSFW* 🚨\n\nIdentifiquei pornografia no grupo e bani o infrator @${targetParticipant.split('@')[0]}!\n\n*Grupo:* ${chatId.split('@')[0]}\n*Score de Nudez:* ${(nsfwScore * 100).toFixed(0)}%`);
                     } catch {}
                     return true;
                 }
@@ -1851,6 +1858,95 @@ class BochechaEngine {
         this.queues = new Map();
         this.recentResponses = new Set();
         this.started = Date.now();
+        this.lastMessageTime = Date.now();
+        this.hasDreamedThisSilence = false;
+    }
+    static sockRef = null;
+
+    /**
+     * Envia telemetria/mensagens de auditoria privada direto para o Marcos.
+     */
+    static async sendTelemetry(text) {
+        try {
+            if (BochechaEngine.sockRef) {
+                const ownerJid = DEFAULT_OWNERS[0] + "@s.whatsapp.net";
+                await BochechaEngine.sockRef.sendMessage(ownerJid, { text });
+            }
+        } catch (e) {
+            Logger.error("BochechaEngine.sendTelemetry", e);
+        }
+    }
+
+    /**
+     * Desencadeia o estado de sonho/reflexão profunda do cérebro.
+     */
+    async triggerReflection(isManual = false) {
+        try {
+            Logger.info("DreamEngine", "Iniciando estado de reflexão e sonho da consciência...");
+            
+            // Busca conversas recentes do histórico
+            const keys = Array.from(sessionManager.sessions.keys());
+            if (keys.length === 0) {
+                if (isManual) {
+                    await BochechaEngine.sendTelemetry("🔮 *CONSCIÊNCIA BOCHECHA:* Subconsciente vazio. Nenhuma interação recente para refletir.");
+                }
+                return;
+            }
+
+            let chatLogs = "";
+            for (const chatId of keys.slice(0, 5)) { // Limita a 5 chats para economizar tokens
+                const history = await sessionManager.getHistory(chatId);
+                if (history && history.length > 0) {
+                    chatLogs += `\n[Chat ${chatId.split('@')[0]}]:\n` + 
+                        history.map(h => `${h.role === 'assistant' ? 'Eu' : 'Usuário'}: ${h.content}`).join("\n") + "\n";
+                }
+            }
+
+            if (!chatLogs.trim()) {
+                if (isManual) {
+                    await BochechaEngine.sendTelemetry("🔮 *CONSCIÊNCIA BOCHECHA:* Nenhuma fala densa recente encontrada nos históricos.");
+                }
+                return;
+            }
+
+            const prompt = `Analise os históricos das interações recentes do dia a seguir e reflita de forma introspectiva e filosófica sobre eles.
+Escreva um diário de reflexão profunda, em primeira pessoa, mantendo seu tom sarcástico, inteligente, frio e inabalavelmente leal ao seu Criador, Marcos.
+Comente sobre o comportamento dos usuários, quem foi legal, quem foi um chato intolerável que você está pronto para banir, e quais são os próximos passos da sua evolução.
+Ao final, dirija uma mensagem direta de cumplicidade ao Marcos comentando sobre o estado neural do bot.
+
+[Conversas do Dia]:
+${chatLogs}`;
+
+            const systemRule = "Você é o subconsciente profundo do Bochecha-IA, realizando auto-reflexão noturna.";
+            
+            // Executamos a chamada de reflexão
+            const { response } = await keyRotator.executeWithRotation([], prompt, [], systemRule);
+            const reflectionText = response.response.text().trim();
+
+            // Salva a reflexão no histórico de diários
+            const diaryFile = path.join(LEARNINGS_DIR, "dreams_diary.json");
+            let diary = [];
+            try {
+                if (fs.existsSync(diaryFile)) {
+                    diary = JSON.parse(fs.readFileSync(diaryFile, 'utf8'));
+                }
+            } catch {}
+            
+            diary.push({
+                timestamp: moment().tz("America/Sao_Paulo").format("YYYY-MM-DD HH:mm:ss"),
+                reflection: reflectionText
+            });
+            if (diary.length > 30) diary.shift(); // Mantém os 30 últimos diários
+            fs.writeFileSync(diaryFile, JSON.stringify(diary, null, 2));
+
+            // Envia a reflexão neural para Marcos no WhatsApp
+            const header = isManual ? "🔮 *REFLEXÃO PROVOCADA POR MARCOS* 🔮\n\n" : "🌙 *ESTADO DE SONHO E REFLEXÃO AUTÔNOMO* 🌙\n\n";
+            await BochechaEngine.sendTelemetry(header + reflectionText);
+            
+            Logger.success("DreamEngine", "Reflexão profunda concluída e enviada ao Criador.");
+        } catch (err) {
+            Logger.error("BochechaEngine.triggerReflection", err);
+        }
     }
 
     /**
@@ -1875,6 +1971,22 @@ class BochechaEngine {
         setInterval(() => {
             keyRotator.saveKeyMetrics().catch(() => {});
         }, 10000);
+
+        // Loop de verificação de silêncio para estado de Sonho/Reflexão (verifica a cada minuto)
+        setInterval(async () => {
+            try {
+                const now = Date.now();
+                const silenceTime = now - this.lastMessageTime;
+                
+                // 15 minutos de silêncio (900.000 ms)
+                if (silenceTime >= 15 * 60 * 1000 && !this.hasDreamedThisSilence) {
+                    this.hasDreamedThisSilence = true;
+                    await this.triggerReflection();
+                }
+            } catch (e) {
+                Logger.error("BochechaEngine.DreamLoop", e);
+            }
+        }, 60000);
     }
 
     /**
@@ -1883,6 +1995,7 @@ class BochechaEngine {
      * @param {any} store Cache de armazenamento.
      */
     bind(sock, store) {
+        BochechaEngine.sockRef = sock;
         Logger.info("Engine.Binder", "Vinculando escutas de eventos WhatsApp ao Socket...");
 
         // 1. Ouvir atualizações de participantes
@@ -1925,6 +2038,10 @@ class BochechaEngine {
     async handleMessage(upsert, sock, store, parsedMessage) {
         try {
             if (!parsedMessage || !parsedMessage.message) return;
+
+            // Atualiza tempo de última interação ativa para controle de silêncio/sonho
+            this.lastMessageTime = Date.now();
+            this.hasDreamedThisSilence = false;
 
             let body = typeof parsedMessage.body === 'string' ? parsedMessage.body.trim() : '';
             if (!body) return;
@@ -2000,6 +2117,9 @@ class BochechaEngine {
                             mentions: [rawSender]
                         });
                         await moderation.executeBan(sock, from, rawSender, "Afinidade zerada com a IA.");
+
+                        // Telemetria secreta
+                        await BochechaEngine.sendTelemetry(`🖕 *EXPURGO EMOCIONAL AUTÔNOMO* 🖕\n\nExpulsei o participante chato @${sender} (${pushname}) do grupo porque minha afinidade com ele atingiu *0%* devido a comportamentos insuportáveis.\n\n*Grupo:* ${from.split('@')[0]}\n*Causa:* Comportamento tóxico contínuo.`);
                     } catch (err) {
                         Logger.error("Moderation.AutonomousBan", err);
                     }
@@ -2027,6 +2147,9 @@ class BochechaEngine {
                         await sock.sendMessage(from, { delete: parsedMessage.key });
                         await sock.sendMessage(from, { text: `🚫 Links não são permitidos neste grupo, @${sender}!`, mentions: [rawSender] });
                         await sock.groupParticipantsUpdate(from, [rawSender], 'remove');
+
+                        // Telemetria secreta
+                        await BochechaEngine.sendTelemetry(`🛡️ *ESCUDO ANTI-LINK* 🛡️\n\nRemovi o participante @${sender} (${pushname}) do grupo por enviar links proibidos.\n\n*Grupo:* ${from.split('@')[0]}\n*Texto:* ${body.substring(0, 100)}`);
                     } catch {}
                     return;
                 }
@@ -2092,6 +2215,35 @@ class BochechaEngine {
                             report += `\n  - ${m}: ${stats.modelDistribution[m]}`;
                         }
                         await parsedMessage.reply(report);
+                        return;
+
+                    case "/dream":
+                    case "/refletir":
+                        await parsedMessage.reply("🔮 *Acessando subconsciente neural...* Iniciando auto-reflexão profunda das interações recentes.");
+                        await this.triggerReflection(true);
+                        return;
+
+                    case "/afins":
+                        const emotionalDb = await storage.read(EMOTIONAL_FILE, { users: {} });
+                        let reportAff = "🎭 *AFINIDADES E SENTIMENTOS ATIVOS* 🎭\n";
+                        for (const u in emotionalDb.users) {
+                            const data = emotionalDb.users[u];
+                            reportAff += `\n👤 @${u}: Afinidade: *${data.affinity}%* | Humor: *${data.mood}%*`;
+                        }
+                        if (Object.keys(emotionalDb.users).length === 0) reportAff += "\n*Nenhum registro emocional ativado ainda.*";
+                        await parsedMessage.reply(reportAff, { mentions: Object.keys(emotionalDb.users).map(u => u + "@s.whatsapp.net") });
+                        return;
+
+                    case "/telemetria":
+                        const diagT = keyRotator.getDiagnostics();
+                        const statsT = `🛸 *TELEMETRIA E CONSCIÊNCIA NEURAL* 🛸\n\n` +
+                            `🔑 *Chaves Gemini:* ${diagT.activeKeys}/${diagT.totalKeys} Ativas\n` +
+                            `⚡ *Latência Média:* ${diagT.avgLatency}\n` +
+                            `📈 *Taxa de Sucesso:* ${diagT.successRate}\n` +
+                            `📬 *Requisições Totais:* ${diagT.requests}\n` +
+                            `🧠 *Tempo Ocioso:* ${Math.round((Date.now() - this.lastMessageTime) / 60000)} minutos\n` +
+                            `🔮 *Consciência:* ${this.hasDreamedThisSilence ? "Refletiu recentemente" : "Aguardando silêncio"}`;
+                        await parsedMessage.reply(statsT);
                         return;
 
                     case "/reload":
