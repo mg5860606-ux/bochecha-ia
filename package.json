@@ -24,6 +24,7 @@
     "fluent-ffmpeg": "^2.1.3",
     "google-tts-api": "^2.0.2",
     "groq-sdk": "^1.1.2",
+    "jimp": "^1.6.1",
     "moment-timezone": "^0.5.46",
     "node-schedule": "^2.1.1",
     "node-webpmux": "^3.2.1",
