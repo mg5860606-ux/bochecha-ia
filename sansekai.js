@@ -3527,6 +3527,48 @@ ${chatLogs}`;
                         await parsedMessage.reply(reportAff, { mentions: Object.keys(emotionalDb.users).map(u => u + "@s.whatsapp.net") });
                         return;
 
+                    case "/perfil":
+                        try {
+                            const myCoins = await storage.addCoins(from, rawSender, 0);
+                            
+                            const rankingDb = fs.existsSync(RANKING_FILE) ? JSON.parse(fs.readFileSync(RANKING_FILE, 'utf8')) : {};
+                            const userRank = rankingDb[from]?.[rawSender] || { xp: 0, level: 1 };
+                            
+                            const emoDb = await storage.read(EMOTIONAL_FILE, { users: {} });
+                            const userEmo = emoDb.users[sender] || { affinity: 50, mood: 80 };
+                            
+                            let title = "👤 MEMBRO NEUTRO";
+                            if (userEmo.affinity >= 90) title = "🏆 CRIA DE ELITE / LEAL";
+                            else if (userEmo.affinity >= 70) title = "🛡️ ALIADO DAS SOMBRAS";
+                            else if (userEmo.affinity >= 40) title = "👤 PARCEIRO DO CHAT";
+                            else if (userEmo.affinity >= 15) title = "⚠️ PÉ DE BREQUE";
+                            else title = "💀 EXPULSO DA PACIÊNCIA";
+                            
+                            const nextLvlXp = userRank.level * 50;
+                            const curLvlXp = userRank.xp % nextLvlXp;
+                            const pct = Math.min(Math.floor((curLvlXp / nextLvlXp) * 100), 100);
+                            const fill = Math.min(Math.floor(pct / 10), 10);
+                            const xpBar = "▓".repeat(fill) + "░".repeat(10 - fill);
+                            
+                            const card = `╔═══════════════════════════════╗\n` +
+                                         `   👤 *DADOS DO USUÁRIO - PERFIL* 👤\n` +
+                                         `╚═══════════════════════════════╝\n\n` +
+                                         `👤 *Membro:* @${sender}\n` +
+                                         `👑 *Status:* ${title}\n` +
+                                         `🪙 *Carteira:* *${myCoins} Bochecha-Coins*\n\n` +
+                                         `⚡ *Nível Atual:* ${userRank.level}\n` +
+                                         `📊 *Experiência:* ${userRank.xp} XPs\n` +
+                                         `📶 *Progresso:* [${xpBar}] ${pct}%\n\n` +
+                                         `🎭 *Humor Bochecha:* ${userEmo.mood}%\n` +
+                                         `🥀 *Afinidade Bochecha:* ${userEmo.affinity}%\n` +
+                                         `*───────────────────────────────*`;
+                                         
+                            await parsedMessage.reply(card, { mentions: [rawSender] });
+                        } catch (err) {
+                            Logger.error("Command.Perfil", err);
+                        }
+                        return;
+
                     case "/telemetria":
                         const diagT = keyRotator.getDiagnostics();
                         const statsT = `🛸 *TELEMETRIA E CONSCIÊNCIA NEURAL* 🛸\n\n` +
