@@ -231,17 +231,17 @@ async function startBot() {
 			const lastStatus = lastDisconnect?.error?.output?.statusCode ?? lastDisconnect?.error?.status;
 			console.log(chalk.yellow(`[🔌 Conexão Fechada] Status: ${lastStatus} (Tentativa consecutiva: ${consecutiveFailures})`));
 			
-			// Se o WhatsApp responder com 401 ou se houverem 3 falhas seguidas (ex: status 428 persistente por credenciais corrompidas)
-			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401 || consecutiveFailures >= 3;
+			// Somente consideramos desconectado em caso de logout explícito (status 401 ou DisconnectReason.loggedOut)
+			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401;
 			const shouldReconnect = !isLoggedOut;
 
 			if (shouldReconnect) {
-				const delay = lastStatus === 515 ? 1000 : 3000;
-				console.log(chalk.gray(`Tentando reconectar em ${delay/1000}s...`));
+				const delay = Math.min(3000 * consecutiveFailures, 15000);
+				console.log(chalk.gray(`Falha de conexão temporária. Mantendo a sessão intacta. Tentando reconectar em ${delay/1000}s...`));
 				setTimeout(() => startBot(), delay);
 			} else {
 				consecutiveFailures = 0; // reseta
-				console.log(chalk.red(`Sessão inválida, expirada ou corrompida (Status ${lastStatus}). Limpando a pasta da sessão e reiniciando do zero...`));
+				console.log(chalk.red(`Sessão desconectada ou desvinculada no celular (Status ${lastStatus}). Limpando credenciais antigas...`));
 				setTimeout(() => {
 					try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
 					startBot();
