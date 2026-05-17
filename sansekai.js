@@ -905,9 +905,7 @@ class KeyRotationEngine {
             "baidu/cobuddy:free",
             "nvidia/nemotron-3-nano-30b-a3b:free",
             "nvidia/nemotron-nano-9b-v2:free",
-            "nvidia/nemotron-nano-12b-v2-vl:free",
-            "google/gemini-2.0-flash-001",
-            "google/gemini-2.5-flash"
+            "nvidia/nemotron-nano-12b-v2-vl:free"
         ];
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
@@ -1097,9 +1095,7 @@ class KeyRotationEngine {
                 "google/gemma-4-31b-it:free",
                 "google/gemma-4-26b-a4b-it:free",
                 "openrouter/free",
-                "nvidia/nemotron-nano-12b-v2-vl:free",
-                "google/gemini-2.0-flash-001",
-                "google/gemini-2.5-flash"
+                "nvidia/nemotron-nano-12b-v2-vl:free"
             ];
             list = list.filter(m => multimodalModels.includes(m));
             // Colocamos o Gemma 4 31B no topo absoluto para imagem
@@ -1121,9 +1117,7 @@ class KeyRotationEngine {
                 "google/gemma-4-31b-it:free",
                 "meta-llama/llama-3.3-70b-instruct:free",
                 "poolside/laguna-m.1:free",
-                "openrouter/free",
-                "google/gemini-2.0-flash-001",
-                "google/gemini-2.5-flash"
+                "openrouter/free"
             ];
             list.sort((a, b) => {
                 const aElite = eliteToolsModels.includes(a) ? -1 : 0;
