@@ -3232,9 +3232,12 @@ ${chatLogs}`;
                     if (q.isAudioQuery) {
                         await VoiceSynthesizer.speak(sock, from, aiReply, q.msgRef);
                     } else {
-                        // Limpa e formata menções de números incorretas feitas pela IA
-                        let cleanedReply = aiReply.replace(/@\+?([\d\s-]+)/g, (match, g1) => {
-                            const digits = g1.replace(/[\s-]/g, '');
+                        // Remove caracteres isoladores unicode ocultos do WhatsApp (\u2068 e \u2069)
+                        let cleanedReply = aiReply.replace(/[\u2068\u2069]/g, '');
+
+                        // Limpa e formata menções de números incorretas feitas pela IA (ex: @+55 11 99999-9999)
+                        cleanedReply = cleanedReply.replace(/@\+?([\d\s()-]+)/g, (match, g1) => {
+                            const digits = g1.replace(/[^\d]/g, '');
                             if (digits.length >= 8) {
                                 return `@${digits}`;
                             }
@@ -3250,9 +3253,17 @@ ${chatLogs}`;
                                 const participants = metadata?.participants || [];
                                 const storeContacts = BochechaEngine.storeRef?.contacts || {};
 
+                                // Função auxiliar para normalização de acentos, pontuações e caixa baixa
+                                const normalize = (str) => {
+                                    if (!str) return "";
+                                    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+                                };
+
                                 for (const mentionMatch of mentionsMatches) {
-                                    const nameToSearch = mentionMatch.substring(1).toLowerCase().trim();
-                                    if (!/^\d+$/.test(nameToSearch)) { // Apenas se não for um número de telefone puro
+                                    const rawName = mentionMatch.substring(1);
+                                    const nameToSearch = normalize(rawName);
+                                    
+                                    if (!/^\d+$/.test(nameToSearch) && nameToSearch.length > 0) { // Apenas se não for um número de telefone puro
                                         let foundJid = null;
                                         
                                         // 1. Tenta buscar no banco de atividade recente (chat_activity.json) que tem pushnames reais recentes
@@ -3261,7 +3272,11 @@ ${chatLogs}`;
                                             if (fs.existsSync(dbPath)) {
                                                 const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
                                                 const entries = db[from] || [];
-                                                const matchedEntry = entries.find(e => e.pushname?.toLowerCase().includes(nameToSearch) || e.user?.split('@')[0] === nameToSearch);
+                                                const matchedEntry = entries.find(e => {
+                                                    const normPush = normalize(e.pushname);
+                                                    const normUser = normalize(e.user?.split('@')[0]);
+                                                    return normPush.includes(nameToSearch) || normUser === nameToSearch;
+                                                });
                                                 if (matchedEntry) {
                                                     foundJid = matchedEntry.user;
                                                 }
@@ -3272,7 +3287,7 @@ ${chatLogs}`;
                                         if (!foundJid && isGroup) {
                                             for (const p of participants) {
                                                 const contact = storeContacts[p.id] || {};
-                                                const pName = (contact.name || contact.notify || "").toLowerCase();
+                                                const pName = normalize(contact.name || contact.notify || "");
                                                 const pNum = p.id.split('@')[0];
                                                 
                                                 if (pName.includes(nameToSearch) || pNum === nameToSearch) {
@@ -3287,7 +3302,7 @@ ${chatLogs}`;
                                             for (const owner of DEFAULT_OWNERS) {
                                                 const ownerJid = owner + '@s.whatsapp.net';
                                                 const contact = storeContacts[ownerJid] || {};
-                                                const oName = (contact.name || contact.notify || "marcos").toLowerCase();
+                                                const oName = normalize(contact.name || contact.notify || "marcos");
                                                 if (oName.includes(nameToSearch) || owner === nameToSearch) {
                                                     foundJid = ownerJid;
                                                     break;
