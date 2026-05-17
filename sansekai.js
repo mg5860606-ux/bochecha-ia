@@ -873,6 +873,104 @@ class KeyRotationEngine {
     }
 
     /**
+     * Executa a chamada no Claude da Anthropic com rotação de chaves.
+     */
+    async executeClaudeWithRotation(history, prompt, systemInstruction) {
+        let attempts = 0;
+        const totalKeys = apiKeyManager.listClaudeKeys().length;
+        const maxKeyCycles = Math.max(totalKeys, 2);
+
+        while (attempts < maxKeyCycles) {
+            const activeKey = apiKeyManager.getClaudeKey();
+            if (!activeKey) {
+                throw new Error("Nenhuma chave Claude ativa disponível.");
+            }
+
+            try {
+                Logger.info("KeyRotationEngine", `Conectando Claude | Modelo: claude-3-5-sonnet-latest | Token: ${activeKey.substring(0, 8)}...`);
+
+                const claudeMessages = [];
+                if (history && Array.isArray(history)) {
+                    for (const h of history) {
+                        const role = h.role === "model" ? "assistant" : "user";
+                        const content = (h.parts || []).map(p => p.text || "").join("\n").trim();
+                        if (content) {
+                            claudeMessages.push({ role, content });
+                        }
+                    }
+                }
+
+                const currentPrompt = typeof prompt === 'string' ? prompt : (Array.isArray(prompt) ? prompt.map(p => p.text || "").join("\n").trim() : String(prompt));
+                claudeMessages.push({ role: "user", content: currentPrompt });
+
+                const finalMessages = [];
+                let expectedRole = "user";
+                for (const msg of claudeMessages) {
+                    if (msg.role === expectedRole) {
+                        finalMessages.push(msg);
+                        expectedRole = expectedRole === "user" ? "assistant" : "user";
+                    } else if (msg.role === "user" && expectedRole === "assistant") {
+                        if (finalMessages.length > 0) {
+                            finalMessages[finalMessages.length - 1].content += "\n\n" + msg.content;
+                        } else {
+                            finalMessages.push(msg);
+                            expectedRole = "assistant";
+                        }
+                    } else if (msg.role === "assistant" && expectedRole === "user") {
+                        continue;
+                    }
+                }
+
+                const body = {
+                    model: "claude-3-5-sonnet-latest",
+                    max_tokens: 4096,
+                    messages: finalMessages
+                };
+
+                if (systemInstruction) {
+                    body.system = systemInstruction;
+                }
+
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: {
+                        "x-api-key": activeKey,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json"
+                    },
+                    body: JSON.stringify(body)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Anthropic API Error: status ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                const textReply = data.content && data.content[0] && data.content[0].text;
+                if (!textReply) {
+                    throw new Error("Claude retornou uma resposta vazia.");
+                }
+
+                return {
+                    response: {
+                        response: {
+                            text: () => textReply
+                        }
+                    },
+                    modelName: "claude-3-5-sonnet-latest"
+                };
+            } catch (e) {
+                Logger.warn("KeyRotationEngine", `Falha temporária com Claude: ${e.message}`);
+                apiKeyManager.markClaudeFailure(activeKey);
+                attempts++;
+            }
+        }
+
+        throw new Error("O Bochecha esgotou todas as chaves Claude sem obter resposta.");
+    }
+
+    /**
      * Seleciona uma chave válida livre de cooldowns ativos.
      * @returns {string}
      */
@@ -3435,13 +3533,37 @@ ${chatLogs}`;
         }
 
         const input = parts.length > 1 ? parts : formatted;
-        let { chat, response, modelName } = await keyRotator.executeWithRotation(
-            history,
-            input,
-            tools,
-            sys,
-            true // isUserRequest = true
-        );
+        
+        let chat, response, modelName;
+        const hasMedia = parts.some(p => p && typeof p === 'object' && p.inlineData);
+        const isSimpleConversation = apiKeyManager.hasClaudeKeys() && !hasMedia;
+
+        if (isSimpleConversation) {
+            Logger.info("BochechaEngine", "Roteando conversa de texto simples para o Claude.");
+            const claudeRes = await keyRotator.executeClaudeWithRotation(history, input, sys);
+            chat = {
+                getHistory: () => {
+                    const hist = [...history];
+                    hist.push({ role: "user", parts: [{ text: typeof input === 'string' ? input : String(input) }] });
+                    hist.push({ role: "model", parts: [{ text: claudeRes.response.response.text() }] });
+                    return hist;
+                }
+            };
+            response = claudeRes.response;
+            modelName = claudeRes.modelName;
+        } else {
+            Logger.info("BochechaEngine", "Roteando requisição complexa/multimodal para o Gemini.");
+            const geminiRes = await keyRotator.executeWithRotation(
+                history,
+                input,
+                tools,
+                sys,
+                true // isUserRequest = true
+            );
+            chat = geminiRes.chat;
+            response = geminiRes.response;
+            modelName = geminiRes.modelName;
+        }
 
         let finalResponse = response.response;
         const functionCalls = finalResponse.functionCalls && finalResponse.functionCalls();

@@ -6,6 +6,7 @@ const CONFIG_PATH = path.join(__dirname, 'key.json');
 
 // In-memory cache
 let keys = [];
+let claudekeys = [];
 
 function loadConfig() {
   try {
@@ -32,45 +33,98 @@ function init() {
     keys = cfg.keys.filter(k => typeof k === 'string' && k.trim().length);
   } else if (cfg.keyopenai && typeof cfg.keyopenai === 'string') {
     keys = [cfg.keyopenai];
-    // Migration: converte keyopenai para um array "keys"
     cfg.keys = keys;
     delete cfg.keyopenai;
     try { saveConfig(cfg); console.log(chalk.green('[INFO] apiKeyManager: Migrou keyopenai para o sistema de múltiplas chaves (keys).')); } catch (e) {}
   } else {
     keys = [];
   }
+
+  if (cfg.claudekeys && Array.isArray(cfg.claudekeys)) {
+    claudekeys = cfg.claudekeys.filter(k => typeof k === 'string' && k.trim().length);
+  } else {
+    claudekeys = [];
+  }
 }
 
 let currentKey = null;
+let currentClaudeKey = null;
 
 function getKey() {
   if (!keys || keys.length === 0) return null;
   
-  // Se já temos uma chave ativa sendo usada, continuamos com ela!
   if (currentKey && keys.indexOf(currentKey) !== -1) {
     return currentKey;
   }
   
-  // Caso contrário, pegamos a primeira da fila
   currentKey = keys[0];
   return currentKey;
+}
+
+function getClaudeKey() {
+  if (!claudekeys || claudekeys.length === 0) return null;
+  
+  if (currentClaudeKey && claudekeys.indexOf(currentClaudeKey) !== -1) {
+    return currentClaudeKey;
+  }
+  
+  currentClaudeKey = claudekeys[0];
+  return currentClaudeKey;
 }
 
 function listKeys() {
   return Array.from(keys);
 }
 
+function listClaudeKeys() {
+  return Array.from(claudekeys);
+}
+
+function markClaudeFailure(failedKey, force = false) {
+  if (!failedKey) return;
+  const idx = claudekeys.indexOf(failedKey);
+  if (idx === -1) return;
+  
+  if (!force) {
+    console.log(chalk.yellow(`[AVISO] apiKeyManager: Falha/Exaustão detectada na chave Claude ${failedKey.substring(0, 8)}... - Rotacionando para a próxima chave.`));
+    claudekeys.splice(idx, 1);
+    claudekeys.push(failedKey);
+    if (currentClaudeKey === failedKey) {
+      currentClaudeKey = null;
+    }
+    return;
+  }
+  
+  claudekeys.splice(idx, 1);
+  if (currentClaudeKey === failedKey) {
+    currentClaudeKey = null;
+  }
+  try {
+    const cfg = loadConfig();
+    if (cfg.claudekeys && Array.isArray(cfg.claudekeys)) {
+      cfg.claudekeys = cfg.claudekeys.filter(k => k !== failedKey);
+      saveConfig(cfg);
+      console.log(chalk.yellow(`[AVISO] apiKeyManager: Chave Claude removida permanentemente por solicitação: ${failedKey.substring(0, 8)}...`));
+    }
+  } catch (e) {
+    console.error(chalk.red('[ERRO] apiKeyManager: Falha ao persistir remoção de chave Claude: ' + (e && e.message)));
+  }
+}
+
 function markFailure(failedKey, force = false) {
   if (!failedKey) return;
+  
+  if (failedKey.startsWith('sk-ant-')) {
+    return markClaudeFailure(failedKey, force);
+  }
+
   const idx = keys.indexOf(failedKey);
   if (idx === -1) return;
   
   if (!force) {
     console.log(chalk.yellow(`[AVISO] apiKeyManager: Falha/Exaustão detectada na chave ${failedKey.substring(0, 8)}... - Rotacionando para a próxima chave.`));
-    // Move a chave que falhou para o final da fila (round-robin apenas sob falha)
     keys.splice(idx, 1);
     keys.push(failedKey);
-    // Limpa a chave atual para que a próxima requisição escolha a nova primeira chave
     if (currentKey === failedKey) {
       currentKey = null;
     }
@@ -97,23 +151,42 @@ function addKey(newKey) {
   if (!newKey || typeof newKey !== 'string') return false;
   const v = newKey.trim();
   if (!v) return false;
-  if (keys.indexOf(v) !== -1) return false; // Já existe
-  keys.push(v);
+  
+  const isClaude = v.startsWith('sk-ant-');
+  const targetArray = isClaude ? claudekeys : keys;
+  const configField = isClaude ? 'claudekeys' : 'keys';
+  
+  if (targetArray.indexOf(v) !== -1) return false; // Já existe
+  targetArray.push(v);
   try {
     const cfg = loadConfig();
-    cfg.keys = Array.isArray(cfg.keys) ? cfg.keys.concat([v]) : [v];
+    cfg[configField] = Array.isArray(cfg[configField]) ? cfg[configField].concat([v]) : [v];
     saveConfig(cfg);
-    console.log(chalk.green(`[INFO] apiKeyManager: Nova chave adicionada com sucesso.`));
+    console.log(chalk.green(`[INFO] apiKeyManager: Nova chave ${isClaude ? 'Claude' : 'Gemini'} adicionada com sucesso.`));
   } catch (e) {
-    console.error(chalk.red('[ERRO] apiKeyManager: Falha ao salvar nova chave: ' + (e && e.message)));
+    console.error(chalk.red(`[ERRO] apiKeyManager: Falha ao salvar nova chave ${isClaude ? 'Claude' : 'Gemini'}: ` + (e && e.message)));
   }
   return true;
 }
 
 function hasKeys() {
-  return keys.length > 0;
+  return keys.length > 0 || claudekeys.length > 0;
+}
+
+function hasClaudeKeys() {
+  return claudekeys.length > 0;
 }
 
 init();
 
-module.exports = { getKey, listKeys, markFailure, addKey, hasKeys };
+module.exports = { 
+  getKey, 
+  getClaudeKey,
+  listKeys, 
+  listClaudeKeys,
+  markFailure, 
+  markClaudeFailure,
+  addKey, 
+  hasKeys,
+  hasClaudeKeys
+};
