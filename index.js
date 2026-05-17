@@ -391,8 +391,8 @@ async function startBot() {
 						if (fs.existsSync(audioPath)) {
 							await sock.sendMessage(from, { 
 								audio: fs.readFileSync(audioPath), 
-								mimetype: 'audio/mp4', 
-								ptt: true 
+								mimetype: 'audio/mpeg', 
+								ptt: false 
 							}, { quoted: msg });
 						}
 						break; 
