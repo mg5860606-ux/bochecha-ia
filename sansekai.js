@@ -842,12 +842,49 @@ const selfEvolution = new SelfEvolutionEngine();
  * Controla e equilibra a rotação de múltiplas chaves API do Google Gemini.
  * Oferece gerenciamento inteligente de Cooldown contra Erro 429 e retentativa exponencial.
  */
+/**
+ * Utilitário para converter declarações de Tools do Gemini para o formato JSON Schema suportado pelo OpenRouter.
+ */
+function mapGeminiToolsToOpenRouter(geminiTools) {
+    if (!geminiTools || !Array.isArray(geminiTools) || geminiTools.length === 0) return undefined;
+    
+    return geminiTools.map(t => {
+        // Converte recursivamente os tipos uppercase para lowercase no parameters
+        const cleanParams = JSON.parse(JSON.stringify(t.parameters || { type: "object", properties: {}, required: [] }));
+        
+        const convertTypes = (obj) => {
+            if (!obj || typeof obj !== 'object') return;
+            if (typeof obj.type === 'string') {
+                obj.type = obj.type.toLowerCase();
+            }
+            if (obj.properties && typeof obj.properties === 'object') {
+                for (const key of Object.keys(obj.properties)) {
+                    convertTypes(obj.properties[key]);
+                }
+            }
+            if (obj.items && typeof obj.items === 'object') {
+                convertTypes(obj.items);
+            }
+        };
+        convertTypes(cleanParams);
+
+        return {
+            type: "function",
+            function: {
+                name: t.name,
+                description: t.description,
+                parameters: cleanParams
+            }
+        };
+    });
+}
+
 class KeyRotationEngine {
     constructor() {
         this.availableModels = [
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
-            "gemini-1.5-flash"
+            "google/gemini-1.5-flash:free",
+            "google/gemini-2.0-flash:free",
+            "google/gemini-1.5-pro:free"
         ];
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
@@ -977,7 +1014,7 @@ class KeyRotationEngine {
     _selectActiveKey() {
         const allKeys = apiKeyManager.listKeys();
         if (allKeys.length === 0) {
-            throw new Error("Nenhuma chave Gemini disponível em key.json. Use /addkey para cadastrar.");
+            throw new Error("Nenhuma chave OpenRouter disponível em key.json. Use /addkey para cadastrar.");
         }
 
         const now = Date.now();
@@ -1021,11 +1058,7 @@ class KeyRotationEngine {
     }
 
     /**
-     * Executa a chamada no Gemini com ciclo dinâmico de chaves e modelos.
-     * @param {any[]} history Histórico formatado do chat.
-     * @param {any} prompt Prompt multimodal ou textual de entrada.
-     * @param {any[]} tools Ferramentas (Skills) associadas.
-     * @param {string} systemInstruction Instrução comportamental principal.
+     * Executa a chamada no OpenRouter com ciclo dinâmico de chaves e modelos, 100% compatível com Gemini.
      */
     async executeWithRotation(history, prompt, tools, systemInstruction, isUserRequest = false) {
         let attempts = 0;
@@ -1035,7 +1068,7 @@ class KeyRotationEngine {
         while (attempts < maxKeyCycles) {
             const activeKey = this._selectActiveKey();
             if (!activeKey) {
-                throw new Error("Falha ao obter uma chave ativa da API.");
+                throw new Error("Falha ao obter uma chave ativa da API do OpenRouter.");
             }
 
             let lastError = null;
@@ -1045,19 +1078,90 @@ class KeyRotationEngine {
                 const startTime = Date.now();
 
                 try {
-                    Logger.info("KeyRotationEngine", `Conectando Gemini | Modelo: ${modelName} | Token: ${activeKey.substring(0, 8)}...`);
+                    Logger.info("KeyRotationEngine", `Conectando OpenRouter | Modelo: ${modelName} | Token: ${activeKey.substring(0, 8)}...`);
                     
-                    const genAI = new GoogleGenerativeAI(activeKey);
-                    const config = { model: modelName };
-                    
-                    if (systemInstruction) config.systemInstruction = systemInstruction;
-                    if (tools && tools.length > 0) config.tools = [{ functionDeclarations: tools }];
+                    const messages = [];
+                    if (systemInstruction) {
+                        messages.push({ role: "system", content: systemInstruction });
+                    }
 
-                    const model = genAI.getGenerativeModel(config);
-                    const chat = model.startChat({ history });
+                    // Mapeia o histórico do formato Gemini para o formato OpenAI/OpenRouter
+                    if (history && Array.isArray(history)) {
+                        for (const h of history) {
+                            const role = h.role === "model" ? "assistant" : "user";
+                            const content = (h.parts || []).map(p => p.text || "").join("\n").trim();
+                            if (content) {
+                                messages.push({ role, content });
+                            }
+                        }
+                    }
 
-                    const response = await chat.sendMessage(prompt);
-                    
+                    // Adapta o prompt de entrada (textual ou multimodal) para o OpenRouter
+                    let finalContent;
+                    if (typeof prompt === 'string') {
+                        finalContent = prompt;
+                    } else if (Array.isArray(prompt)) {
+                        finalContent = [];
+                        for (const item of prompt) {
+                            if (item.text) {
+                                finalContent.push({ type: "text", text: item.text });
+                            } else if (item.inlineData) {
+                                finalContent.push({
+                                    type: "image_url",
+                                    image_url: {
+                                        url: `data:${item.inlineData.mimeType};base64,${item.inlineData.data}`
+                                    }
+                                });
+                            }
+                        }
+                        if (finalContent.length === 1 && finalContent[0].type === "text") {
+                            finalContent = finalContent[0].text;
+                        }
+                    } else {
+                        finalContent = String(prompt);
+                    }
+
+                    messages.push({ role: "user", content: finalContent });
+
+                    // Converte a declaração das Tools para o formato JSON Schema que o OpenRouter aceita nativamente
+                    const openRouterTools = mapGeminiToolsToOpenRouter(tools);
+
+                    const body = {
+                        model: modelName,
+                        messages: messages
+                    };
+
+                    if (openRouterTools && openRouterTools.length > 0) {
+                        body.tools = openRouterTools;
+                        body.tool_choice = "auto";
+                    }
+
+                    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${activeKey}`,
+                            "HTTP-Referer": "https://github.com/mg5860606-ux/bochecha-ia",
+                            "X-Title": "Bochecha-IA",
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(body)
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`OpenRouter API Error: status ${response.status} - ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    const choice = data.choices && data.choices[0];
+                    if (!choice) {
+                        throw new Error("OpenRouter retornou uma resposta sem choices.");
+                    }
+
+                    const message = choice.message;
+                    const textReply = message.content || "";
+                    const toolCalls = message.tool_calls;
+
                     // Sucesso absoluto nas medições
                     const latency = Date.now() - startTime;
 
@@ -1079,7 +1183,30 @@ class KeyRotationEngine {
                     // Grava métricas ativamente
                     this.saveKeyMetrics().catch(() => {});
 
-                    return { chat, response, modelName };
+                    // Cria mocks perfeitamente compatíveis com a interface original do Gemini
+                    const responseMock = {
+                        response: {
+                            text: () => textReply,
+                            functionCalls: () => {
+                                if (!toolCalls || toolCalls.length === 0) return undefined;
+                                return toolCalls.map(tc => ({
+                                    name: tc.function.name,
+                                    args: JSON.parse(tc.function.arguments || '{}')
+                                }));
+                            }
+                        }
+                    };
+
+                    const chatMock = {
+                        getHistory: () => {
+                            const hist = [...history];
+                            hist.push({ role: "user", parts: [{ text: typeof prompt === 'string' ? prompt : JSON.stringify(prompt) }] });
+                            hist.push({ role: "model", parts: [{ text: textReply }] });
+                            return hist;
+                        }
+                    };
+
+                    return { chat: chatMock, response: responseMock, modelName };
                 } catch (e) {
                     const msg = String(e.message || e);
                     Logger.warn("KeyRotationEngine", `Falha temporária com ${modelName}: ${msg.substring(0, 80)}`);
@@ -1101,14 +1228,13 @@ class KeyRotationEngine {
             }
 
             // Se o loop terminou sem retornar, todos os modelos tentados falharam para esta chave.
-            // Marcamos a falha desta chave (o que joga ela pro final da fila de rotação) e tentamos a próxima chave.
             Logger.error("KeyRotationEngine", `Todos os modelos falharam para a chave ${activeKey.substring(0, 8)}... Rotacionando chave.`);
             apiKeyManager.markFailure(activeKey);
 
             attempts++;
         }
 
-        throw new Error("O Bochecha esgotou todas as chaves e modelos ativos sem conseguir obter resposta. Verifique as APIs!");
+        throw new Error("O Bochecha esgotou todas as chaves e modelos ativos do OpenRouter sem conseguir obter resposta. Verifique as APIs!");
     }
 
     /**
