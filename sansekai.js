@@ -3800,11 +3800,7 @@ ${chatLogs}`;
                         // Remove caracteres isoladores unicode ocultos do WhatsApp (\u2068 e \u2069)
                         let cleanedReply = aiReply.replace(/[\u2068\u2069]/g, '');
                         
-                        // Adiciona tag sutil da API/Modelo de IA utilizada
-                        if (modelName) {
-                            const prettyModel = modelName.split('/').pop().replace(':free', '');
-                            cleanedReply += `\n\n_🧠 Mente: ${prettyModel}_`;
-                        }
+                        // (A assinatura do modelo foi removida a pedido do usuário)
 
                         // Limpa e formata menções de números incorretas feitas pela IA (ex: @+55 11 99999-9999)
                         cleanedReply = cleanedReply.replace(/@\+?([\d\s()-]+)/g, (match, g1) => {
