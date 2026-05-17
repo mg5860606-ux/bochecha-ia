@@ -2818,41 +2818,77 @@ ${chatLogs}`;
         const formatted = `[De: ${pushname}] ${prompt}`;
         const parts = [formatted];
 
-        // Processamento Multimodal (Imagens e Vídeos)
+        // Processamento Multimodal de Mídia Universal (Imagens, Vídeos, Documentos/PDFs, Áudios/Gifs e Texto Citado)
         try {
-            const type = getContentType(messageRef.message);
-            const quotedType = messageRef.quoted ? getContentType(messageRef.quoted.message) : null;
+            const getMediaDetails = (msgObj) => {
+                if (!msgObj) return null;
+                const type = Object.keys(msgObj)[0] === 'senderKeyDistributionMessage' 
+                    ? Object.keys(msgObj)[1] 
+                    : Object.keys(msgObj)[0];
+                if (!type) return null;
+                
+                const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'];
+                if (mediaTypes.includes(type)) {
+                    return { type, msg: msgObj[type] };
+                }
+                return null;
+            };
 
-            if (type === 'imageMessage' || type === 'videoMessage') {
-                Logger.info("Multimodal", `Extraindo mídia principal (${type})`);
+            const msgType = Object.keys(messageRef.message || {})[0] === 'senderKeyDistributionMessage' 
+                ? Object.keys(messageRef.message || {})[1] 
+                : Object.keys(messageRef.message || {})[0];
+
+            const contextInfo = messageRef.message?.[msgType]?.contextInfo || messageRef.message?.extendedTextMessage?.contextInfo;
+
+            // 1. Verifica mídia na mensagem principal ou na mensagem citada/marcada (quoted)
+            let media = getMediaDetails(messageRef.message);
+            if (!media && contextInfo && contextInfo.quotedMessage) {
+                media = getMediaDetails(contextInfo.quotedMessage);
+            }
+
+            if (media) {
+                Logger.info("Multimodal", `Extraindo mídia do tipo [${media.type}]`);
                 const stream = await downloadContentFromMessage(
-                    messageRef.message[type], 
-                    type === 'imageMessage' ? 'image' : 'video'
+                    media.msg, 
+                    media.type.replace('Message', '') // converts 'imageMessage' -> 'image', etc.
                 );
                 let buffer = Buffer.from([]);
                 for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
+
+                let mimeType = media.msg.mimetype || 'application/octet-stream';
                 
+                // Mapeia tipos comuns para o Gemini
+                if (media.type === 'imageMessage') mimeType = 'image/jpeg';
+                else if (media.type === 'videoMessage') mimeType = 'video/mp4';
+                else if (media.type === 'stickerMessage') mimeType = 'image/webp';
+                else if (media.type === 'audioMessage') mimeType = 'audio/ogg; codecs=opus';
+
                 parts.push({
                     inlineData: {
                         data: buffer.toString('base64'),
-                        mimeType: type === 'imageMessage' ? 'image/jpeg' : 'video/mp4'
+                        mimeType: mimeType
                     }
                 });
-            } else if (quotedType === 'imageMessage' || quotedType === 'videoMessage') {
-                Logger.info("Multimodal", `Extraindo mídia citada da resposta (${quotedType})`);
-                const stream = await downloadContentFromMessage(
-                    messageRef.quoted.message[quotedType], 
-                    quotedType === 'imageMessage' ? 'image' : 'video'
-                );
-                let buffer = Buffer.from([]);
-                for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
                 
-                parts.push({
-                    inlineData: {
-                        data: buffer.toString('base64'),
-                        mimeType: quotedType === 'imageMessage' ? 'image/jpeg' : 'video/mp4'
-                    }
-                });
+                Logger.success("Multimodal", `Mídia [${media.type}] (${mimeType}) extraída com sucesso para o Gemini.`);
+            }
+
+            // 2. Se a mensagem citada/marcada for TEXTO simples, nós injetamos o texto como contexto para a IA ler!
+            if (contextInfo && contextInfo.quotedMessage) {
+                const quotedMsg = contextInfo.quotedMessage;
+                const quotedText = quotedMsg.conversation || 
+                                   quotedMsg.extendedTextMessage?.text || 
+                                   quotedMsg.imageMessage?.caption || 
+                                   quotedMsg.videoMessage?.caption || 
+                                   "";
+                
+                if (quotedText) {
+                    const quotedSenderJid = normalizeJid(contextInfo.participant || "");
+                    const quotedSenderName = quotedSenderJid.split('@')[0];
+                    
+                    parts.unshift(`[Mensagem Citada/Marcada de @${quotedSenderName}]: "${quotedText}"\n\n`);
+                    Logger.info("Multimodal", `Injetando texto citado de @${quotedSenderName} no prompt.`);
+                }
             }
         } catch (mediaErr) {
             Logger.error("BochechaEngine.Multimodal", mediaErr);
