@@ -1069,7 +1069,84 @@ class KeyRotationEngine {
             return oldestKey;
         }
 
-        return allKeys[0];
+    }
+
+    /**
+     * Seleciona e ordena os modelos de IA dinamicamente com base no contexto do prompt e das tools.
+     * Evita que o bot fique burro ou envie fotos para modelos incapazes de enxergar.
+     */
+    _getPrioritizedModels(prompt, tools) {
+        const hasMedia = Array.isArray(prompt) && prompt.some(item => item && item.inlineData);
+        const hasTools = Array.isArray(tools) && tools.length > 0;
+        
+        let promptText = "";
+        if (typeof prompt === 'string') {
+            promptText = prompt;
+        } else if (Array.isArray(prompt)) {
+            promptText = prompt.map(p => p.text || "").join(" ");
+        }
+        
+        const isCoding = /\b(codigo|código|programar|programação|erro|bug|js|javascript|script|terminal|node|npm|git|banco de dados|api|html|css|dev)\b/i.test(promptText);
+
+        // Fazer uma cópia dos modelos disponíveis
+        let list = [...this.availableModels];
+
+        if (hasMedia) {
+            // Se possui mídia, filtramos estritamente para modelos multimodais
+            const multimodalModels = [
+                "google/gemma-4-31b-it:free",
+                "google/gemma-4-26b-a4b-it:free",
+                "openrouter/free",
+                "nvidia/nemotron-nano-12b-v2-vl:free",
+                "google/gemini-2.0-flash-001",
+                "google/gemini-2.5-flash"
+            ];
+            list = list.filter(m => multimodalModels.includes(m));
+            // Colocamos o Gemma 4 31B no topo absoluto para imagem
+            list.sort((a, b) => {
+                if (a === "google/gemma-4-31b-it:free") return -1;
+                if (b === "google/gemma-4-31b-it:free") return 1;
+                return 0;
+            });
+        } else if (isCoding) {
+            // Se for programação/desenvolvimento, colocamos Poolside Laguna M.1 e Qwen Coder no topo absoluto
+            list.sort((a, b) => {
+                const aVal = (a === "poolside/laguna-m.1:free" || a === "qwen/qwen3-coder:free") ? -1 : 0;
+                const bVal = (b === "poolside/laguna-m.1:free" || b === "qwen/qwen3-coder:free") ? -1 : 0;
+                return aVal - bVal;
+            });
+        } else if (hasTools) {
+            // Se possui tools, colocamos modelos que têm suporte de elite a Function Calling no topo
+            const eliteToolsModels = [
+                "google/gemma-4-31b-it:free",
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "poolside/laguna-m.1:free",
+                "openrouter/free",
+                "google/gemini-2.0-flash-001",
+                "google/gemini-2.5-flash"
+            ];
+            list.sort((a, b) => {
+                const aElite = eliteToolsModels.includes(a) ? -1 : 0;
+                const bElite = eliteToolsModels.includes(b) ? -1 : 0;
+                return aElite - bElite;
+            });
+        } else {
+            // Conversação geral / fofocas / sarcasmo
+            // Colocamos Gemma 4 31B, Llama 3.3 e Deepseek no topo por fluidez e estilo
+            const talkModels = [
+                "google/gemma-4-31b-it:free",
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "deepseek/deepseek-v4-flash:free",
+                "openrouter/free"
+            ];
+            list.sort((a, b) => {
+                const aTalk = talkModels.includes(a) ? -1 : 0;
+                const bTalk = talkModels.includes(b) ? -1 : 0;
+                return aTalk - bTalk;
+            });
+        }
+
+        return list;
     }
 
     /**
@@ -1095,8 +1172,9 @@ class KeyRotationEngine {
             }
 
             let lastError = null;
+            const prioritizedModels = this._getPrioritizedModels(prompt, tools);
 
-            for (const modelName of this.availableModels) {
+            for (const modelName of prioritizedModels) {
                 this.metrics.totalRequests++;
                 const startTime = Date.now();
 
