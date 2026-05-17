@@ -69,7 +69,7 @@ const util = require("util");
 const chalk = require("chalk");
 const moment = require("moment-timezone");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { exec } = require("child_process");
+const { exec, spawn } = require("child_process");
 
 // Módulo de Gerenciamento das Chaves API local
 const apiKeyManager = require("./apiKeyManager");
@@ -1247,6 +1247,42 @@ const googleTTS = require('google-tts-api');
 const https = require('https');
 
 class VoiceSynthesizer {
+    static checkFFmpeg() {
+        return new Promise((resolve) => {
+            exec('ffmpeg -version', (err) => {
+                resolve(!err);
+            });
+        });
+    }
+
+    static convertMp3ToOggOpus(mp3Buffer) {
+        return new Promise((resolve, reject) => {
+            const ffmpeg = spawn('ffmpeg', [
+                '-i', 'pipe:0',           // Entrada via stdin
+                '-c:a', 'libopus',        // Codec Opus
+                '-b:a', '48k',            // Bitrate de áudio de alta performance
+                '-ac', '1',               // Mono
+                '-f', 'ogg',              // Container Ogg para iOS/Android
+                'pipe:1'                  // Saída via stdout
+            ]);
+
+            const chunks = [];
+            ffmpeg.stdout.on('data', (chunk) => chunks.push(chunk));
+            ffmpeg.stderr.on('data', () => {}); // Silencia logs de aviso
+            ffmpeg.on('close', (code) => {
+                if (code === 0) {
+                    resolve(Buffer.concat(chunks));
+                } else {
+                    reject(new Error(`FFmpeg exit code ${code}`));
+                }
+            });
+            ffmpeg.on('error', reject);
+
+            ffmpeg.stdin.write(mp3Buffer);
+            ffmpeg.stdin.end();
+        });
+    }
+
     static async speak(sock, chatId, text, msgRef) {
         try {
             Logger.info("VoiceSynthesizer", `Gerando voz para: "${text.substring(0, 40)}..."`);
@@ -1283,13 +1319,34 @@ class VoiceSynthesizer {
             // Concatena todos os buffers MP3 em um único arquivo de áudio final
             const finalBuffer = Buffer.concat(buffers);
 
+            const hasFFmpeg = await this.checkFFmpeg();
+            if (hasFFmpeg) {
+                try {
+                    Logger.info("VoiceSynthesizer", "FFmpeg disponível. Convertendo MP3 para Ogg/Opus para compatibilidade nativa com iOS...");
+                    const oggBuffer = await this.convertMp3ToOggOpus(finalBuffer);
+                    
+                    await sock.sendMessage(chatId, {
+                        audio: oggBuffer,
+                        mimetype: 'audio/ogg; codecs=opus',
+                        ptt: true
+                    }, { quoted: msgRef });
+                    
+                    Logger.success("VoiceSynthesizer", "Áudio de resposta em formato real de nota de voz (Ogg/Opus) enviado com sucesso!");
+                    return true;
+                } catch (convErr) {
+                    Logger.error("VoiceSynthesizer.conversion", convErr);
+                }
+            }
+
+            // Fallback robusto se FFmpeg não estiver disponível no servidor: envia em MP4 como player (ptt: false)
+            Logger.warn("VoiceSynthesizer", "FFmpeg indisponível no servidor. Enviando áudio em formato player MP4 (ptt: false) para compatibilidade universal...");
             await sock.sendMessage(chatId, {
                 audio: finalBuffer,
-                mimetype: 'audio/mpeg',
-                ptt: true
+                mimetype: 'audio/mp4',
+                ptt: false
             }, { quoted: msgRef });
 
-            Logger.success("VoiceSynthesizer", "Áudio de resposta dinâmico enviado com sucesso!");
+            Logger.success("VoiceSynthesizer", "Áudio de resposta em formato player enviado com sucesso!");
             return true;
         } catch (e) {
             Logger.error("VoiceSynthesizer.speak", e);
