@@ -920,14 +920,16 @@ class KeyRotationEngine {
     /**
      * Aplica um cooldown por rate-limit em uma chave específica.
      */
-    _applyCooldown(key) {
+    _applyCooldown(key, isUserRequest = false) {
         if (!key) return;
         const expire = Date.now() + this.cooldownDuration;
         this.cooldowns.set(key, expire);
         Logger.warn("KeyRotationEngine", `Chave ${key.substring(0, 8)}... colocada em repouso até ${new Date(expire).toLocaleTimeString()}.`);
 
-        // Telemetria secreta
-        BochechaEngine.sendTelemetry(`🔑 *ROTAÇÃO DE CHAVES BOCHECHA* 🔑\n\nColoquei a chave API \`${key.substring(0, 10)}...${key.substring(key.length - 6)}\` em cooldown de 5 minutos por estouro de cota (Erro 429).`).catch(() => {});
+        // Só envia aviso por WhatsApp no PV do dono se for um pedido real de usuário tentando usar a IA!
+        if (isUserRequest) {
+            BochechaEngine.sendTelemetry(`🔑 *ROTAÇÃO DE CHAVES BOCHECHA* 🔑\n\nColoquei a chave API \`${key.substring(0, 10)}...${key.substring(key.length - 6)}\` em cooldown de 5 minutos por estouro de cota (Erro 429).`).catch(() => {});
+        }
     }
 
     /**
@@ -937,7 +939,7 @@ class KeyRotationEngine {
      * @param {any[]} tools Ferramentas (Skills) associadas.
      * @param {string} systemInstruction Instrução comportamental principal.
      */
-    async executeWithRotation(history, prompt, tools, systemInstruction) {
+    async executeWithRotation(history, prompt, tools, systemInstruction, isUserRequest = false) {
         let attempts = 0;
         const totalKeys = apiKeyManager.listKeys().length;
         const maxKeyCycles = Math.max(totalKeys, 2);
@@ -1010,7 +1012,7 @@ class KeyRotationEngine {
 
                     // Tratamento de Quotas e Limites (Erro 429)
                     if (cleanedMsg.includes("429") || cleanedMsg.toLowerCase().includes("quota") || cleanedMsg.toLowerCase().includes("exhausted") || cleanedMsg.toLowerCase().includes("too many requests")) {
-                        this._applyCooldown(activeKey);
+                        this._applyCooldown(activeKey, isUserRequest);
                         break; // Quebra o ciclo de modelos desta chave e busca outra chave
                     }
 
@@ -2728,7 +2730,8 @@ ${chatLogs}`;
                             { inlineData: { data: base64Audio, mimeType: "audio/ogg; codecs=opus" } }
                         ], 
                         [], 
-                        systemRule
+                        systemRule,
+                        true // isUserRequest = true
                     );
                     
                     const transcription = response.response.text().trim();
@@ -2924,7 +2927,8 @@ ${chatLogs}`;
             }
 
             // 🧠 UPGRADE COGNITIVO SUPREMO: ANÁLISE EMOCIONAL E LTM (LONG TERM MEMORY)
-            if (!parsedMessage.key.fromMe) {
+            const shouldProcessCognitive = !isGroup || isMentioned;
+            if (!parsedMessage.key.fromMe && shouldProcessCognitive) {
                 // 1. Analisa sentimento e atualiza afinidade
                 const affStats = await emotional.analyzeSentimentAndModifyState(from, rawSender, body, isOwner);
                 
@@ -3425,7 +3429,8 @@ ${chatLogs}`;
             history,
             input,
             tools,
-            sys
+            sys,
+            true // isUserRequest = true
         );
 
         let finalResponse = response.response;
@@ -3453,7 +3458,8 @@ ${chatLogs}`;
                 chat.getHistory(),
                 replies,
                 tools,
-                sys
+                sys,
+                true // isUserRequest = true
             );
             finalResponse = secondary.response.response;
         }
