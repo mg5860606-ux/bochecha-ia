@@ -1416,10 +1416,17 @@ class KeyRotationEngine {
                     // Grava métricas ativamente
                     this.saveKeyMetrics().catch(() => {});
 
+                    // Se a culpa for do modelo/provedor que caiu, ele testa o PRÓXIMO modelo usando a mesma chave!
+                    if (msg.includes("Provider returned error") || msg.includes("upstream") || msg.includes("502")) {
+                        Logger.warn("KeyRotationEngine", `Provedor do modelo ${modelName} caiu! Pulando para o próximo modelo (Fallback).`);
+                        continue;
+                    }
+
                     // Se a chave esgotou os limites (429) ou está sem saldo/banida (401/402/403),
-                    // não adianta tentar outros modelos. Pula a chave instantaneamente!
+                    // Pula a chave instantaneamente e aplica um cooldown nela!
                     if (msg.includes("429") || msg.includes("401") || msg.includes("402") || msg.includes("403") || msg.includes("rate limit") || msg.includes("quota")) {
-                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 8)}... bloqueada/esgotada. Pulando de chave imediatamente.`);
+                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} bloqueada/esgotada. Pulando de chave imediatamente.`);
+                        this.cooldowns.set(activeKey, Date.now() + this.cooldownDuration);
                         break;
                     }
 
