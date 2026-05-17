@@ -3730,11 +3730,26 @@ ${chatLogs}`;
             let act = false;
             let clean = body;
 
+            // Captura o texto da mensagem citada (Reply) caso o usuário esteja respondendo algo
+            let quotedText = "";
+            try {
+                const contextInfo = parsedMessage.message?.extendedTextMessage?.contextInfo;
+                if (contextInfo && contextInfo.quotedMessage) {
+                    const qMsg = contextInfo.quotedMessage;
+                    quotedText = qMsg.conversation || qMsg.extendedTextMessage?.text || qMsg.imageMessage?.caption || qMsg.videoMessage?.caption || "";
+                }
+            } catch (e) {}
+
             if (isGroup) {
-                if (isMentioned) {
+                if (isMentioned || lowBody.includes('bochecha')) {
                     act = true;
                     clean = clean.replace(new RegExp(`@${myNumber}`, 'g'), '').trim();
-                    if (clean === "") clean = "fui marcado";
+                    if (clean === "" || clean.toLowerCase() === "bochecha") clean = "fui chamado";
+
+                    // Se existir uma mensagem respondida (Reply), empacota ela junto para a IA analisar
+                    if (quotedText) {
+                        clean = `[MENSAGEM DE CONTEXTO/REPLY]: O usuário está respondendo a seguinte mensagem: "${quotedText}".\n\n[COMENTÁRIO DO USUÁRIO]: ${clean}`;
+                    }
                 } else if (hasMedia) {
                     // Visão Autônoma com menção explícita
                     const hasCaptionMention = lowBody.includes("bochecha") || isMentioned;
@@ -3758,6 +3773,9 @@ ${chatLogs}`;
                 }
             } else {
                 act = true; // DM / Privado responde sempre
+                if (quotedText) {
+                    clean = `[MENSAGEM DE CONTEXTO/REPLY]: O usuário está respondendo a seguinte mensagem: "${quotedText}".\n\n[COMENTÁRIO DO USUÁRIO]: ${clean}`;
+                }
             }
 
             if (!act || (clean.length === 0 && !hasMedia)) return;
