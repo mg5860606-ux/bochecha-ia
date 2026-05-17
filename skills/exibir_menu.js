@@ -52,16 +52,6 @@ module.exports = {
 ╭┤ˑ࣪    ִ .̇  ۫  ̣ ֽ֗🛸 𝐌𝐄𝐍𝐔 - 𝐆𝐄𝐑𝐀𝐋 🛸·๋  ִ֗  ᐧ ֶּ֓ ˑ࣪ 
 ┇├┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
 ┇ | 
-┇ | ♰ *ＯＵＴＲＯＳ-ＭＥＮＵＳ*
-┇ |♱˖ ▸ ${prefix}menubasico
-┇ |♱˖ ▸ ${prefix}menudownload
-┇ |♱˖ ▸ ${prefix}menufig
-┇ |♱˖ ▸ ${prefix}menulink
-┇ |♱˖ ▸ ${prefix}menuvip
-┇ |♱˖ ▸ ${prefix}menuanimes
-┇ |♱˖ ▸ ${prefix}menurpg
-┇ |
-┇ | ♰ *𝐈𝐍𝐅𝐎𝐒 / 𝐂𝐇𝐄𝐂𝐊𝐒*
 ┇ |♱˖ ▸ ${prefix}ping
 ┇ |♱˖ ▸ ${prefix}status
 ┇ |♱˖ ▸ ${prefix}infogp
@@ -73,8 +63,9 @@ module.exports = {
 ┇ |💿⋆͜͡҈➳ ${prefix}video
 ┇ |💿⋆͜͡҈➳ ${prefix}tiktok
 ┇ |💿⋆͜͡҈➳ ${prefix}insta
+┇ |💿⋆͜͡҈➳ ${prefix}facebook
+┇ |💿⋆͜͡҈➳ ${prefix}pinterest
 ┇ |💿⋆͜͡҈➳ ${prefix}ytsearch
-┇ |💿⋆͜͡҈➳ ${prefix}spotify
 ┇ |
 ┇ | ♰ *𝐏𝐄𝐒𝑄𝐔𝐈𝐒𝐀𝐒*
 ┇ |🎲⋆͜͡҈➳ ${prefix}consultar
@@ -91,6 +82,8 @@ module.exports = {
 ┇ |✨⋆͜͡҈➳ ${prefix}gpt
 ┇ |✨⋆͜͡҈➳ ${prefix}gerar
 ┇ |✨⋆͜͡҈➳ ${prefix}anime
+┇ |✨⋆͜͡҈➳ ${prefix}efeitos
+┇ |✨⋆͜͡҈➳ ${prefix}removebg
 ┇ |✨⋆͜͡҈➳ ${prefix}revelar
 ┇ |
 ┇ | ♰ *𝐅𝐈𝐆𝐔𝐑𝐈𝐍𝐇𝐀𝐒*
@@ -98,13 +91,30 @@ module.exports = {
 ┇ |🎭⋆͜͡҈➳ ${prefix}fstiker
 ┇ |🎭⋆͜͡҈➳ ${prefix}attp
 ┇ |🎭⋆͜͡҈➳ ${prefix}rename
-┇ |🎭⋆͜͡҈➳ ${prefix}toimg
-┇ |🎭⋆͜͡҈➳ ${prefix}togif
+┇ |
+┇ | ♰ *𝐀𝐃𝐌𝐈𝐍𝐈𝐒𝐓𝐑𝐀𝐂̧𝐀̃𝐎*
+┇ |🛡️⋆͜͡҈➳ ${prefix}ban
+┇ |🛡️⋆͜͡҈➳ ${prefix}promover
+┇ |🛡️⋆͜͡҈➳ ${prefix}rebaixar
+┇ |🛡️⋆͜͡҈➳ ${prefix}warn
+┇ |🛡️⋆͜͡҈➳ ${prefix}mutar
+┇ |🛡️⋆͜͡҈➳ ${prefix}desmutar
+┇ |🛡️⋆͜͡҈➳ ${prefix}apagar
+┇ |🛡️⋆͜͡҈➳ ${prefix}todos
+┇ |🛡️⋆͜͡҈➳ ${prefix}bv
+┇ |
+┇ | ♰ *𝐄𝐂𝐎𝐍𝐎𝐌𝐈𝐀 𝐄 𝐁𝐀𝐍𝐂𝐎*
+┇ |💰⋆͜͡҈➳ ${prefix}saldo
+┇ |💰⋆͜͡҈➳ ${prefix}minerar
+┇ |💰⋆͜͡҈➳ ${prefix}pix
+┇ |💰⋆͜͡҈➳ ${prefix}duelo
+┇ |💰⋆͜͡҈➳ ${prefix}ricos
 ┇ |
 ┇ | ♰ *𝐉𝐎𝐆𝐎𝐒 & 𝐙𝐎𝐄𝐈𝐑𝐀*
 ┇ |🕹⋆͜͡҈➳ ${prefix}velha
 ┇ |🕹⋆͜͡҈➳ ${prefix}forca
 ┇ |🕹⋆͜͡҈➳ ${prefix}roleta
+┇ |🕹⋆͜͡҈➳ ${prefix}blackjack
 ┇ |🕹⋆͜͡҈➳ ${prefix}quiz
 ┇ |🕹⋆͜͡҈➳ ${prefix}jokenpo
 ┇ |🕹⋆͜͡҈➳ ${prefix}enquete
@@ -117,7 +127,9 @@ module.exports = {
 ┇ |🕹⋆͜͡҈➳ ${prefix}abracar
 ┇ |🕹⋆͜͡҈➳ ${prefix}tapa
 ┇ |🕹⋆͜͡҈➳ ${prefix}chute
+┇ |🕹⋆͜͡҈➳ ${prefix}matar
 ┇ |🕹⋆͜͡҈➳ ${prefix}namorar
+┇ |🕹⋆͜͡҈➳ ${prefix}separar
 ┇ |🕹⋆͜͡҈➳ ${prefix}casais
 ┇ |🕹⋆͜͡҈➳ ${prefix}comer
 ┇ |🕹⋆͜͡҈➳ ${prefix}shipar
@@ -169,8 +181,9 @@ module.exports = {
 `;
 
             await sock.sendMessage(from, {
-                image: { url: "https://files.catbox.moe/t7w3gk.jpg" },
+                video: { url: "https://files.catbox.moe/mcnawn.mp4" },
                 caption: menuText,
+                gifPlayback: true,
                 mentions: [sender]
             });
 

@@ -3450,8 +3450,15 @@ ${chatLogs}`;
 
             // Imprime mensagem formatada no log do console
             const pr = body.length > 80 ? body.substring(0, 80) + "..." : body;
+            
+            let consoleGroupName = "Privado";
+            if (isGroup) {
+                const metadata = BochechaEngine.storeRef?.chats?.get(from);
+                consoleGroupName = metadata?.name || metadata?.subject || "Grupo";
+            }
+
             console.log(
-                chalk.yellow(`[💬 MSG] `) + 
+                chalk.yellow(`[💬 MSG | ${consoleGroupName}] `) + 
                 chalk.cyan(pushname) + 
                 chalk.gray(` (${sender})`) + 
                 chalk.white(`: ${pr}`)
@@ -4047,6 +4054,9 @@ ${chatLogs}`;
         let chat, response, modelName;
         const hasMedia = parts.some(p => p && typeof p === 'object' && p.inlineData);
         const isSimpleConversation = apiKeyManager.hasClaudeKeys() && !hasMedia;
+
+        // 🟢 Indica visualmente para os usuários que a IA está "Digitando..."
+        try { await sock.sendPresenceUpdate('composing', chatId); } catch(e){}
 
         if (isSimpleConversation) {
             Logger.info("BochechaEngine", `[Grupo/Chat: ${logGroupName}] Roteando conversa de texto simples para a IA.`);

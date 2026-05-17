@@ -1,17 +1,16 @@
 const axios = require('axios');
-const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
 module.exports = {
     definition: {
         function: {
             name: "fazer_figurinha_de_texto",
-            description: "Cria uma figurinha (sticker) artística em formato de adesivo a partir de uma frase ou palavra escrita.",
+            description: "Cria uma figurinha animada colorida piscante (estilo ATTP) a partir de uma frase ou palavra escrita.",
             parameters: {
                 type: "object",
                 properties: {
                     texto: { 
                         type: "string", 
-                        description: "A palavra ou frase que você quer transformar em figurinha (ex: 'Que moleque chato')." 
+                        description: "A palavra ou frase curta que você quer transformar em figurinha animada (ex: 'Que chato')." 
                     }
                 },
                 required: ["texto"]
@@ -19,34 +18,23 @@ module.exports = {
         }
     },
     async execute(args, { sock, from }) {
-        if (!args.texto) return "❌ Por favor, informe o texto que você quer transformar em figurinha.";
+        if (!args.texto) return "❌ Por favor, informe o texto que você quer transformar em figurinha animada.";
 
-        await sock.sendMessage(from, { text: `🎨 Desenhando a figurinha de texto: "${args.texto}"...` });
+        await sock.sendMessage(from, { text: `🎨 Gerando figurinha animada de texto via Spider API: "${args.texto}"...` });
 
         try {
-            // Gera um prompt artístico otimizado para sticker com texto
-            const prompt = `design of a high quality circular die cut vector sticker displaying the words "${args.texto}" in outstanding glowing neon cyberpunk style, highly detailed typography, isolated black background`;
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${Math.floor(Math.random() * 10000)}`;
+            const API_KEY = "glnzLoIUlvwM6YZ4ildC";
+            const endpoint = `https://api.spiderx.com.br/api/stickers/attp?text=${encodeURIComponent(args.texto)}&api_key=${API_KEY}`;
 
-            // Faz o download do buffer da imagem
-            const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+            // A Spider API retorna diretamente o Buffer WebP Animado
+            const response = await axios.get(endpoint, { responseType: 'arraybuffer' });
             const buffer = Buffer.from(response.data, 'binary');
 
-            const sticker = new Sticker(buffer, {
-                pack: 'Bochecha IA', 
-                author: 'Corvo System', 
-                type: StickerTypes.FULL,
-                categories: ['🤩', '🎉'], 
-                quality: 60 
-            });
-            
-            const finalSticker = await sticker.toBuffer();
-            
-            await sock.sendMessage(from, { sticker: finalSticker });
-            return "Figurinha de texto gerada e enviada com sucesso.";
+            await sock.sendMessage(from, { sticker: buffer });
+            return "Figurinha animada de texto gerada e enviada com sucesso.";
 
         } catch (e) {
-            return `❌ Ocorreu um erro ao gerar a figurinha de texto: ${e.message}`;
+            return `❌ Ocorreu um erro na Spider API ao gerar a figurinha animada: ${e.message}`;
         }
     }
 };

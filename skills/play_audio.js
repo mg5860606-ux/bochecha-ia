@@ -17,41 +17,45 @@ module.exports = {
     async execute(args, { sock, from }) {
         if (!args.query) return "Aviso: Nenhum nome de música foi fornecido.";
 
-        await sock.sendMessage(from, { text: `🎵 Conectando aos Servidores SandroHost para buscar "${args.query}"...` });
+        const query = args.query.trim();
+        await sock.sendMessage(from, { text: `🎵 Conectando aos Servidores Spider API para baixar "${query}"...` });
 
         try {
-            const API_KEY = "SANDRO_MD_2005";
-            const q = encodeURIComponent(args.query.trim());
+            const API_KEY = "glnzLoIUlvwM6YZ4ildC";
+            const endpoint = `https://api.spiderx.com.br/api/downloads/play-audio?search=${encodeURIComponent(query)}&api_key=${API_KEY}`;
 
-            let thumbUrl = "https://files.catbox.moe/t7w3gk.jpg"; // Imagem fallback
-            let textoInfo = "";
-            
-            // 1. Pesquisa informações do vídeo (thumbnail, tempo, etc)
-            try {
-                const { data } = await axios.get(`https://api.sandrohost.com.br/api-sandro/pesquisa_ytb?nome=${q}&apikey=${API_KEY}`);
-                if (data && data.length > 0 && data[0]) {
-                    thumbUrl = data[0].thumb || thumbUrl;
-                    textoInfo = `🎵 *${data[0].titulo}*\n⏳ *Tempo:* ${data[0].tempo}\n\n📡 Baixando Áudio Original...`;
-                }
-            } catch (err) {
-                textoInfo = `📡 Baixando Áudio direto via API Sandro...`;
+            const { data } = await axios.get(endpoint);
+
+            if (!data || !data.url) {
+                return "❌ A Spider API não encontrou áudio para essa pesquisa. Verifique se o nome está correto.";
             }
 
-            // 2. Envia a Capa do Vídeo
-            await sock.sendMessage(from, { image: { url: thumbUrl }, caption: textoInfo });
+            const formatDuration = (sec) => {
+                if (!sec) return "Indisponível";
+                const m = Math.floor(sec / 60);
+                const s = sec % 60;
+                return `${m}:${s < 10 ? '0' : ''}${s}`;
+            };
 
-            // 3. Envia o Áudio puxando direto da URL Play da API
-            const audioUrl = `https://api.sandrohost.com.br/api-sandro/play?nome_url=${q}&apikey=${API_KEY}`;
+            const thumbUrl = data.thumbnail || "https://files.catbox.moe/t7w3gk.jpg";
+            const caption = `🎵 *${data.title || query}*\n` +
+                            `📺 *Canal:* ${data.channel?.name || "Não informado"}\n` +
+                            `⏳ *Duração:* ${formatDuration(data.total_duration_in_seconds)}\n\n` +
+                            `📡 *Processado por:* Spider API de Elite 🕸️`;
 
+            // 1. Envia a capa da música
+            await sock.sendMessage(from, { image: { url: thumbUrl }, caption });
+
+            // 2. Envia o áudio (Player MP3)
             await sock.sendMessage(from, {
-                audio: { url: audioUrl },
+                audio: { url: data.url },
                 mimetype: 'audio/mp4',
                 ptt: false // false para ser player de música (MP3)
             });
 
-            return "A música foi processada e enviada com sucesso usando a API Legacy do SandroHost.";
+            return "A música foi processada e enviada com sucesso usando a Spider API.";
         } catch (e) {
-            return `Erro na API do SandroHost: ${e.message}. O servidor de áudio deles pode estar instável.`;
+            return `❌ Erro ao baixar música via Spider API: ${e.message}. O servidor de áudio pode estar instável no momento.`;
         }
     }
 };

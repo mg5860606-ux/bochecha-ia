@@ -147,6 +147,7 @@ async function startBot() {
 		},
 		browser: ['Bochecha-IA', 'Chrome', '110.0.0.0'],
 		syncFullHistory: false,
+		markOnlineOnConnect: true,
 		generateHighQualityLinkPreview: true,
 		getMessage: async (key) => {
 			const msg = await store.loadMessage(key.remoteJid, key.id);

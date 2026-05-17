@@ -1,44 +1,55 @@
+const axios = require('axios');
+
 module.exports = {
     definition: {
         function: {
             name: "gerador_efeitos",
-            description: "Gera logotipos ou imagens com efeitos de texto usando as APIs legadas da Zero-Two.",
+            description: "Aplica efeitos e montagens cômicas na foto de perfil do usuário usando a Spider API.",
             parameters: {
                 type: "object",
                 properties: {
                     efeito: {
                         type: "string",
-                        enum: ["neon", "glitch", "matrix", "fire"],
-                        description: "O estilo visual desejado da logo."
-                    },
-                    texto: {
-                        type: "string",
-                        description: "O texto a ser escrito na imagem."
+                        enum: ["bolsonaro", "jail", "rip", "invert", "welcome", "goodbye"],
+                        description: "O tipo de montagem/efeito a ser aplicado na foto do usuário."
                     }
                 },
-                required: ["efeito", "texto"]
+                required: ["efeito"]
             }
         }
     },
-    async execute(args, { sock, from }) {
-        await sock.sendMessage(from, { text: `🎨 Solicitando geração de logo estilo ${args.efeito.toUpperCase()} à API Zero-Two...` });
+    async execute(args, { sock, from, sender }) {
+        if (!args.efeito) return "Aviso: Nenhum efeito foi especificado.";
+
+        await sock.sendMessage(from, { text: `🎨 Puxando sua foto de perfil para aplicar o efeito "${args.efeito}" via Spider API...` });
         
         try {
-            // Chave oficial extraída do código legado
-            const ZERO_TWO_API_KEY = "SANDRO_MD_2005";
-            let endpoint = args.efeito; 
+            const API_KEY = "glnzLoIUlvwM6YZ4ildC";
+            let imageUrl = "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"; // Fallback
             
-            const url = `https://zero-two-apis.com.br/api/maker/${endpoint}?text=${encodeURIComponent(args.texto)}&apikey=${ZERO_TWO_API_KEY}`;
+            try {
+                // Tenta puxar a foto de perfil em alta resolução
+                const pfpUrl = await sock.profilePictureUrl(sender, 'image');
+                if (pfpUrl) imageUrl = pfpUrl;
+            } catch (err) {
+                // O usuário pode estar sem foto ou com a privacidade ativada
+                return "❌ Não consegui acessar sua foto de perfil. Verifique se suas configurações de privacidade permitem que todos vejam sua foto.";
+            }
+
+            const endpoint = `https://api.spiderx.com.br/api/canvas/${args.efeito}?image_url=${encodeURIComponent(imageUrl)}&api_key=${API_KEY}`;
             
-            // O Baileys fará o download e envio direto usando a URL da API
+            // A Spider API retorna a imagem processada diretamente (ex: PNG/JPEG em buffer)
+            const response = await axios.get(endpoint, { responseType: 'arraybuffer' });
+            const buffer = Buffer.from(response.data, 'binary');
+
             await sock.sendMessage(from, { 
-                image: { url: url }, 
-                caption: `Aqui está sua arte gerada: ${args.texto}` 
+                image: buffer, 
+                caption: `🖌️ *Efeito Aplicado:* ${args.efeito.toUpperCase()}\n\n📡 _Spider API Canvas Engine_` 
             });
             
-            return "A imagem foi gerada via API e enviada com sucesso no grupo.";
+            return `Efeito ${args.efeito} aplicado na foto de perfil e enviado com sucesso.`;
         } catch (e) {
-            return `A API legada de imagem Zero-Two parece estar offline ou a chave expirou. Erro: ${e.message}`;
+            return `❌ A Spider API falhou ao aplicar o efeito: ${e.message}`;
         }
     }
 };
