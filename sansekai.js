@@ -114,6 +114,58 @@ const EMOTIONAL_FILE = path.join(LEARNINGS_DIR, "emotional_engine.json");
 // Donos padrão (Hardcoded para contingência absoluta)
 const DEFAULT_OWNERS = ["556584770585", "176291932332072"];
 
+// Banco de mapeamento de LIDs (Local Identifiers do WhatsApp) para JIDs reais de telefone
+const LID_MAP_FILE = path.join(LEARNINGS_DIR, "lid_mappings.json");
+let lidMappings = {};
+try {
+    if (fs.existsSync(LID_MAP_FILE)) {
+        lidMappings = JSON.parse(fs.readFileSync(LID_MAP_FILE, 'utf8'));
+    }
+} catch {}
+
+function saveLidMappings() {
+    try {
+        fs.writeFileSync(LID_MAP_FILE, JSON.stringify(lidMappings, null, 2));
+    } catch {}
+}
+
+/**
+ * Normaliza e resolve qualquer JID (inclusive LIDs do WhatsApp) para o JID de telefone real se disponível no cache.
+ */
+function normalizeJid(jid) {
+    if (!jid) return jid;
+    
+    let cleanJid = jid;
+    if (cleanJid.includes(':')) {
+        const parts = cleanJid.split(':');
+        const suffix = parts[1].split('@')[1];
+        cleanJid = parts[0] + '@' + suffix;
+    }
+
+    // 1. Verifica no mapa persistente local
+    if (lidMappings[cleanJid]) {
+        return lidMappings[cleanJid];
+    }
+
+    // 2. Se for LID, tenta resolver pelo store
+    if (cleanJid.endsWith('@lid') && BochechaEngine.storeRef) {
+        try {
+            const contacts = BochechaEngine.storeRef.contacts || {};
+            const contact = Object.values(contacts).find(c => c.id === cleanJid || c.jid === cleanJid);
+            if (contact && contact.phoneNumber) {
+                const resolved = contact.phoneNumber + "@s.whatsapp.net";
+                lidMappings[cleanJid] = resolved;
+                saveLidMappings();
+                return resolved;
+            }
+        } catch (err) {
+            // Silencioso
+        }
+    }
+
+    return cleanJid;
+}
+
 // Cache na RAM para Anti-Delete (Mensagens originais)
 const messageCache = new Map();
 
@@ -1221,6 +1273,59 @@ class SkillRegistry {
                     return res.message;
                 }
             };
+
+            // Registra a Skill nativa de alteração de imagem de perfil do grupo
+            this.skills["change_group_profile_picture"] = {
+                definition: {
+                    function: {
+                        name: "change_group_profile_picture",
+                        description: "Gera uma imagem digital futurista e de altíssima qualidade de forma autônoma baseada em um prompt artístico e define esta imagem como a nova foto de perfil do grupo. REGRA DE SEGURANÇA MÁXIMA: Esta chamada é permitida UNICAMENTE se solicitada pelo Arquiteto Marcos (Dono Supremo/isOwner = true). Proibido chamar sob solicitação de outros membros comuns do grupo.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                prompt: {
+                                    type: "string",
+                                    description: "Prompt descritivo em inglês ultra-detalhado para a geração de imagem por IA (ex: 'A majestic blue flaming phoenix rising, cyber-neon theme, digital art, highly detailed, 4k')."
+                                }
+                            },
+                            required: ["prompt"]
+                        }
+                    }
+                },
+                async execute(args, ctx) {
+                    if (!ctx.isOwner) {
+                        return "Erro crítico de segurança: Apenas o criador Marcos possui permissão para trocar a imagem de perfil do grupo.";
+                    }
+                    if (!ctx.isGroup) {
+                        return "Esta ferramenta de troca de imagem só pode ser executada dentro de grupos do WhatsApp.";
+                    }
+                    
+                    try {
+                        const axios = require('axios');
+                        const promptEncoded = encodeURIComponent(args.prompt);
+                        const url = `https://image.pollinations.ai/prompt/${promptEncoded}?width=512&height=512&nologo=true`;
+                        
+                        Logger.info("ProfilePicSkill", `Requisitando imagem foda do Pollinations: ${args.prompt}`);
+                        const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
+                        const buffer = Buffer.from(response.data);
+                        
+                        Logger.info("ProfilePicSkill", "Aplicando nova foto de perfil no grupo WhatsApp...");
+                        await ctx.sock.updateProfilePicture(ctx.chatId, buffer);
+                        
+                        await ctx.sock.sendMessage(ctx.chatId, {
+                            text: `📸 *IMAGEM DE PERFIL ATUALIZADA!* \n\nCriei uma arte digital de última geração baseada no conceito:\n_"${args.prompt}"_\n\nA foto do grupo foi atualizada com sucesso! 🛸🔥`
+                        });
+                        
+                        // Envia telemetria para Marcos
+                        BochechaEngine.sendTelemetry(`📸 *ATUALIZAÇÃO DE PERFIL DE GRUPO* 📸\n\nAtualizei a foto de perfil do grupo ${ctx.chatId.split('@')[0]} com sucesso!\n\n*Prompt Utilizado:* ${args.prompt}`).catch(() => {});
+                        
+                        return "Imagem do grupo atualizada com sucesso.";
+                    } catch (e) {
+                        Logger.error("ProfilePicSkill", e);
+                        return `Falha ao tentar gerar ou atualizar a imagem do grupo: ${e.message}`;
+                    }
+                }
+            };
         } catch (e) {
             Logger.error("SkillRegistry.loadAll", e);
         }
@@ -1603,7 +1708,8 @@ class SecuritySystem {
 
             // 1. Anti-Promote / Anti-Demote
             if (anu.action === 'promote' || anu.action === 'demote') {
-                const author = anu.author || "";
+                let author = anu.author || "";
+                author = normalizeJid(author);
                 const cleanAuthor = author.split('@')[0];
                 const isOwner = DEFAULT_OWNERS.includes(cleanAuthor) || author === sock.user.id.split(':')[0] + '@s.whatsapp.net';
 
@@ -1626,7 +1732,8 @@ class SecuritySystem {
 
             // 2. Adeus / Saída
             if (anu.action === 'remove' && security.bemvindo) {
-                const num = anu.participants[0];
+                const rawNum = anu.participants[0];
+                const num = normalizeJid(rawNum);
                 const cleanNum = num.split('@')[0];
                 let goodbyeText = `┏━━━━━━━━━━━━━━━━━━━━━┓\n┃   💀  *𝐒𝐀𝐈𝐔 𝐃𝐎 𝐆𝐑𝐔𝐏𝐎*  💀\n┗━━━━━━━━━━━━━━━━━━━━━┛\n\n⚡ *EX-MEMBRO:* @${cleanNum}\n\n┎┅┅┅┅━═⋅═━━━━═⋅═━┅┅┅┅☾⋆\n┖╮*Já vai tarde, vacilão!* 🖕\n╰╼╼╼╼╼╍⋅⊹⋅⋅⦁ 💀 ⦁⋅⋅⊹⋅╍╾╾╾╾☾⋆`;
                 await sock.sendMessage(from, { text: goodbyeText, mentions: [num] });
@@ -1636,8 +1743,9 @@ class SecuritySystem {
             if (anu.action === 'add') {
                 // Anti-Fake / Gringos (Números não iniciados em +55)
                 if (security.antifake) {
-                    for (const user of anu.participants) {
-                        if (!user.startsWith('55')) {
+                    for (const rawUser of anu.participants) {
+                        const user = normalizeJid(rawUser);
+                        if (!user.startsWith('55') && user.endsWith('@s.whatsapp.net')) {
                             Logger.warn("Anti-Fake", `Removendo número gringo suspeito: ${user}`);
                             await sock.sendMessage(from, { 
                                 text: `🚫 *ANTI-FAKE* 🚫\n\nO número @${user.split('@')[0]} estrangeiro/fake foi banido automaticamente.`, 
@@ -1650,7 +1758,8 @@ class SecuritySystem {
                 }
 
                 if (security.bemvindo) {
-                    for (const user of anu.participants) {
+                    for (const rawUser of anu.participants) {
+                        const user = normalizeJid(rawUser);
                         const model = security.modelo_bv || 1;
                         const cleanUser = user.split('@')[0];
                         
@@ -1701,7 +1810,8 @@ class SecuritySystem {
                     const original = messageCache.get(msgId);
                     if (!original) continue;
 
-                    const sender = original.key.participant || original.key.remoteJid;
+                    let sender = original.key.participant || original.key.remoteJid;
+                    sender = normalizeJid(sender);
                     const cleanSender = sender.split('@')[0];
                     const time = moment(original.messageTimestamp * 1000).tz("America/Sao_Paulo").format("HH:mm:ss");
 
@@ -1862,6 +1972,46 @@ class BochechaEngine {
         this.hasDreamedThisSilence = false;
     }
     static sockRef = null;
+    static storeRef = null;
+
+    /**
+     * Sincroniza e mapeia os Local Identifiers (LID) com JIDs de telefone de forma cruzada usando as credenciais do Baileys e o store local.
+     */
+    static syncLidMappings() {
+        try {
+            if (!BochechaEngine.sockRef) return;
+            
+            // 1. Extrai mapeamento direto da AuthState (fonte suprema do Baileys)
+            const authState = BochechaEngine.sockRef.authState;
+            if (authState && authState.creds && authState.creds.lidToJid) {
+                const map = authState.creds.lidToJid;
+                for (const lid in map) {
+                    const jid = map[lid];
+                    if (lid.endsWith('@lid') && jid.endsWith('@s.whatsapp.net')) {
+                        lidMappings[lid] = jid;
+                    }
+                }
+            }
+
+            // 2. Extrai do Store local (cache de contatos recebidos em tempo real)
+            if (BochechaEngine.storeRef && BochechaEngine.storeRef.contacts) {
+                const contacts = BochechaEngine.storeRef.contacts;
+                for (const id in contacts) {
+                    const contact = contacts[id];
+                    if (contact && contact.id && contact.id.endsWith('@lid') && contact.phoneNumber) {
+                        const resolved = contact.phoneNumber + "@s.whatsapp.net";
+                        if (lidMappings[contact.id] !== resolved) {
+                            lidMappings[contact.id] = resolved;
+                        }
+                    }
+                }
+            }
+
+            saveLidMappings();
+        } catch (e) {
+            Logger.error("BochechaEngine.syncLidMappings", e);
+        }
+    }
 
     /**
      * Envia telemetria/mensagens de auditoria privada direto para o Marcos.
@@ -1996,6 +2146,12 @@ ${chatLogs}`;
      */
     bind(sock, store) {
         BochechaEngine.sockRef = sock;
+        BochechaEngine.storeRef = store;
+
+        // Sincroniza mapeamentos de LIDs no início e a cada 5 minutos
+        setTimeout(() => BochechaEngine.syncLidMappings(), 5000);
+        setInterval(() => BochechaEngine.syncLidMappings(), 300000);
+
         Logger.info("Engine.Binder", "Vinculando escutas de eventos WhatsApp ao Socket...");
 
         // 1. Ouvir atualizações de participantes
@@ -2054,7 +2210,8 @@ ${chatLogs}`;
             const isGroup = from.endsWith('@g.us');
             const pushname = parsedMessage.pushName || "Membro";
 
-            const rawSender = parsedMessage.sender || parsedMessage.key?.participant || parsedMessage.key?.remoteJid || "";
+            const rawSenderUnnorm = parsedMessage.sender || parsedMessage.key?.participant || parsedMessage.key?.remoteJid || "";
+            const rawSender = normalizeJid(rawSenderUnnorm);
             const sender = rawSender.split('@')[0];
 
             // 🕹️ SENSOR DE JOGOS LOCAIS (ECONOMIA DE API)
@@ -2253,7 +2410,7 @@ ${chatLogs}`;
 
                     case "/warn":
                         if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-                            const target = parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0];
+                            const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
                             const w = await storage.addWarning(from, target);
                             await sock.sendMessage(from, {
                                 text: `⚠️ *ADVERTÊNCIA* ⚠️\n\nO dono aplicou aviso administrativo a @${target.split('@')[0]}.\n\nTotal de advertências: *${w}/3*`,
@@ -2269,7 +2426,7 @@ ${chatLogs}`;
 
                     case "/unwarn":
                         if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-                            const target = parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0];
+                            const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
                             await storage.resetWarnings(from, target);
                             await parsedMessage.reply(`✅ Avisos do usuário @${target.split('@')[0]} zerados!`, { mentions: [target] });
                         } else {
@@ -2279,7 +2436,7 @@ ${chatLogs}`;
 
                     case "/ban":
                         if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-                            const target = parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0];
+                            const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
                             await moderation.executeBan(sock, from, target, arg || "Expulsão manual por comando do Arquiteto.");
                         } else {
                             await parsedMessage.reply("Mencione o usuário a ser removido.");
@@ -2482,7 +2639,8 @@ ${chatLogs}`;
             const replies = [];
             for (const call of functionCalls) {
                 const fn = call.name;
-                const ctx = { chatId, sock, from: chatId, message: messageRef };
+                const isGroup = chatId.endsWith("@g.us");
+                const ctx = { chatId, sock, from: chatId, message: messageRef, isOwner, isGroup };
                 const res = await registry.execute(fn, call.args, ctx);
 
                 replies.push({
