@@ -114,13 +114,24 @@ async function startBot() {
 			console.log(chalk.white(' [1] - QR Code (Escanear com a câmera)'));
 			console.log(chalk.white(' [2] - Código de Pareamento (Número)'));
 			console.log(chalk.cyan('======================================='));
-			const opcao = await question(chalk.yellow('Digite 1 ou 2: '));
-			if (opcao.trim() === '1') {
+			
+			const isServer = !process.stdin.isTTY || process.env.PTERODACTYL || process.env.SERVER || process.env.DOCKER_ENV;
+			if (isServer) {
+				console.log(chalk.green('Hospedagem/Servidor detectado. Escolhendo [1] - QR Code automaticamente...'));
 				globalUseQRCode = true;
-				console.log(chalk.green('Aguarde a geração do QR Code...'));
 			} else {
-				globalUseQRCode = false;
-				console.log(chalk.green('Iniciando pareamento por código...'));
+				// Interface interativa com timeout de 8 segundos para garantir
+				const responsePromise = question(chalk.yellow('Digite 1 ou 2 (Padrão 1 em 8s): '));
+				const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('1'), 8000));
+				const opcao = await Promise.race([responsePromise, timeoutPromise]);
+				
+				if (opcao.trim() === '2') {
+					globalUseQRCode = false;
+					console.log(chalk.green('Iniciando pareamento por código...'));
+				} else {
+					globalUseQRCode = true;
+					console.log(chalk.green('Aguarde a geração do QR Code...'));
+				}
 			}
 		}
 		useQRCode = globalUseQRCode;
