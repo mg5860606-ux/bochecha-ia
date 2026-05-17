@@ -232,9 +232,11 @@ async function startBot() {
 			console.log(chalk.yellow(`[🔌 Conexão Fechada] Status: ${lastStatus} (Tentativa consecutiva: ${consecutiveFailures})`));
 			
 			// Se o usuário ainda não conectou (não registrado), qualquer fechamento de conexão exige reiniciar
-			// a pasta de sessão para evitar o loop de status 428 e gerar um QR Code novo e limpo!
+			// a pasta de sessão para evitar o loop de status 428. Exceto se for um status temporário (como 515 restartRequired
+			// ou 408 timeout/lost), onde devemos manter os arquivos para prosseguir com o login em andamento!
 			const isRegistered = sock.authState?.creds?.registered;
-			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401 || !isRegistered;
+			const isTemporary = lastStatus === 515 || lastStatus === 408 || lastStatus === 503;
+			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401 || (!isRegistered && !isTemporary);
 			const shouldReconnect = !isLoggedOut;
 
 			if (shouldReconnect) {
