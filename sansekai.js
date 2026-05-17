@@ -731,6 +731,9 @@ class KeyRotationEngine {
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
         
+        // Rastreamento individual por chave
+        this.keyStats = new Map();
+
         // Estatísticas analíticas
         this.metrics = {
             totalRequests: 0,
@@ -838,16 +841,39 @@ class KeyRotationEngine {
                     
                     // Sucesso absoluto nas medições
                     const latency = Date.now() - startTime;
+
+                    // Incrementa estatísticas individuais da chave
+                    if (!this.keyStats.has(activeKey)) {
+                        this.keyStats.set(activeKey, { success: 0, failed: 0, latencies: [] });
+                    }
+                    const kStat = this.keyStats.get(activeKey);
+                    kStat.success++;
+                    kStat.latencies.push(latency);
+                    if (kStat.latencies.length > 10) kStat.latencies.shift();
+
                     this.metrics.successRequests++;
                     this.metrics.latencies.push(latency);
                     this.metrics.modelHits[modelName] = (this.metrics.modelHits[modelName] || 0) + 1;
                     
                     if (this.metrics.latencies.length > 50) this.metrics.latencies.shift();
 
+                    // Grava métricas ativamente
+                    this.saveKeyMetrics().catch(() => {});
+
                     return { chat, response, modelName };
                 } catch (e) {
                     const msg = String(e.message || e);
                     Logger.warn("KeyRotationEngine", `Falha temporária com ${modelName}: ${msg.substring(0, 80)}`);
+
+                    // Incrementa falhas individuais da chave
+                    if (!this.keyStats.has(activeKey)) {
+                        this.keyStats.set(activeKey, { success: 0, failed: 0, latencies: [] });
+                    }
+                    this.keyStats.get(activeKey).failed++;
+                    this.metrics.failedRequests++;
+
+                    // Grava métricas ativamente
+                    this.saveKeyMetrics().catch(() => {});
 
                     // Tratamento de Quotas e Limites (Erro 429)
                     if (msg.includes("429") || msg.includes("quota") || msg.includes("exhausted") || msg.includes("Too Many Requests")) {
@@ -899,6 +925,62 @@ class KeyRotationEngine {
             requests: `${this.metrics.successRequests}/${this.metrics.totalRequests}`,
             modelDistribution: this.metrics.modelHits
         };
+    }
+
+    /**
+     * Grava relatórios de métricas das chaves de API do Gemini no disco.
+     */
+    async saveKeyMetrics() {
+        try {
+            const allKeys = apiKeyManager.listKeys();
+            const now = Date.now();
+            const keysList = [];
+            let activeCount = 0;
+
+            for (let i = 0; i < allKeys.length; i++) {
+                const k = allKeys[i];
+                const stats = this.keyStats.get(k) || { success: 0, failed: 0, latencies: [] };
+                const exp = this.cooldowns.get(k) || 0;
+                const inCooldown = exp > now;
+                const cooldownLeft = inCooldown ? Math.ceil((exp - now) / 1000) : 0;
+                
+                if (!inCooldown) activeCount++;
+
+                const avgL = stats.latencies.length > 0 
+                    ? Math.round(stats.latencies.reduce((a, b) => a + b, 0) / stats.latencies.length) + "ms"
+                    : "0ms";
+
+                const totalReqs = stats.success + stats.failed;
+                const usagePercent = Math.min(100, Math.round((totalReqs / 20) * 100)); // Limite fictício para TUI
+
+                keysList.push({
+                    index: i + 1,
+                    keyMasked: k.substring(0, 10) + "..." + k.substring(k.length - 6),
+                    success: stats.success,
+                    failed: stats.failed,
+                    latency: avgL,
+                    status: inCooldown ? "COOLDOWN" : "ATIVA",
+                    cooldownLeft,
+                    usagePercent
+                });
+            }
+
+            const activeModel = this.availableModels[0] || "gemini-2.5-flash";
+            const fallbackModel = this.availableModels[1] || "gemini-3.1-flash-lite";
+
+            const data = {
+                activeModel,
+                fallbackModel,
+                totalKeys: allKeys.length,
+                activeKeys: activeCount,
+                keys: keysList
+            };
+
+            const metricsFile = path.join(LEARNINGS_DIR, "key_metrics.json");
+            fs.writeFileSync(metricsFile, JSON.stringify(data, null, 2));
+        } catch (e) {
+            // Silencioso
+        }
     }
 }
 
@@ -1787,6 +1869,12 @@ class BochechaEngine {
 
         const diag = keyRotator.getDiagnostics();
         Logger.info("BootEngine", `Chaves prontas: ${diag.activeKeys}/${diag.totalKeys} | Avg Latency: ${diag.avgLatency}`);
+
+        // Gravação de métricas iniciais e loop periódico de 10s para TUI Dashboard (isa-tui)
+        keyRotator.saveKeyMetrics().catch(() => {});
+        setInterval(() => {
+            keyRotator.saveKeyMetrics().catch(() => {});
+        }, 10000);
     }
 
     /**
