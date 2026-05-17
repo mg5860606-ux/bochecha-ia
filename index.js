@@ -215,20 +215,26 @@ async function startBot() {
 	sock.ev.on('connection.update', async (update) => {
 		const { connection, lastDisconnect, qr } = update;
 
-		if (qr && useQRCode) {
-			console.log(chalk.cyan('\nEscaneie o QR Code abaixo com o WhatsApp:\n'));
+		if (qr) {
+			console.log(chalk.cyan('\n=================================================='));
+			console.log(chalk.cyan('   ESCANEIE O QR CODE ABAIXO COM O WHATSAPP:'));
+			console.log(chalk.cyan('==================================================\n'));
 			qrcode.generate(qr, { small: true });
 		}
 
 		if (connection === 'close') {
 			const lastStatus = lastDisconnect?.error?.output?.statusCode ?? lastDisconnect?.error?.status;
-			const isLoggedOut = lastStatus === DisconnectReason.loggedOut;
+			console.log(chalk.yellow(`[🔌 Conexão Fechada] Status: ${lastStatus}`));
+			
+			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401;
 			const shouldReconnect = !isLoggedOut;
 
 			if (shouldReconnect) {
 				const delay = lastStatus === 515 ? 1000 : 3000;
+				console.log(chalk.gray(`Tentando reconectar em ${delay/1000}s...`));
 				setTimeout(() => startBot(), delay);
 			} else {
+				console.log(chalk.red(`Sessão expirada ou desconectada pelo WhatsApp (Status ${lastStatus}). Limpando arquivos de credenciais para gerar um novo QR Code...`));
 				setTimeout(() => {
 					try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
 					startBot();
@@ -237,7 +243,7 @@ async function startBot() {
 		}
 
 		if (connection === 'open') {
-			console.log(color("✅ Bot conectado com sucesso!", "green"));
+			console.log(chalk.green("✅ Bot conectado com sucesso!"));
 			// Aciona a vinculação de eventos avançados do motor Bochecha-IA
 			require("./sansekai.js").bind(sock, store);
 		}
