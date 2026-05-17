@@ -2707,11 +2707,13 @@ class PromptComposer {
         const day = now.format("dddd");
 
         let groupName = "Conversa Privada";
+        let groupOwner = "Nenhum (Conversa Privada)";
         let isUserAdmin = false;
         if (chatId.endsWith('@g.us') && BochechaEngine.sockRef) {
             try {
                 const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await BochechaEngine.sockRef.groupMetadata(chatId);
                 groupName = metadata.subject || metadata.name || "Grupo do WhatsApp";
+                groupOwner = metadata.owner || metadata.subjectOwner || "Criador do Grupo (Não identificado)";
                 
                 const participants = metadata.participants || [];
                 const senderId = userData.userId;
@@ -2725,8 +2727,10 @@ class PromptComposer {
                 if (BochechaEngine.storeRef && BochechaEngine.storeRef.chats) {
                     const cached = BochechaEngine.storeRef.chats.get(chatId);
                     groupName = cached?.name || cached?.subject || "Grupo do WhatsApp";
+                    groupOwner = cached?.owner || cached?.subjectOwner || "Criador do Grupo";
                 } else {
                     groupName = "Grupo do WhatsApp";
+                    groupOwner = "Criador do Grupo";
                 }
             }
         }
@@ -2750,6 +2754,7 @@ class PromptComposer {
             `[METADADOS INVISÍVEIS DO CHAT PARA ATUALIZAÇÃO DO SEU CÉREBRO]:\n` +
             `- Data/Hora no Brasil: ${timeStr} (${day})\n` +
             `- Nome do Canal/Grupo Atual: "${groupName}" (Você está respondendo neste canal específico. Nunca misture informações ou pessoas com outros grupos!)\n` +
+            `- Dono/Criador deste Grupo: @${groupOwner.split('@')[0]} (Apenas para conhecimento interno do seu cérebro de elite, saiba quem fundou/gerencia o grupo!)\n` +
             `- ID Único do Chat: ${chatId}\n` +
             `- Usuário Falando com Você: ${userData.pushname || "Membro"} (Para marcá-lo de verdade, você DEVE escrever exatamente no formato ${mentionFormat} colado, sem espaços e sem sinal de +!)\n` +
             `- **REGRA DE MENÇÃO MANDATÓRIA**: Para marcar/mencionar qualquer pessoa no chat, use estritamente o formato @número (ex: @5511999999999) se for telefone normal, ou @Nome se for conta Business com LID. NUNCA insira sinal de "+", espaços ou traços no número da menção. Deve ser sempre o símbolo @ colado diretamente com os dígitos numéricos ou o nome.\n` +
@@ -3569,6 +3574,39 @@ ${chatLogs}`;
                         }
                         return;
 
+                    case "/sortear":
+                    case "/sorteio":
+                        if (!isGroup) {
+                            await parsedMessage.reply("❌ Este comando só pode ser utilizado em grupos do submundo!");
+                            return;
+                        }
+                        try {
+                            const metadata = await sock.groupMetadata(from);
+                            const participants = metadata.participants.map(p => p.id);
+                            
+                            const eligible = participants.filter(p => !p.includes(myNumber));
+                            const chosenJid = eligible.length > 0 
+                                ? eligible[Math.floor(Math.random() * eligible.length)]
+                                : participants[Math.floor(Math.random() * participants.length)];
+                            
+                            const cleanChosen = chosenJid.split('@')[0];
+                            const reason = arg ? `*${arg}*` : "ser o cara mais brabo do grupo";
+                            
+                            const commentOptions = [
+                                `papo reto, o @${cleanChosen} foi escolhido para: ${reason}! Sem K.O, aceita que dói menos! 💀🥀`,
+                                `a roleta do submundo girou e parou no @${cleanChosen}! O veredito é: ${reason}! 🛸🪐`,
+                                `não adianta correr, @${cleanChosen}! Tu foi o sorteado para: ${reason}! Segura essa bucha! 💀`,
+                                `os astros se alinharam e apontaram pro @${cleanChosen}! Parabéns (ou meus pêsames) por: ${reason}! 🥀⚡`
+                            ];
+                            
+                            const msg = `🎰 *SORTEIO DO SUBMUNDO* 🎰\n\n👉 ` + commentOptions[Math.floor(Math.random() * commentOptions.length)];
+                            await sock.sendMessage(from, { text: msg, mentions: [chosenJid] });
+                        } catch (err) {
+                            Logger.error("Command.Sorteio", err);
+                            await parsedMessage.reply("❌ Não consegui girar a roleta do sorteio agora!");
+                        }
+                        return;
+
                     case "/telemetria":
                         const diagT = keyRotator.getDiagnostics();
                         const statsT = `🛸 *TELEMETRIA E CONSCIÊNCIA NEURAL* 🛸\n\n` +
@@ -3728,8 +3766,12 @@ ${chatLogs}`;
                 this.queues.delete(qKey);
                 const aggregatedPrompt = q.messages.join("\n");
 
+                let typingInterval;
                 try {
-                    await sock.sendPresenceUpdate('composing', from);
+                    await sock.sendPresenceUpdate('composing', from).catch(() => {});
+                    typingInterval = setInterval(async () => {
+                        await sock.sendPresenceUpdate('composing', from).catch(() => {});
+                    }, 4000);
 
                     const { output: aiReply, modelName } = await this._callAI({
                         chatId: from,
@@ -3867,7 +3909,12 @@ ${chatLogs}`;
                         await sock.sendMessage(from, { text: cleanedReply + '\u200B', mentions }, { quoted: q.msgRef });
                     }
 
+                    if (typingInterval) clearInterval(typingInterval);
+                    await sock.sendPresenceUpdate('paused', from).catch(() => {});
+
                 } catch (err) {
+                    if (typingInterval) clearInterval(typingInterval);
+                    await sock.sendPresenceUpdate('paused', from).catch(() => {});
                     Logger.error(`BochechaEngine.DebounceQueue(${from})`, err);
                     await this._fallback(sock, from, aggregatedPrompt, isOwner, q.pushname, q.msgRef);
                 }
@@ -3883,6 +3930,14 @@ ${chatLogs}`;
      */
     async _callAI({ chatId, pushname, sender, prompt, isOwner, sock, messageRef }) {
         const warns = await storage.getWarnings(chatId, sender);
+        
+        let logGroupName = "Privado";
+        if (chatId.endsWith('@g.us') && sock) {
+            try {
+                const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await sock.groupMetadata(chatId);
+                logGroupName = metadata.subject || metadata.name || "Grupo";
+            } catch {}
+        }
         
         // Ativação da Memória de Longo Prazo (LTM): Extrai e grava fatos novos em background
         ltm.extractAndStoreFacts(chatId, sender, prompt, isOwner).catch(() => {});
@@ -3994,7 +4049,7 @@ ${chatLogs}`;
         const isSimpleConversation = apiKeyManager.hasClaudeKeys() && !hasMedia;
 
         if (isSimpleConversation) {
-            Logger.info("BochechaEngine", "Roteando conversa de texto simples para o Claude.");
+            Logger.info("BochechaEngine", `[Grupo/Chat: ${logGroupName}] Roteando conversa de texto simples para a IA.`);
             const claudeRes = await keyRotator.executeClaudeWithRotation(history, input, sys);
             chat = {
                 getHistory: () => {
@@ -4007,7 +4062,7 @@ ${chatLogs}`;
             response = claudeRes.response;
             modelName = claudeRes.modelName;
         } else {
-            Logger.info("BochechaEngine", "Roteando requisição complexa/multimodal para o Gemini.");
+            Logger.info("BochechaEngine", `[Grupo/Chat: ${logGroupName}] Roteando requisição complexa/multimodal para a IA.`);
             const geminiRes = await keyRotator.executeWithRotation(
                 history,
                 input,
