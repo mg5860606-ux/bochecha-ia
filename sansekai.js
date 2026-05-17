@@ -2770,6 +2770,10 @@ class PromptComposer {
             context += `- O usuário atual é um participante comum. Seja sarcástico, mostre autoridade do Bochecha e use gírias digitais. Lembre-se de punir os chatos com avisos!`;
         }
 
+        if (!chatId.endsWith('@g.us')) {
+            context += `\n- **AMBIENTE: CONVERSA PRIVADA (PV)**. Você está conversando no Privado. Sendo assim, dê SEMPRE respostas CURTAS, DIRETAS e EXTREMAMENTE INTELIGENTES. Não crie respostas muito longas, seja prático, gênio e sagaz!`;
+        }
+
         // Recupera emoções ativas e afinidade
         if (userData.userId) {
             const emotionalRule = await emotional.getEmotionalInstructions(chatId, userData.userId, isOwner);
@@ -3909,7 +3913,8 @@ ${chatLogs}`;
                             }
                         }
 
-                        await sock.sendMessage(from, { text: cleanedReply + '\u200B', mentions }, { quoted: q.msgRef });
+                        const msgOptions = isGroup ? { quoted: q.msgRef } : {};
+                        await sock.sendMessage(from, { text: cleanedReply + '\u200B', mentions }, msgOptions);
                     }
 
                     if (typingInterval) clearInterval(typingInterval);
