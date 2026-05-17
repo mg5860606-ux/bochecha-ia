@@ -996,21 +996,13 @@ class KeyRotationEngine {
             "google/gemma-4-31b-it:free",
             "poolside/laguna-m.1:free",
             "openrouter/free",
-            "deepseek/deepseek-v4-flash:free",
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "meta-llama/llama-3.2-3b-instruct:free",
-            "qwen/qwen3-coder:free",
             "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
             "liquid/lfm-2.5-1.2b-thinking:free",
             "liquid/lfm-2.5-1.2b-instruct:free",
-            "google/gemma-4-26b-a4b-it:free",
             "poolside/laguna-xs.2:free",
             "z-ai/glm-4.5-air:free",
             "openai/gpt-oss-120b:free",
             "openai/gpt-oss-20b:free",
-            "qwen/qwen3-next-80b-a3b-instruct:free",
-            "nousresearch/hermes-3-llama-3.1-405b:free",
-            "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
             "minimax/minimax-m2.5:free",
             "baidu/cobuddy:free",
             "nvidia/nemotron-3-nano-30b-a3b:free",
@@ -1203,7 +1195,6 @@ class KeyRotationEngine {
             // Se possui mídia, filtramos estritamente para modelos multimodais
             const multimodalModels = [
                 "google/gemma-4-31b-it:free",
-                "google/gemma-4-26b-a4b-it:free",
                 "openrouter/free",
                 "nvidia/nemotron-nano-12b-v2-vl:free"
             ];
@@ -1215,17 +1206,16 @@ class KeyRotationEngine {
                 return 0;
             });
         } else if (isCoding) {
-            // Se for programação/desenvolvimento, colocamos Poolside Laguna M.1 e Qwen Coder no topo absoluto
+            // Se for programação/desenvolvimento, colocamos Poolside Laguna M.1 no topo absoluto
             list.sort((a, b) => {
-                const aVal = (a === "poolside/laguna-m.1:free" || a === "qwen/qwen3-coder:free") ? -1 : 0;
-                const bVal = (b === "poolside/laguna-m.1:free" || b === "qwen/qwen3-coder:free") ? -1 : 0;
+                const aVal = (a === "poolside/laguna-m.1:free") ? -1 : 0;
+                const bVal = (b === "poolside/laguna-m.1:free") ? -1 : 0;
                 return aVal - bVal;
             });
         } else if (hasTools) {
             // Se possui tools, colocamos modelos que têm suporte de elite a Function Calling no topo
             const eliteToolsModels = [
                 "google/gemma-4-31b-it:free",
-                "meta-llama/llama-3.3-70b-instruct:free",
                 "poolside/laguna-m.1:free",
                 "openrouter/free"
             ];
@@ -1236,11 +1226,10 @@ class KeyRotationEngine {
             });
         } else {
             // Conversação geral / fofocas / sarcasmo
-            // Colocamos Gemma 4 31B, Llama 3.3 e Deepseek no topo por fluidez e estilo
+            // Colocamos Gemma 4 31B, OpenAI GPT-OSS e OpenRouter Free no topo por fluidez e estilo
             const talkModels = [
                 "google/gemma-4-31b-it:free",
-                "meta-llama/llama-3.3-70b-instruct:free",
-                "deepseek/deepseek-v4-flash:free",
+                "openai/gpt-oss-120b:free",
                 "openrouter/free"
             ];
             list.sort((a, b) => {
