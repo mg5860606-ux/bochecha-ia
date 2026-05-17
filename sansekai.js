@@ -440,7 +440,8 @@ module.exports = sansekai = async (upsert, sock, store, message) => {
             if (includesBochecha || isMentioned || startsWithSlash) {
                 shouldReply = true;
                 // Limpa a menção por arroba do texto pra IA não ficar confusa
-                textoLimpo = textoLimpo.replace(new RegExp(`@${myNumber}`, 'g'), '').trim() || textoLimpo;
+                textoLimpo = textoLimpo.replace(new RegExp(`@${myNumber}`, 'g'), '').trim();
+                if (textoLimpo === "") textoLimpo = "fui marcado"; // Evita que a mensagem fique vazia
             }
         } else {
             // Em DM: responde sempre
