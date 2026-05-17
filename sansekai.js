@@ -570,6 +570,116 @@ class StorageManager {
             return null;
         }
     }
+
+    /**
+     * Adiciona ou remove moedas (Bochecha-Coins) de um usuário.
+     */
+    async addCoins(chatId, userId, amount) {
+        try {
+            const dbPath = path.join(__dirname, 'learnings', 'economy.json');
+            const db = await this.read(dbPath, {});
+            
+            const cleanUser = userId.replace(/[^0-9]/g, '');
+            if (!db[chatId]) db[chatId] = {};
+            if (!db[chatId][cleanUser]) db[chatId][cleanUser] = { coins: 0 };
+            
+            db[chatId][cleanUser].coins = Math.max(0, (db[chatId][cleanUser].coins || 0) + amount);
+            await this.write(dbPath, db);
+            return db[chatId][cleanUser].coins;
+        } catch (e) {
+            Logger.error("StorageManager.addCoins", e);
+            return 0;
+        }
+    }
+
+    /**
+     * Retorna o saldo de moedas (Bochecha-Coins) de um usuário.
+     */
+    async getCoins(chatId, userId) {
+        try {
+            const dbPath = path.join(__dirname, 'learnings', 'economy.json');
+            const db = await this.read(dbPath, {});
+            const cleanUser = userId.replace(/[^0-9]/g, '');
+            return (db[chatId] && db[chatId][cleanUser] && db[chatId][cleanUser].coins) || 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    /**
+     * Retorna o ranking dos mais ricos do grupo.
+     */
+    async getRicos(chatId) {
+        try {
+            const dbPath = path.join(__dirname, 'learnings', 'economy.json');
+            const db = await this.read(dbPath, {});
+            const groupData = db[chatId] || {};
+            
+            const ricos = Object.keys(groupData).map(user => ({
+                user: user,
+                coins: groupData[user].coins || 0
+            })).filter(r => r.coins > 0)
+               .sort((a, b) => b.coins - a.coins);
+               
+            return ricos.slice(0, 10);
+        } catch (e) {
+            return [];
+        }
+    }
+
+    /**
+     * Agenda um novo alarme/lembrete no banco de dados.
+     */
+    async addAlarm(chatId, userId, messageText, timestamp) {
+        try {
+            const dbPath = path.join(__dirname, 'learnings', 'alarms.json');
+            const db = await this.read(dbPath, []);
+            
+            const newAlarm = {
+                id: Date.now() + Math.random().toString(36).substr(2, 5),
+                chatId,
+                userId,
+                messageText,
+                timestamp,
+                triggered: false
+            };
+            
+            db.push(newAlarm);
+            await this.write(dbPath, db);
+            return newAlarm;
+        } catch (e) {
+            Logger.error("StorageManager.addAlarm", e);
+            return null;
+        }
+    }
+
+    /**
+     * Retorna todos os alarmes pendentes de execução.
+     */
+    async getPendingAlarms() {
+        try {
+            const dbPath = path.join(__dirname, 'learnings', 'alarms.json');
+            const db = await this.read(dbPath, []);
+            const now = Date.now();
+            return db.filter(alarm => !alarm.triggered && alarm.timestamp <= now);
+        } catch (e) {
+            return [];
+        }
+    }
+
+    /**
+     * Marca um alarme como acionado ou remove-o.
+     */
+    async removeAlarm(alarmId) {
+        try {
+            const dbPath = path.join(__dirname, 'learnings', 'alarms.json');
+            let db = await this.read(dbPath, []);
+            db = db.filter(alarm => alarm.id !== alarmId);
+            await this.write(dbPath, db);
+        } catch (e) {
+            Logger.error("StorageManager.removeAlarm", e);
+        }
+    }
 }
 
 // Instanciar motor de base persistente
@@ -2883,6 +2993,27 @@ ${chatLogs}`;
                 Logger.error("BochechaEngine.DreamLoop", e);
             }
         }, 60000);
+
+        // Loop de verificação de alarmes e lembretes (verifica a cada 10 segundos)
+        setInterval(async () => {
+            try {
+                if (!BochechaEngine.sockRef) return;
+                
+                const pendingAlarms = await storage.getPendingAlarms();
+                for (const alarm of pendingAlarms) {
+                    const reminderMsg = `*⏰ LEMBRETE ATIVADO!* ⏰\n\nFala, @${alarm.userId.split('@')[0]}! Você me pediu para te lembrar disso:\n\n👉 *"${alarm.messageText}"*\n\nEspero que tenha sido útil, cria! 💀🥀`;
+                    
+                    await BochechaEngine.sockRef.sendMessage(alarm.chatId, { 
+                        text: reminderMsg, 
+                        mentions: [alarm.userId] 
+                    });
+                    
+                    await storage.removeAlarm(alarm.id);
+                }
+            } catch (e) {
+                Logger.error("BochechaEngine.AlarmLoop", e);
+            }
+        }, 10000);
     }
 
     /**
@@ -2973,12 +3104,49 @@ ${chatLogs}`;
             const rawSender = normalizeJid(rawSenderUnnorm);
             const sender = rawSender.split('@')[0];
 
-            // Registra a atividade da mensagem no grupo (para saber quem é o mais ativo nas últimas 12 horas)
-            if (isGroup && !parsedMessage.key.fromMe) {
-                storage.logMessageActivity(from, rawSender, pushname, body).catch(() => {});
+            // 🔇 MIDDLEWARE MUTE DE ECONOMIA (SILENCIADO POR BOCHECHA-COINS)
+            if (isGroup && !parsedMessage.key.fromMe && global.mutedUsers) {
+                const muteKey = `${from}-${rawSender}`;
+                const muteUntil = global.mutedUsers.get(muteKey) || 0;
+                if (Date.now() < muteUntil) {
+                    await sock.sendMessage(from, { delete: parsedMessage.key }).catch(() => {});
+                    return; // Interrompe qualquer processamento!
+                } else if (muteUntil > 0) {
+                    global.mutedUsers.delete(muteKey);
+                }
             }
 
             const lowBody = body.toLowerCase();
+
+            // 🛡️ SHIELD ANTI-SPAM & TRAVA-ZAP DE ELITE
+            if (isGroup && !parsedMessage.key.fromMe && body) {
+                const isTrava = body.length > 15000 || (body.match(/[^\x00-\x7F]/g) || []).length > 8000;
+                if (isTrava) {
+                    Logger.warn("AntiTrava", `Trava-Zap detectado de @${sender} (tamanho: ${body.length}). Defendendo o submundo!`);
+                    try {
+                        // Deleta a mensagem do grupo
+                        await sock.sendMessage(from, { delete: parsedMessage.key }).catch(() => {});
+                        // Bane o invasor instantaneamente
+                        await sock.groupParticipantsUpdate(from, [rawSender], "remove").catch(() => {});
+                        // Envia aviso no chat
+                        const warnMsg = `*🛡️ ESCUDO ANTI-SPAM ATIVADO!*\n\nQual foi, @${sender}? Achou que ia travar meu submundo com esse textinho de otário? Já foi banido do grupo pra largar de ser pé de breque! 💀🥀`;
+                        await sock.sendMessage(from, { text: warnMsg, mentions: [rawSender] });
+                    } catch (err) {
+                        Logger.error("AntiTrava.Defense", err);
+                    }
+                    return; // Interrompe o processamento imediatamente!
+                }
+            }
+
+            // Registra a atividade da mensagem no grupo (para saber quem é o mais ativo nas últimas 12 horas)
+            if (isGroup && !parsedMessage.key.fromMe) {
+                storage.logMessageActivity(from, rawSender, pushname, body).catch(() => {});
+                
+                // Sistema de Economia: Ganha de 1 a 5 Bochecha-Coins por mensagem ativa!
+                const randomCoins = Math.floor(Math.random() * 5) + 1;
+                storage.addCoins(from, rawSender, randomCoins).catch(() => {});
+            }
+
             const myNumber = sock.user.id.split(':')[0];
             const myLid = sock.authState?.creds?.me?.lid?.split(':')[0] || "SEMLID";
             const audioContextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
