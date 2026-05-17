@@ -497,6 +497,78 @@ class StorageManager {
         db[chatId][key] = value;
         await this.write(SECURITY_FILE, db);
     }
+
+    /**
+     * Registra a atividade de uma mensagem enviada por um usuário em um grupo (sliding window de 12 horas).
+     */
+    async logMessageActivity(chatId, userId, pushname) {
+        try {
+            const dbPath = path.join(__dirname, 'learnings', 'chat_activity.json');
+            const db = await this.read(dbPath, {});
+            
+            if (!db[chatId]) db[chatId] = [];
+            
+            db[chatId].push({
+                user: userId,
+                pushname: pushname,
+                timestamp: Date.now()
+            });
+            
+            // Filtra e limpa registros com mais de 12 horas (43200000 ms)
+            const twelveHoursAgo = Date.now() - 12 * 60 * 60 * 1000;
+            db[chatId] = db[chatId].filter(entry => entry.timestamp >= twelveHoursAgo);
+            
+            await this.write(dbPath, db);
+        } catch (e) {
+            Logger.error("StorageManager.logMessageActivity", e);
+        }
+    }
+
+    /**
+     * Retorna o usuário mais ativo nas últimas 12 horas no chat informado.
+     */
+    async getMostActiveUser(chatId) {
+        try {
+            const dbPath = path.join(__dirname, 'learnings', 'chat_activity.json');
+            const db = await this.read(dbPath, {});
+            
+            const entries = db[chatId] || [];
+            if (entries.length === 0) return null;
+            
+            const twelveHoursAgo = Date.now() - 12 * 60 * 60 * 1000;
+            const activeEntries = entries.filter(entry => entry.timestamp >= twelveHoursAgo);
+            
+            if (activeEntries.length === 0) return null;
+            
+            // Conta as ocorrências por usuário
+            const counts = {};
+            const names = {};
+            for (const entry of activeEntries) {
+                counts[entry.user] = (counts[entry.user] || 0) + 1;
+                names[entry.user] = entry.pushname;
+            }
+            
+            let mostActiveUser = null;
+            let maxCount = -1;
+            for (const user in counts) {
+                if (counts[user] > maxCount) {
+                    maxCount = counts[user];
+                    mostActiveUser = user;
+                }
+            }
+            
+            if (!mostActiveUser) return null;
+            
+            return {
+                user: mostActiveUser,
+                pushname: names[mostActiveUser],
+                count: maxCount
+            };
+        } catch (e) {
+            Logger.error("StorageManager.getMostActiveUser", e);
+            return null;
+        }
+    }
 }
 
 // Instanciar motor de base persistente
@@ -2191,12 +2263,23 @@ class PromptComposer {
             }
         }
 
+        let activeUserStr = "Nenhuma mensagem registrada nas últimas 12 horas.";
+        try {
+            const activeUser = await storage.getMostActiveUser(chatId);
+            if (activeUser) {
+                activeUserStr = `@${activeUser.user.split('@')[0]} (${activeUser.pushname}) com ${activeUser.count} mensagem(ns) enviada(s).`;
+            }
+        } catch (activeErr) {
+            Logger.error("PromptComposer.ActiveUserFetch", activeErr);
+        }
+
         let context = `\n\n` +
             `[METADADOS INVISÍVEIS DO CHAT PARA ATUALIZAÇÃO DO SEU CÉREBRO]:\n` +
             `- Data/Hora no Brasil: ${timeStr} (${day})\n` +
             `- Nome do Canal/Grupo Atual: "${groupName}" (Você está respondendo neste canal específico. Nunca misture informações ou pessoas com outros grupos!)\n` +
             `- ID Único do Chat: ${chatId}\n` +
             `- Usuário Falando com Você: ${userData.pushname || "Membro"} (Marque-o usando @${userData.userId ? userData.userId.split('@')[0] : ''})\n` +
+            `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
             `- Advertências do Usuário: ${userData.warns || 0}/3\n`;
 
@@ -2512,6 +2595,11 @@ ${chatLogs}`;
             const rawSenderUnnorm = parsedMessage.sender || parsedMessage.key?.participant || parsedMessage.key?.remoteJid || "";
             const rawSender = normalizeJid(rawSenderUnnorm);
             const sender = rawSender.split('@')[0];
+
+            // Registra a atividade da mensagem no grupo (para saber quem é o mais ativo nas últimas 12 horas)
+            if (isGroup && !parsedMessage.key.fromMe) {
+                storage.logMessageActivity(from, rawSender, pushname).catch(() => {});
+            }
 
             // 🎙️ TRANSCRIÇÃO AUTOMÁTICA E INJEÇÃO DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
             const audioMsg = parsedMessage.message?.audioMessage || parsedMessage.message[msgType]?.audioMessage;
