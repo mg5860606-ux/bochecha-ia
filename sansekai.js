@@ -414,9 +414,14 @@ module.exports = sansekai = async (upsert, sock, store, message) => {
         const myLid = sock.authState?.creds?.me?.lid?.split(':')[0] || "SEMLID";
 
         // Verificações de menção muito mais fortes (incluindo LID para grupos recentes)
-        const isMentionedByTag = message.mentionedJid && message.mentionedJid.some(jid => jid.includes(myNumber) || jid.includes(myLid));
+        const msgType = Object.keys(message.message || {})[0] === 'senderKeyDistributionMessage' ? Object.keys(message.message || {})[1] : Object.keys(message.message || {})[0];
+        const contextInfo = message.message?.[msgType]?.contextInfo || message.message?.extendedTextMessage?.contextInfo || {};
+        const mentionedJids = contextInfo.mentionedJid || [];
+        const quotedSender = contextInfo.participant || "";
+
+        const isMentionedByTag = mentionedJids.some(jid => jid.includes(myNumber) || jid.includes(myLid));
         const isMentionedByText = budy.includes('@' + myNumber);
-        const isReplyToMe = message.quoted && message.quoted.sender && (message.quoted.sender.includes(myNumber) || message.quoted.sender.includes(myLid));
+        const isReplyToMe = quotedSender.includes(myNumber) || quotedSender.includes(myLid);
 
         const isMentioned = isMentionedByTag || isMentionedByText || isReplyToMe;
 
