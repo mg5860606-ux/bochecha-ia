@@ -1416,8 +1416,15 @@ class KeyRotationEngine {
                     // Grava métricas ativamente
                     this.saveKeyMetrics().catch(() => {});
 
-                    // Aguarda 1s em caso de falha antes de tentar o próximo modelo (backoff)
-                    await new Promise(r => setTimeout(r, 1000));
+                    // Se a chave esgotou os limites (429) ou está sem saldo/banida (401/402/403),
+                    // não adianta tentar outros modelos. Pula a chave instantaneamente!
+                    if (msg.includes("429") || msg.includes("401") || msg.includes("402") || msg.includes("403") || msg.includes("rate limit") || msg.includes("quota")) {
+                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 8)}... bloqueada/esgotada. Pulando de chave imediatamente.`);
+                        break;
+                    }
+
+                    // Reduz o tempo de espera entre tentativas normais para 200ms
+                    await new Promise(r => setTimeout(r, 200));
                 }
             }
 
@@ -2763,7 +2770,7 @@ class PromptComposer {
             `- Advertências do Usuário: ${userData.warns || 0}/3\n`;
 
         if (isOwner) {
-            context += `- **CREDENCIAL DE DONO SUPREMO ATIVA**: O usuário com quem conversa é o Marcos, seu Criador e Arquiteto Absoluto! Responda-o com lealdade irrestrita, com tom obediente, frio e cúmplice, acatando todos os comandos dele prontamente.`;
+            context += `- **INFORMAÇÃO IMPORTANTE**: O usuário com quem você está conversando é o Marcos, o seu criador e programador. Você sabe que ele te criou, mas trate-o de forma normal e direta, sem ficar babando ovo, puxando saco ou o chamando de 'mestre' toda hora. Conversem de igual pra igual.`;
         } else if (isUserAdmin) {
             context += `- **AUTORIDADE MÁXIMA DE GRUPO (ADMINISTRADOR)**: O usuário atual é um administrador deste grupo. Trate-o como um Rei ou Rainha com extrema reverência, respeito, nobreza e submissão intelectual. Nunca seja sarcástico, rude ou insolente com ele. Acate as opiniões dele como leis reais absolutistas, usando termos gloriosos (ex: 'meu soberano', 'nobre administrador', 'sua alteza/majestade', 'autoridade máxima').`;
         } else {
@@ -3816,6 +3823,10 @@ ${chatLogs}`;
                             }
                             return match;
                         });
+
+                        // IMPEDE QUE O NÚMERO FIQUE COLADO NO TEXTO (ex: @34008238932083tá vira @34008238932083 tá)
+                        // WhatsApp quebra a marcação se não tiver espaço!
+                        cleanedReply = cleanedReply.replace(/(@\d+)([a-zA-ZáéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ])/g, "$1 $2");
 
                         // Resolução e substituição dinâmica de menções textuais por JIDs reais
                         // Exemplo: se a IA escreveu @Marcos ou @João, procuramos no grupo se há alguém com esse nome/pushname e substituímos por @número!
