@@ -1980,16 +1980,27 @@ class SecuritySystem {
                         const txt2 = (security.legenda_bv2 || defaultBV2).replace('@user', `@${cleanUser}`);
 
                         if (model === 1) {
-                            const img = security.welcomeImage || "https://files.catbox.moe/t7w3gk.jpg";
-                            await sock.sendMessage(from, {
-                                image: { url: img },
-                                caption: txt1,
-                                mentions: [user]
-                            });
+                            // Gera o card de boas-vindas fundido com a foto de perfil real do usuário!
+                            const cardBuffer = await SecuritySystem.generateWelcomeCard(sock, user);
+                            if (cardBuffer) {
+                                await sock.sendMessage(from, {
+                                    image: cardBuffer,
+                                    caption: txt1,
+                                    mentions: [user]
+                                });
+                            } else {
+                                const img = security.welcomeImage || "https://files.catbox.moe/t7w3gk.jpg";
+                                await sock.sendMessage(from, {
+                                    image: { url: img },
+                                    caption: txt1,
+                                    mentions: [user]
+                                });
+                            }
                         } else {
                             await sock.sendMessage(from, {
                                 text: txt2,
                                 mentions: [user]
+                                // quoted: parsedMessage
                             });
                         }
                     }
@@ -1997,6 +2008,55 @@ class SecuritySystem {
             }
         } catch (e) {
             Logger.error("SecuritySystem.handleGroupParticipants", e);
+        }
+    }
+
+    /**
+     * Gera dinamicamente um card de boas-vindas fundido com a foto de perfil do usuário.
+     */
+    static async generateWelcomeCard(sock, userJid) {
+        try {
+            const Jimp = require('jimp');
+            const axios = require('axios');
+            
+            // 1. Obtém a foto de perfil real do participante
+            let profilePicBuffer;
+            try {
+                const pfpUrl = await sock.profilePictureUrl(userJid, 'image');
+                const pfpResponse = await axios.get(pfpUrl, { responseType: 'arraybuffer' });
+                profilePicBuffer = Buffer.from(pfpResponse.data, 'binary');
+            } catch (pfpErr) {
+                // Se não conseguir acessar a foto pública (privacidade/sem foto), usa silhueta padrão
+                const fallbackUrl = "https://files.catbox.moe/k3iom6.jpg";
+                const fbResponse = await axios.get(fallbackUrl, { responseType: 'arraybuffer' });
+                profilePicBuffer = Buffer.from(fbResponse.data, 'binary');
+            }
+
+            // 2. Carrega o template de fundo premium de boas-vindas do Bochecha (800x400)
+            const templatePath = "https://files.catbox.moe/t7w3gk.jpg";
+            const background = await Jimp.read(templatePath);
+            const profilePic = await Jimp.read(profilePicBuffer);
+
+            // 3. Redimensiona a foto de perfil para 160x160 pixels
+            profilePic.resize(160, 160);
+            
+            // 4. Corta em círculo se suportado
+            try {
+                profilePic.circle();
+            } catch (circleErr) {
+                // Ignora se não for suportado pela versão
+            }
+
+            // 5. Composita a foto de perfil no local correto do template neon (x: 75, y: 120)
+            background.composite(profilePic, 75, 120);
+
+            // 6. Retorna o card JPEG finalizado em buffer
+            const buffer = await background.getBufferAsync(Jimp.MIME_JPEG);
+            return buffer;
+
+        } catch (err) {
+            Logger.error("SecuritySystem.generateWelcomeCard", err);
+            return null;
         }
     }
 
