@@ -846,11 +846,8 @@ class KeyRotationEngine {
     constructor() {
         this.availableModels = [
             "gemini-2.5-flash",
-            "gemini-3.1-flash-lite",
-            "gemini-3-flash-preview",
             "gemini-2.5-pro",
-            "gemini-3.1-pro-preview",
-            "gemini-pro"
+            "gemini-1.5-flash"
         ];
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
@@ -943,6 +940,8 @@ class KeyRotationEngine {
                 throw new Error("Falha ao obter uma chave ativa da API.");
             }
 
+            let lastError = null;
+
             for (const modelName of this.availableModels) {
                 this.metrics.totalRequests++;
                 const startTime = Date.now();
@@ -986,6 +985,7 @@ class KeyRotationEngine {
                 } catch (e) {
                     const msg = String(e.message || e);
                     Logger.warn("KeyRotationEngine", `Falha temporária com ${modelName}: ${msg.substring(0, 80)}`);
+                    lastError = e;
 
                     // Incrementa falhas individuais da chave
                     if (!this.keyStats.has(activeKey)) {
@@ -997,41 +997,15 @@ class KeyRotationEngine {
                     // Grava métricas ativamente
                     this.saveKeyMetrics().catch(() => {});
 
-                    // Higieniza a mensagem removendo a própria API key para evitar falsos positivos com dígitos (como 401/403) contidos na chave!
-                    let cleanedMsg = msg;
-                    if (activeKey) {
-                        cleanedMsg = cleanedMsg.replace(new RegExp(activeKey.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), '[KEY]');
-                    }
-
-                    // Tratamento de Quotas e Limites (Erro 429)
-                    if (cleanedMsg.includes("429") || cleanedMsg.toLowerCase().includes("quota") || cleanedMsg.toLowerCase().includes("exhausted") || cleanedMsg.toLowerCase().includes("too many requests")) {
-                        this._applyCooldown(activeKey, isUserRequest);
-                        break; // Quebra o ciclo de modelos desta chave e busca outra chave
-                    }
-
-                    // Tratamento de Chaves Leaked/Expiradas permanentemente
-                    const isPermanentInvalid = 
-                        cleanedMsg.includes("API_KEY_INVALID") || 
-                        cleanedMsg.toLowerCase().includes("leaked") ||
-                        cleanedMsg.toLowerCase().includes("api key not valid") ||
-                        /\b401\b/.test(cleanedMsg) || 
-                        /\b403\b/.test(cleanedMsg);
-
-                    if (isPermanentInvalid) {
-                        Logger.error("KeyRotationEngine", `Chave inválida permanente! Expulsando do sistema: ${activeKey.substring(0, 8)}...`);
-                        apiKeyManager.markFailure(activeKey);
-                        break; // Descarta chave e pula para próxima
-                    }
-
-                    // Tratamento de modelos indisponíveis
-                    if (cleanedMsg.includes("404") || cleanedMsg.toLowerCase().includes("not found")) {
-                        continue; // Passa para próximo modelo na mesma chave
-                    }
-
-                    // Erro de rede ou timeout: pausa transiente de backoff
-                    await new Promise(r => setTimeout(r, 2000));
+                    // Aguarda 1s em caso de falha antes de tentar o próximo modelo (backoff)
+                    await new Promise(r => setTimeout(r, 1000));
                 }
             }
+
+            // Se o loop terminou sem retornar, todos os modelos tentados falharam para esta chave.
+            // Marcamos a falha desta chave (o que joga ela pro final da fila de rotação) e tentamos a próxima chave.
+            Logger.error("KeyRotationEngine", `Todos os modelos falharam para a chave ${activeKey.substring(0, 8)}... Rotacionando chave.`);
+            apiKeyManager.markFailure(activeKey);
 
             attempts++;
         }
@@ -3517,19 +3491,7 @@ ${chatLogs}`;
      */
     async _fallback(sock, chatId, prompt, isOwner, pushname, messageRef) {
         try {
-            Logger.warn("Engine.Fallback", `IA principal indisponível. Enviando aviso de esgotamento/cooldown para o PV do dono.`);
-            
-            const groupName = chatId.endsWith('@g.us') ? "no grupo" : "no privado";
-            const warnText = `⚠️ *AVISO BOCHECHA-IA:* O limite de requisições das chaves Gemini foi esgotado ou as chaves entraram em cooldown temporário.\n\n*Origem:* Mensagem de ${pushname} ${groupName}.\n*Texto:* "${prompt.substring(0, 200)}..."`;
-
-            for (const owner of DEFAULT_OWNERS) {
-                const ownerJid = owner + '@s.whatsapp.net';
-                try {
-                    await sock.sendMessage(ownerJid, { text: warnText });
-                } catch (dmErr) {
-                    Logger.error(`Engine.Fallback.DM(${ownerJid})`, dmErr);
-                }
-            }
+            Logger.warn("Engine.Fallback", `IA principal indisponível. Alerta registrado apenas no console (aviso no PV desativado).`);
         } catch (e) {
             Logger.error("Engine.Critical", e);
         }
