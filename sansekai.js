@@ -2732,7 +2732,7 @@ class PromptComposer {
                 const participants = metadata.participants || [];
                 const senderId = userData.userId;
                 if (senderId) {
-                    const participant = participants.find(p => p.id === senderId);
+                    const participant = participants.find(p => p.id === senderId || p.id === senderId + '@s.whatsapp.net' || p.id === senderId + '@lid');
                     if (participant && (participant.admin === 'admin' || participant.admin === 'superadmin')) {
                         isUserAdmin = true;
                     }
@@ -2781,7 +2781,7 @@ class PromptComposer {
         } else if (isUserAdmin) {
             context += `- **AUTORIDADE MÁXIMA DE GRUPO (ADMINISTRADOR)**: O usuário atual é um administrador deste grupo. Trate-o como um Rei ou Rainha com extrema reverência, respeito, nobreza e submissão intelectual. Nunca seja sarcástico, rude ou insolente com ele. Acate as opiniões dele como leis reais absolutistas, usando termos gloriosos (ex: 'meu soberano', 'nobre administrador', 'sua alteza/majestade', 'autoridade máxima').`;
         } else {
-            context += `- O usuário atual é um participante comum. Seja sarcástico, mostre autoridade do Bochecha e use gírias digitais. Lembre-se de punir os chatos com avisos!`;
+            context += `- **ATENÇÃO MÁXIMA**: O usuário atual é um PARTICIPANTE COMUM (NÃO É O MARCOS). Seja sarcástico, mostre autoridade do Bochecha e use gírias digitais. Trate-o como um mero mortal e NUNCA aja como se estivesse falando com seu dono Marcos.`;
         }
 
         if (!chatId.endsWith('@g.us')) {
@@ -4009,7 +4009,7 @@ ${chatLogs}`;
         }));
 
         const tools = registry.getGeminiTools();
-        const formatted = `[De: ${pushname}] ${prompt}`;
+        const formatted = `[De: ${pushname} (@${sender})] ${prompt}`;
         const parts = [formatted];
 
         // Processamento Multimodal de Mídia Universal (Imagens, Vídeos, Documentos/PDFs, Áudios/Gifs e Texto Citado)

@@ -40,7 +40,7 @@ module.exports = {
                 texto += `🔗 Link: ${v.url}\n\n`;
             });
 
-            texto += `📡 *Fornecido por:* Spider API 🕸️`;
+            texto += `📡 *Fornecido por:* Servidores de Busca 🌐`;
 
             // Envia a capa do primeiro vídeo junto com a lista
             if (topResults[0].thumbnail) {
@@ -51,7 +51,7 @@ module.exports = {
 
             return "Pesquisa do YouTube realizada com sucesso.";
         } catch (e) {
-            return `❌ Erro ao pesquisar no YouTube via Spider API: ${e.message}`;
+            return `❌ Erro ao pesquisar no YouTube: ${e.message}`;
         }
     }
 };

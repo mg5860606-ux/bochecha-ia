@@ -20,13 +20,13 @@ module.exports = {
     async execute(args, { sock, from }) {
         if (!args.texto) return "❌ Por favor, informe o texto que você quer transformar em figurinha animada.";
 
-        await sock.sendMessage(from, { text: `🎨 Gerando figurinha animada de texto via Spider API: "${args.texto}"...` });
+        await sock.sendMessage(from, { text: `🎨 Gerando figurinha animada de texto: "${args.texto}"...` });
 
         try {
             const API_KEY = "glnzLoIUlvwM6YZ4ildC";
             const endpoint = `https://api.spiderx.com.br/api/stickers/attp?text=${encodeURIComponent(args.texto)}&api_key=${API_KEY}`;
 
-            // A Spider API retorna diretamente o Buffer WebP Animado
+            // A API retorna diretamente o Buffer WebP Animado
             const response = await axios.get(endpoint, { responseType: 'arraybuffer' });
             const buffer = Buffer.from(response.data, 'binary');
 
@@ -34,7 +34,7 @@ module.exports = {
             return "Figurinha animada de texto gerada e enviada com sucesso.";
 
         } catch (e) {
-            return `❌ Ocorreu um erro na Spider API ao gerar a figurinha animada: ${e.message}`;
+            return `❌ Ocorreu um erro no Gerador Visual ao gerar a figurinha animada: ${e.message}`;
         }
     }
 };

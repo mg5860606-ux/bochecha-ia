@@ -18,7 +18,7 @@ module.exports = {
         if (!args.query) return "Aviso: Nenhum nome de música foi fornecido.";
 
         const query = args.query.trim();
-        await sock.sendMessage(from, { text: `🎵 Conectando aos Servidores Spider API para baixar "${query}"...` });
+        await sock.sendMessage(from, { text: `🎵 Conectando aos Servidores de Áudio Premium para baixar "${query}"...` });
 
         try {
             const API_KEY = "glnzLoIUlvwM6YZ4ildC";
@@ -27,7 +27,7 @@ module.exports = {
             const { data } = await axios.get(endpoint);
 
             if (!data || !data.url) {
-                return "❌ A Spider API não encontrou áudio para essa pesquisa. Verifique se o nome está correto.";
+                return "❌ A API de Áudio não encontrou música para essa pesquisa. Verifique se o nome está correto.";
             }
 
             const formatDuration = (sec) => {
@@ -41,7 +41,7 @@ module.exports = {
             const caption = `🎵 *${data.title || query}*\n` +
                             `📺 *Canal:* ${data.channel?.name || "Não informado"}\n` +
                             `⏳ *Duração:* ${formatDuration(data.total_duration_in_seconds)}\n\n` +
-                            `📡 *Processado por:* Spider API de Elite 🕸️`;
+                            `📡 *Processado por:* Servidores Premium 🎵`;
 
             // 1. Envia a capa da música
             await sock.sendMessage(from, { image: { url: thumbUrl }, caption });
@@ -53,9 +53,9 @@ module.exports = {
                 ptt: false // false para ser player de música (MP3)
             });
 
-            return "A música foi processada e enviada com sucesso usando a Spider API.";
+            return "A música foi processada e enviada com sucesso.";
         } catch (e) {
-            return `❌ Erro ao baixar música via Spider API: ${e.message}. O servidor de áudio pode estar instável no momento.`;
+            return `❌ Erro ao baixar música via Servidor Premium: ${e.message}. O servidor de áudio pode estar instável no momento.`;
         }
     }
 };

@@ -4,7 +4,7 @@ module.exports = {
     definition: {
         function: {
             name: "consultar_dados",
-            description: "Faz uma consulta avançada de OSINT (Puxar Dados VIP) usando a API Gonzales.",
+            description: "Faz uma consulta avançada de OSINT (Puxar Dados VIP).",
             parameters: {
                 type: "object",
                 properties: {
@@ -22,7 +22,7 @@ module.exports = {
         }
     },
     async execute(args, { sock, from }) {
-        await sock.sendMessage(from, { text: `🔎 Conectando à Central de Dados VIP (GonzalesDev) para buscar: *${args.tipo.toUpperCase()}*...` });
+        await sock.sendMessage(from, { text: `🔎 Conectando à Central de Dados VIP para buscar: *${args.tipo.toUpperCase()}*...` });
         
         const CONSULTAS_TOKEN = '6b37bf08416e08c4276b4d55cc276be2';
         const CONSULTAS_API_BASE = 'https://apis.gonzalesdev.shop';
@@ -53,11 +53,11 @@ module.exports = {
                 // Entrega para a IA formatar o Dossiê
                 return `DADOS OBTIDOS COM SUCESSO: ${JSON.stringify(data).substring(0, 2000)}. \n\nINSTRUÇÃO PARA A IA: Você é o sistema de Inteligência Bochecha. Formate esses dados como um DOSSIÊ investigativo profissional, limpo e impressionante. Organize as informações (Nome, CPF, Mãe, Endereços, Telefones) em tópicos e use emojis. Não mostre código JSON ao usuário.`;
             } else {
-                return `A API Gonzales não encontrou resultados ou retornou erro. Dados brutos: ${JSON.stringify(data)}`;
+                return `A Central de Dados não encontrou resultados ou retornou erro. Dados brutos: ${JSON.stringify(data)}`;
             }
             
         } catch (e) {
-            return `Erro de conexão com a API GonzalesDev: ${e.message}. Talvez o link da API seja ligeiramente diferente.`;
+            return `Erro de conexão com a Central de Dados VIP: ${e.message}. Talvez o link da API seja ligeiramente diferente.`;
         }
     }
 };

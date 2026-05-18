@@ -47,16 +47,16 @@ module.exports = {
             const mediaUrl = `https://telegra.ph${upload.data[0].src}`;
 
             // 3. Endpoints de Elite
-            const GONZALES_TOKEN = "6b37bf08416e08c4276b4d55cc276be2";
+            const CANVAS_TOKEN = "6b37bf08416e08c4276b4d55cc276be2";
             let endpoint = "";
             
             switch(args.estilo) {
                 case "anime": endpoint = `https://api.vyturex.com/anime?url=${mediaUrl}`; break;
-                case "careca": endpoint = `https://apis.gonzalesdev.shop/api/canvas/calvo?url=${mediaUrl}&token=${GONZALES_TOKEN}`; break;
-                case "zumbi": endpoint = `https://apis.gonzalesdev.shop/api/canvas/zumbificar?url=${mediaUrl}&token=${GONZALES_TOKEN}`; break;
-                case "remover_fundo": endpoint = `https://apis.gonzalesdev.shop/api/canvas/removebg?url=${mediaUrl}&token=${GONZALES_TOKEN}`; break;
-                case "desenho": endpoint = `https://apis.gonzalesdev.shop/api/canvas/sketch?url=${mediaUrl}&token=${GONZALES_TOKEN}`; break;
-                case "pixelart": endpoint = `https://apis.gonzalesdev.shop/api/canvas/pixelate?url=${mediaUrl}&token=${GONZALES_TOKEN}`; break;
+                case "careca": endpoint = `https://apis.gonzalesdev.shop/api/canvas/calvo?url=${mediaUrl}&token=${CANVAS_TOKEN}`; break;
+                case "zumbi": endpoint = `https://apis.gonzalesdev.shop/api/canvas/zumbificar?url=${mediaUrl}&token=${CANVAS_TOKEN}`; break;
+                case "remover_fundo": endpoint = `https://apis.gonzalesdev.shop/api/canvas/removebg?url=${mediaUrl}&token=${CANVAS_TOKEN}`; break;
+                case "desenho": endpoint = `https://apis.gonzalesdev.shop/api/canvas/sketch?url=${mediaUrl}&token=${CANVAS_TOKEN}`; break;
+                case "pixelart": endpoint = `https://apis.gonzalesdev.shop/api/canvas/pixelate?url=${mediaUrl}&token=${CANVAS_TOKEN}`; break;
             }
 
             await sock.sendMessage(from, { 

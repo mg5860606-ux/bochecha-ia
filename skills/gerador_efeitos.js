@@ -4,7 +4,7 @@ module.exports = {
     definition: {
         function: {
             name: "gerador_efeitos",
-            description: "Aplica efeitos e montagens cômicas na foto de perfil do usuário usando a Spider API.",
+            description: "Aplica efeitos e montagens cômicas na foto de perfil do usuário usando um Motor Visual Avançado.",
             parameters: {
                 type: "object",
                 properties: {
@@ -21,7 +21,7 @@ module.exports = {
     async execute(args, { sock, from, sender }) {
         if (!args.efeito) return "Aviso: Nenhum efeito foi especificado.";
 
-        await sock.sendMessage(from, { text: `🎨 Puxando sua foto de perfil para aplicar o efeito "${args.efeito}" via Spider API...` });
+        await sock.sendMessage(from, { text: `🎨 Puxando sua foto de perfil para aplicar o efeito "${args.efeito}"...` });
         
         try {
             const API_KEY = "glnzLoIUlvwM6YZ4ildC";
@@ -43,13 +43,12 @@ module.exports = {
             const buffer = Buffer.from(response.data, 'binary');
 
             await sock.sendMessage(from, { 
-                image: buffer, 
-                caption: `🖌️ *Efeito Aplicado:* ${args.efeito.toUpperCase()}\n\n📡 _Spider API Canvas Engine_` 
+                caption: `🖌️ *Efeito Aplicado:* ${args.efeito.toUpperCase()}\n\n📡 _Motor Visual de Elite_` 
             });
             
             return `Efeito ${args.efeito} aplicado na foto de perfil e enviado com sucesso.`;
         } catch (e) {
-            return `❌ A Spider API falhou ao aplicar o efeito: ${e.message}`;
+            return `❌ O Motor Visual falhou ao aplicar o efeito: ${e.message}`;
         }
     }
 };

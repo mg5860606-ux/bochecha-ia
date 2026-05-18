@@ -21,7 +21,7 @@ module.exports = {
         const API_KEY = "glnzLoIUlvwM6YZ4ildC";
         const BASE_URL = "https://api.spiderx.com.br/api/downloads";
 
-        await sock.sendMessage(from, { text: "🎬 Conectando aos servidores Spider API para processar seu vídeo... Por favor, aguarde." });
+        await sock.sendMessage(from, { text: "🎬 Conectando aos Servidores Premium de Mídia para processar seu vídeo... Por favor, aguarde." });
 
         try {
             let endpoint = "";
@@ -49,7 +49,7 @@ module.exports = {
 
             const { data } = await axios.get(endpoint);
             
-            // Spider API Resilient Extraction (handles various response schemas)
+            // API Resilient Extraction (handles various response schemas)
             let videoUrl = data.url || data.video_url || data.video || data.link || (data.result && data.result.url);
             
             if (!videoUrl && data.data) {
@@ -62,12 +62,12 @@ module.exports = {
             }
 
             if (!videoUrl) {
-                return `❌ A Spider API não conseguiu encontrar/processar o vídeo do ${platformName}. A API retornou uma estrutura vazia ou a conta é privada.`;
+                return `❌ O Motor de Downloads não conseguiu encontrar/processar o vídeo do ${platformName}. A API retornou uma estrutura vazia ou a conta é privada.`;
             }
 
             const captionStr = `✅ *Vídeo Processado [${platformName}]!*\n` +
                                (data.title ? `📌 *Título:* ${data.title}\n` : "") +
-                               `\n📡 *Fornecido por:* Spider API 🕸️`;
+                               `\n📡 *Fornecido por:* Servidores de Download 🌐`;
 
             await sock.sendMessage(from, { 
                 video: { url: videoUrl }, 
@@ -75,9 +75,9 @@ module.exports = {
                 mimetype: "video/mp4"
             });
 
-            return `Vídeo processado e enviado com sucesso usando a Spider API (${platformName}).`;
+            return `Vídeo processado e enviado com sucesso pelo Motor de Downloads (${platformName}).`;
         } catch (e) {
-            return `❌ Erro ao baixar vídeo via Spider API: ${e.message}. O servidor de downloads deles pode estar instável.`;
+            return `❌ Erro ao baixar vídeo: ${e.message}. O servidor de downloads deles pode estar instável.`;
         }
     }
 };
