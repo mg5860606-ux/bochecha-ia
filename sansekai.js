@@ -993,21 +993,13 @@ function mapGeminiToolsToOpenRouter(geminiTools) {
 class KeyRotationEngine {
     constructor() {
         this.availableModels = [
-            "google/gemma-4-31b-it:free",
-            "poolside/laguna-m.1:free",
-            "openrouter/free",
-            "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-            "liquid/lfm-2.5-1.2b-thinking:free",
-            "liquid/lfm-2.5-1.2b-instruct:free",
-            "poolside/laguna-xs.2:free",
-            "z-ai/glm-4.5-air:free",
-            "openai/gpt-oss-120b:free",
-            "openai/gpt-oss-20b:free",
-            "minimax/minimax-m2.5:free",
-            "baidu/cobuddy:free",
-            "nvidia/nemotron-3-nano-30b-a3b:free",
-            "nvidia/nemotron-nano-9b-v2:free",
-            "nvidia/nemotron-nano-12b-v2-vl:free"
+            "google/gemini-2.5-flash:free",
+            "qwen/qwen-2.5-72b-instruct:free",
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "meta-llama/llama-3.1-8b-instruct:free",
+            "google/gemini-2.5-pro",
+            "google/gemini-2.5-flash",
+            "openrouter/free"
         ];
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
@@ -1192,50 +1184,57 @@ class KeyRotationEngine {
         let list = [...this.availableModels];
 
         if (hasMedia) {
-            // Se possui mídia, filtramos estritamente para modelos multimodais
+            // Se possui mídia, filtramos estritamente para modelos multimodais de alta performance
             const multimodalModels = [
-                "google/gemma-4-31b-it:free",
-                "openrouter/free",
-                "nvidia/nemotron-nano-12b-v2-vl:free"
+                "google/gemini-2.5-flash:free",
+                "google/gemini-2.5-flash",
+                "google/gemini-2.5-pro",
+                "openrouter/free"
             ];
             list = list.filter(m => multimodalModels.includes(m));
-            // Colocamos o Gemma 4 31B no topo absoluto para imagem
             list.sort((a, b) => {
-                if (a === "google/gemma-4-31b-it:free") return -1;
-                if (b === "google/gemma-4-31b-it:free") return 1;
-                return 0;
+                const aIdx = multimodalModels.indexOf(a);
+                const bIdx = multimodalModels.indexOf(b);
+                return aIdx - bIdx;
             });
         } else if (isCoding) {
-            // Se for programação/desenvolvimento, colocamos Poolside Laguna M.1 no topo absoluto
+            // Se for programação/desenvolvimento
+            const codingModels = [
+                "qwen/qwen-2.5-72b-instruct:free",
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "google/gemini-2.5-flash:free"
+            ];
             list.sort((a, b) => {
-                const aVal = (a === "poolside/laguna-m.1:free") ? -1 : 0;
-                const bVal = (b === "poolside/laguna-m.1:free") ? -1 : 0;
+                const aVal = codingModels.includes(a) ? codingModels.indexOf(a) : 99;
+                const bVal = codingModels.includes(b) ? codingModels.indexOf(b) : 99;
                 return aVal - bVal;
             });
         } else if (hasTools) {
-            // Se possui tools, colocamos modelos que têm suporte de elite a Function Calling no topo
+            // Se possui tools, Function Calling
             const eliteToolsModels = [
-                "google/gemma-4-31b-it:free",
-                "poolside/laguna-m.1:free",
+                "google/gemini-2.5-flash:free",
+                "google/gemini-2.5-flash",
+                "google/gemini-2.5-pro",
                 "openrouter/free"
             ];
             list.sort((a, b) => {
-                const aElite = eliteToolsModels.includes(a) ? -1 : 0;
-                const bElite = eliteToolsModels.includes(b) ? -1 : 0;
-                return aElite - bElite;
+                const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
+                const bVal = eliteToolsModels.includes(b) ? eliteToolsModels.indexOf(b) : 99;
+                return aVal - bVal;
             });
         } else {
             // Conversação geral / fofocas / sarcasmo
-            // Colocamos Gemma 4 31B, OpenAI GPT-OSS e OpenRouter Free no topo por fluidez e estilo
             const talkModels = [
-                "google/gemma-4-31b-it:free",
-                "openai/gpt-oss-120b:free",
+                "google/gemini-2.5-flash:free",
+                "qwen/qwen-2.5-72b-instruct:free",
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "meta-llama/llama-3.1-8b-instruct:free",
                 "openrouter/free"
             ];
             list.sort((a, b) => {
-                const aTalk = talkModels.includes(a) ? -1 : 0;
-                const bTalk = talkModels.includes(b) ? -1 : 0;
-                return aTalk - bTalk;
+                const aVal = talkModels.includes(a) ? talkModels.indexOf(a) : 99;
+                const bVal = talkModels.includes(b) ? talkModels.indexOf(b) : 99;
+                return aVal - bVal;
             });
         }
 
