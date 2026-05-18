@@ -1322,7 +1322,8 @@ class KeyRotationEngine {
 
                     const body = {
                         model: modelName,
-                        messages: messages
+                        messages: messages,
+                        temperature: 0.3
                     };
 
                     if (openRouterTools && openRouterTools.length > 0) {
@@ -1566,6 +1567,21 @@ class DialogSession {
     async saveHistory(chatId, history) {
         const file = this._getFilePath(chatId);
         await storage.write(file, history);
+    }
+
+    /**
+     * Limpa completamente o histórico e resumo de um chat.
+     */
+    async clearSession(chatId) {
+        const file = this._getFilePath(chatId);
+        if (fs.existsSync(file)) {
+            try {
+                fs.unlinkSync(file);
+            } catch (e) {
+                Logger.error(`DialogSession.clearSession(${chatId})`, e);
+            }
+        }
+        this.summaries.delete(chatId);
     }
 
     /**
@@ -3494,6 +3510,12 @@ ${chatLogs}`;
                 const arg = parts.slice(1).join(" ").trim();
 
                 switch (cmd) {
+                    case "/limpar":
+                    case "/reset":
+                        await sessionManager.clearSession(from);
+                        await parsedMessage.reply("🧹 *Histórico e subconsciente da sessão limpos com sucesso!* A IA acordou do delírio.");
+                        return;
+
                     case "/addkey":
                         if (arg) {
                             const ok = await keyRotator.addKey(arg);
@@ -4010,7 +4032,8 @@ ${chatLogs}`;
         }));
 
         const tools = registry.getGeminiTools();
-        const formatted = `[De: ${pushname} (@${sender.split('@')[0]})] ${prompt}`;
+        const isLid = (typeof rawSender !== 'undefined' && rawSender && rawSender.includes('lid')) || (sender && sender.includes('lid'));
+        const formatted = isLid ? `[De: ${pushname}] ${prompt}` : `[De: ${pushname} (@${sender.split('@')[0]})] ${prompt}`;
         const parts = [formatted];
 
         // Processamento Multimodal de Mídia Universal (Imagens, Vídeos, Documentos/PDFs, Áudios/Gifs e Texto Citado)
