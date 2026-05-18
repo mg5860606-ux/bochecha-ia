@@ -3181,21 +3181,36 @@ ${chatLogs}`;
 
             const myNumber = (sock.user?.id || "").replace(/:.*/, "").replace(/@.*/, "");
             const myLid = (sock.authState?.creds?.me?.lid || "SEMLID").replace(/:.*/, "").replace(/@.*/, "");
+            
+            // Extração robusta de mensagem respondida (Reply)
             const audioContextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
             const quotedSender = audioContextInfo.participant || "";
+            const quotedMessage = audioContextInfo.quotedMessage || {};
+            const quotedText = quotedMessage.conversation || quotedMessage.extendedTextMessage?.text || quotedMessage.imageMessage?.caption || quotedMessage.videoMessage?.caption || "";
             
+            // As 3 condições de ativação solicitadas pelo Criador Marcos:
+            // 1. O corpo do texto começa com "Bochecha" ou "@Bochecha" (case-insensitive)
+            const cleanLowBody = lowBody.trim();
+            const startsWithBochecha = cleanLowBody.startsWith("bochecha") || cleanLowBody.startsWith("@bochecha");
+            
+            // 2. Marcado/Taggeado diretamente via JIDs ou menção textual de número
             const mentionedJids = audioContextInfo.mentionedJid || [];
             const isTag = mentionedJids.some(jid => areJidsSameUser(jid, sock.user.id));
             const isTextTag = (myNumber && body.includes('@' + myNumber)) || (myLid !== "SEMLID" && body.includes('@' + myLid));
+            
+            // 3. Respondendo a uma mensagem do Bochecha ou que contém menção a ele
             const isReply = quotedSender ? areJidsSameUser(quotedSender, sock.user.id) : false;
-            const isMentioned = isTag || isTextTag || isReply || lowBody.includes("bochecha");
+            const isQuotedMention = quotedText ? (quotedText.toLowerCase().includes("bochecha") || (myNumber && quotedText.includes(myNumber)) || (myLid !== "SEMLID" && quotedText.includes(myLid))) : false;
+            
+            // Ativação geral por menção ou palavra-chave
+            const isMentioned = startsWithBochecha || isTag || isTextTag || isReply || isQuotedMention || lowBody.includes("bochecha");
 
             // 🎙️ TRANSCRIÇÃO AUTOMÁTICA E INJEÇÃO DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
             const audioMsg = parsedMessage.message?.audioMessage || parsedMessage.message[msgType]?.audioMessage;
             
             // Verifica se é um pedido explícito de transcrição em mensagem citada
             const isTranscribeRequest = lowBody === '/transcrever' || lowBody === 'transcreve' || lowBody === 'transcrever' || lowBody.startsWith('transcreve ') || lowBody.startsWith('/transcrever ');
-            const quotedMessage = audioContextInfo.quotedMessage;
+            // quotedMessage já está definida no escopo superior
             
             let activeAudioMsg = audioMsg;
             let shouldPrintTranscription = false;
@@ -3761,15 +3776,7 @@ ${chatLogs}`;
             let act = false;
             let clean = body;
 
-            // Captura o texto da mensagem citada (Reply) caso o usuário esteja respondendo algo
-            let quotedText = "";
-            try {
-                const contextInfo = parsedMessage.message?.extendedTextMessage?.contextInfo;
-                if (contextInfo && contextInfo.quotedMessage) {
-                    const qMsg = contextInfo.quotedMessage;
-                    quotedText = qMsg.conversation || qMsg.extendedTextMessage?.text || qMsg.imageMessage?.caption || qMsg.videoMessage?.caption || "";
-                }
-            } catch (e) {}
+            // quotedText já foi extraído de forma robusta e universal no início do handler para verificação de menções e contexto
 
             if (isGroup) {
                 if (isMentioned || lowBody.includes('bochecha')) {
@@ -3811,6 +3818,9 @@ ${chatLogs}`;
             }
 
             if (!act || (clean.length === 0 && !hasMedia)) return;
+
+            // Ativa o status de digitando (composing) imediatamente para feedback instantâneo no WhatsApp
+            sock.sendPresenceUpdate('composing', from).catch(() => {});
 
             // Debounce / Agrupamento de Mensagens Rápidas
             const qKey = `${from}:${sender}`;
