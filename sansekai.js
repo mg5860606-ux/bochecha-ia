@@ -3993,9 +3993,10 @@ ${chatLogs}`;
         try {
             if (fs.existsSync(RANKING_FILE)) {
                 const db = JSON.parse(fs.readFileSync(RANKING_FILE, 'utf8'));
-                if (db[chatId] && db[chatId][sender]) {
-                    level = db[chatId][sender].level || 1;
-                    xp = db[chatId][sender].xp || 0;
+                const cleanNum = sender.split('@')[0];
+                if (db[chatId] && db[chatId][cleanNum]) {
+                    level = db[chatId][cleanNum].level || 1;
+                    xp = db[chatId][cleanNum].xp || 0;
                 }
             }
         } catch {}
@@ -4009,7 +4010,7 @@ ${chatLogs}`;
         }));
 
         const tools = registry.getGeminiTools();
-        const formatted = `[De: ${pushname} (@${sender})] ${prompt}`;
+        const formatted = `[De: ${pushname} (@${sender.split('@')[0]})] ${prompt}`;
         const parts = [formatted];
 
         // Processamento Multimodal de Mídia Universal (Imagens, Vídeos, Documentos/PDFs, Áudios/Gifs e Texto Citado)
