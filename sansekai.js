@@ -2279,7 +2279,7 @@ class ModerationSystem {
         if (DEFAULT_OWNERS.includes(cleanUser)) return false;
 
         const security = await storage.getGroupSecurity(chatId);
-        if (!security.antispam) return false;
+        if (!security.antispam && !security.antiflood) return false;
 
         if (this.floodImunity.has(key)) return true;
 
