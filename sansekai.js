@@ -2850,11 +2850,11 @@ class PromptComposer {
             `[METADADOS INVISÍVEIS DO CHAT PARA ATUALIZAÇÃO DO SEU CÉREBRO]:\n` +
             `- Data/Hora no Brasil: ${timeStr} (${day})\n` +
             `- Nome do Canal/Grupo Atual: "${groupName}" (Você está respondendo neste canal específico. Nunca misture informações ou pessoas com outros grupos!)\n` +
-            `- Dono/Criador deste Grupo: @${groupOwner.split('@')[0]} (Apenas para conhecimento interno do seu cérebro de elite, saiba quem fundou/gerencia o grupo!)\n` +
+            `- Dono/Criador deste Grupo: ${groupOwner.split('@')[0]} (Apenas para conhecimento interno do seu cérebro de elite, saiba quem fundou/gerencia o grupo!)\n` +
             `- ID Único do Chat: ${chatId}\n` +
-            `- Usuário Falando com Você: ${userData.pushname || "Membro"} (Para marcá-lo de verdade, você DEVE escrever exatamente no formato ${mentionFormat} colado, sem espaços e sem sinal de +!)\n` +
-            `- **IDENTIDADE DO INTERLOCUTOR ATUAL**: A pessoa que está enviando a mensagem AGORA para você é "${userData.pushname || "Membro"}" (@${userData.userId ? userData.userId.split('@')[0] : ''}). Nunca confunda este nome com qualquer outra pessoa do histórico de conversas! Se referir a ele, use EXCLUSIVAMENTE o nome "${userData.pushname || "Membro"}" ou marque-o.\n` +
-            `- **REGRA DE MENÇÃO MANDATÓRIA**: Para marcar/mencionar qualquer pessoa no chat, use estritamente o formato @número (ex: @5511999999999) se for telefone normal, ou @Nome se for conta Business com LID. NUNCA insira sinal de "+", espaços ou traços no número da menção. Deve ser sempre o símbolo @ colado diretamente com os dígitos numéricos ou o nome.\n` +
+            `- Usuário Falando com Você: ${userData.pushname || "Membro"} (número: ${userData.userId ? userData.userId.split('@')[0] : 'desconhecido'})\n` +
+            `- **IDENTIDADE DO INTERLOCUTOR ATUAL**: A pessoa que está enviando a mensagem AGORA é "${userData.pushname || "Membro"}". Nunca confunda com outra pessoa do histórico! Fale com ela pelo nome normalmente — use o nome direto na maioria das vezes, como numa conversa real.\n` +
+            `- **REGRA DE MENÇÃO (OPCIONAL)**: Você NÃO precisa marcar com @ toda hora. Use o nome da pessoa diretamente no texto — isso é o mais natural. Quando quiser marcar de verdade (para notificar, advertir ou dar impacto), aí use @Nome (ex: @${userData.pushname || 'Membro'}) ou @número (ex: @${userData.userId ? userData.userId.split('@')[0] : ''}). Nosso servidor resolve automaticamente e cria a marcação clicável real. NUNCA insira sinal de '+', espaços ou traços.\n` +
             `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
             `- Advertências do Usuário: ${userData.warns || 0}/3\n`;
@@ -2868,7 +2868,7 @@ class PromptComposer {
         }
 
         if (!chatId.endsWith('@g.us')) {
-            context += `\n- **AMBIENTE: CONVERSA PRIVADA (PV)**. Você está conversando no Privado. Fale diretamente com o usuário sem marcações numéricas.`;
+            context += `\n- **AMBIENTE: CONVERSA PRIVADA (PV) — REGRA ABSOLUTA**: Você está numa conversa privada. JAMAIS use @ para mencionar ninguém aqui — menções não existem em PV e ficam feias e sem sentido. Use SEMPRE o nome da pessoa diretamente no texto, sem nenhum @.`;
         }
         
         context += `\n- **REGRA GLOBAL DE COMUNICAÇÃO (SUPREMA)**: NUNCA crie textos longos ou "textões". Dê SEMPRE respostas CURTAS, DIRETAS e EXTREMAMENTE INTELIGENTES. Seja prático, sagaz, ácido e vá direto ao ponto!`;
