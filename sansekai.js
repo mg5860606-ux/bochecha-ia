@@ -999,7 +999,6 @@ class KeyRotationEngine {
             "qwen/qwen3-next-80b-a3b-instruct:free",
             "deepseek/deepseek-v4-flash:free",
             "meta-llama/llama-3.2-3b-instruct:free",
-            "openrouter/free",
             "google/gemini-2.5-flash",
             "google/gemini-2.5-pro"
         ];
@@ -1188,7 +1187,6 @@ class KeyRotationEngine {
         if (hasMedia) {
             // Se possui mídia, filtramos estritamente para modelos multimodais de alta performance
             const multimodalModels = [
-                "openrouter/free",
                 "google/gemini-2.5-flash",
                 "google/gemini-2.5-pro"
             ];
@@ -1203,8 +1201,7 @@ class KeyRotationEngine {
             const codingModels = [
                 "qwen/qwen3-coder:free",
                 "meta-llama/llama-3.3-70b-instruct:free",
-                "google/gemma-4-31b-it:free",
-                "openrouter/free"
+                "google/gemma-4-31b-it:free"
             ];
             list.sort((a, b) => {
                 const aVal = codingModels.includes(a) ? codingModels.indexOf(a) : 99;
@@ -1215,7 +1212,6 @@ class KeyRotationEngine {
             // Se possui tools, Function Calling
             const eliteToolsModels = [
                 "meta-llama/llama-3.3-70b-instruct:free",
-                "openrouter/free",
                 "google/gemini-2.5-flash",
                 "google/gemini-2.5-pro"
             ];
@@ -1231,8 +1227,7 @@ class KeyRotationEngine {
                 "meta-llama/llama-3.3-70b-instruct:free",
                 "google/gemma-4-31b-it:free",
                 "qwen/qwen3-next-80b-a3b-instruct:free",
-                "meta-llama/llama-3.2-3b-instruct:free",
-                "openrouter/free"
+                "meta-llama/llama-3.2-3b-instruct:free"
             ];
             list.sort((a, b) => {
                 const aVal = talkModels.includes(a) ? talkModels.indexOf(a) : 99;
@@ -4035,6 +4030,11 @@ ${chatLogs}`;
                         }
 
                         const mentions = [...resolvedMentions];
+
+                        cleanedReply = cleanedReply.trim();
+                        if (!cleanedReply) {
+                            cleanedReply = "Deu um pequeno branco na rede aqui, chefinho! Mas já estou de volta na atividade. 😎";
+                        }
 
                         const msgOptions = isGroup ? { quoted: q.msgRef } : {};
                         await sock.sendMessage(from, { text: cleanedReply + '\u200B', mentions }, msgOptions);
