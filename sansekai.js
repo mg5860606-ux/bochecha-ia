@@ -3565,6 +3565,21 @@ ${chatLogs}`;
                         }
                         return;
 
+                    case "/gay": case "/corno": case "/gado": case "/fofo": case "/lindo": case "/beijar": 
+                    case "/atacar": case "/matar": case "/shipar": case "/casal": case "/tapa": 
+                    case "/chute": case "/comer": case "/abracar": case "/namorar":
+                        try {
+                            const ctx = { sock, from, pushname, message: parsedMessage };
+                            const argsBrin = { comando: cmd.substring(1) };
+                            if (parts.length > 1) {
+                                argsBrin.alvo = parts.slice(1).join(" ").trim();
+                            }
+                            await registry.execute("brincadeiras", argsBrin, ctx);
+                        } catch (err) {
+                            Logger.error("Command.Brincadeiras", err);
+                        }
+                        return;
+
                     case "/perfil":
                         try {
                             const myCoins = await storage.addCoins(from, rawSender, 0);
@@ -3802,8 +3817,36 @@ ${chatLogs}`;
                             pushname 
                         };
                         const res = await registry.execute("resumir_fofoca", {}, ctx);
-                        await parsedMessage.reply(res);
+                        if (res) await parsedMessage.reply(res);
                         return;
+                    }
+
+                    default: {
+                        const skillName = cmd.substring(1).toLowerCase();
+                        // Se houver uma skill com exatamente esse nome na pasta skills, executa de forma direta!
+                        if (registry.skills && registry.skills[skillName]) {
+                            try {
+                                const ctx = { 
+                                    sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from 
+                                };
+                                const argsDynamic = {};
+                                if (parts.length > 1) {
+                                    argsDynamic.texto = parts.slice(1).join(" ").trim();
+                                    argsDynamic.alvo = parts.slice(1).join(" ").trim();
+                                }
+                                const res = await registry.execute(skillName, argsDynamic, ctx);
+                                
+                                // Algumas skills retornam confirmações curtas que eram pro Gemini ler.
+                                // Se for string, a gente imprime direto no WhatsApp pra confirmar a ação.
+                                if (typeof res === 'string' && res.trim().length > 0 && !res.includes("Zoeira enviada")) {
+                                    await parsedMessage.reply(res);
+                                }
+                            } catch (err) {
+                                Logger.error(`Command.Dynamic.${skillName}`, err);
+                            }
+                            return;
+                        }
+                        break;
                     }
                 }
             }
@@ -3822,22 +3865,19 @@ ${chatLogs}`;
             let act = false;
             let clean = body;
 
-            // Transforma comandos soltos (Ex: /tapa, /ping) em chamadas forçadas para a IA
+            // IGNORA comandos com prefixo para que não usem a IA, a pedido do usuário
             if (body.startsWith('/')) {
-                act = true;
-                clean = `[COMANDO DE USUÁRIO]: O usuário enviou o comando: "${body}". Execute a ferramenta/skill correspondente (ex: brincadeiras, economia, etc) e atenda a esse comando agora mesmo. Se não existir ferramenta, responda interpretando o comando de forma imersiva.`;
+                return; // Impede que a IA responda a comandos com /
             }
 
             // quotedText já foi extraído de forma robusta e universal no início do handler para verificação de menções e contexto
 
             if (isGroup) {
-                if (body.startsWith('/') || isMentioned || lowBody.includes('bochecha')) {
+                if (isMentioned || lowBody.includes('bochecha')) {
                     act = true;
                     
-                    if (!body.startsWith('/')) {
-                        clean = cleanBotMentions(clean);
-                        if (clean === "" || clean.toLowerCase() === "bochecha") clean = "fui chamado";
-                    }
+                    clean = cleanBotMentions(clean);
+                    if (clean === "" || clean.toLowerCase() === "bochecha") clean = "fui chamado";
 
                     // Se existir uma mensagem respondida (Reply), empacota ela junto para a IA analisar
                     const cleanedQuotedText = cleanBotMentions(quotedText);
