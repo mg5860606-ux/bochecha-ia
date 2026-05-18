@@ -3819,20 +3819,25 @@ ${chatLogs}`;
 
             if (!isAutorizado) return;
 
-            // Ativação da IA
-            // Impede terminantemente que comandos de sistema sejam processados pela IA
-            if (body.startsWith('/')) return;
-
             let act = false;
             let clean = body;
+
+            // Transforma comandos soltos (Ex: /tapa, /ping) em chamadas forçadas para a IA
+            if (body.startsWith('/')) {
+                act = true;
+                clean = `[COMANDO DE USUÁRIO]: O usuário enviou o comando: "${body}". Execute a ferramenta/skill correspondente (ex: brincadeiras, economia, etc) e atenda a esse comando agora mesmo. Se não existir ferramenta, responda interpretando o comando de forma imersiva.`;
+            }
 
             // quotedText já foi extraído de forma robusta e universal no início do handler para verificação de menções e contexto
 
             if (isGroup) {
-                if (isMentioned || lowBody.includes('bochecha')) {
+                if (body.startsWith('/') || isMentioned || lowBody.includes('bochecha')) {
                     act = true;
-                    clean = cleanBotMentions(clean);
-                    if (clean === "" || clean.toLowerCase() === "bochecha") clean = "fui chamado";
+                    
+                    if (!body.startsWith('/')) {
+                        clean = cleanBotMentions(clean);
+                        if (clean === "" || clean.toLowerCase() === "bochecha") clean = "fui chamado";
+                    }
 
                     // Se existir uma mensagem respondida (Reply), empacota ela junto para a IA analisar
                     const cleanedQuotedText = cleanBotMentions(quotedText);
