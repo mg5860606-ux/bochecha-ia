@@ -305,9 +305,9 @@ async function autoHeal(error) {
 
         // Carrega chave de API via rotador
         const apiKeyManager = require('./apiKeyManager');
-        const key = apiKeyManager.getKey();
-        if (!key) {
-            console.log(chalk.red('[Self-Healing] Chave de API não disponível para auto-cura.'));
+        const keys = apiKeyManager.listKeys();
+        if (keys.length === 0) {
+            console.log(chalk.red('[Self-Healing] Nenhuma chave de API disponível para auto-cura.'));
             return;
         }
 
@@ -329,23 +329,50 @@ ${fileContent}
         console.log(chalk.cyan('[Self-Healing] Acionando neurônios neurais via OpenRouter para reparo dinâmico...'));
 
         const axios = require('axios');
-        const res = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-            model: "google/gemini-2.5-pro:free",
-            messages: [
-                { role: "system", content: systemInstruction },
-                { role: "user", content: prompt }
-            ]
-        }, {
-            headers: {
-                "Authorization": `Bearer ${key}`,
-                "Content-Type": "application/json"
-            },
-            timeout: 45000
-        });
+        let correctedCode = "";
+        let success = false;
+        
+        const healModels = [
+            "google/gemini-2.5-pro:free",
+            "anthropic/claude-3.7-sonnet",
+            "openai/o3-mini",
+            "google/gemini-2.5-pro",
+            "anthropic/claude-3.5-sonnet"
+        ];
 
-        let correctedCode = res.data?.choices?.[0]?.message?.content?.trim();
-        if (!correctedCode) {
-            throw new Error("Modelo retornou resposta vazia.");
+        for (const key of keys) {
+            if (success) break;
+            for (const model of healModels) {
+                try {
+                    console.log(chalk.yellow(`[Self-Healing] Tentando curar com modelo ${model} usando chave ${key.substring(0, 8)}...`));
+                    const res = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+                        model: model,
+                        messages: [
+                            { role: "system", content: systemInstruction },
+                            { role: "user", content: prompt }
+                        ]
+                    }, {
+                        headers: {
+                            "Authorization": `Bearer ${key}`,
+                            "Content-Type": "application/json"
+                        },
+                        timeout: 30000
+                    });
+
+                    correctedCode = res.data?.choices?.[0]?.message?.content?.trim();
+                    if (correctedCode && correctedCode.length > 50) {
+                        success = true;
+                        console.log(chalk.green(`[Self-Healing] Auto-cura bem sucedida via ${model}!`));
+                        break;
+                    }
+                } catch (e) {
+                    console.log(chalk.red(`[Self-Healing] Falha ao curar com ${model}: ${e.message}`));
+                }
+            }
+        }
+
+        if (!success || !correctedCode) {
+            throw new Error("O Bochecha esgotou todas as chaves e modelos SOTA e não conseguiu efetuar o auto-reparo do código.");
         }
 
         if (correctedCode.startsWith("```")) {

@@ -1768,12 +1768,16 @@ class VoiceSynthesizer {
         return new Promise((resolve, reject) => {
             const ffmpegPath = require('ffmpeg-static');
             const ffmpeg = spawn(ffmpegPath, [
-                '-i', 'pipe:0',           // Entrada via stdin
-                '-c:a', 'libopus',        // Codec Opus
-                '-b:a', '48k',            // Bitrate de áudio de alta performance
-                '-ac', '1',               // Mono
-                '-f', 'ogg',              // Container Ogg para iOS/Android
-                'pipe:1'                  // Saída via stdout
+                '-i', 'pipe:0',                                   // Entrada 0 (Voz MP3)
+                '-f', 'lavfi',                                    // Habilita filtro virtual
+                '-i', 'anoisesrc=c=pink:amp=0.003:r=48000',       // Entrada 1 (Procedural pink noise para room tone realista)
+                '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]', // Mixa as faixas e encerra quando a voz acabar
+                '-map', '[a]',                                    // Mapeia a saída mixada
+                '-c:a', 'libopus',                                // Codec Opus
+                '-b:a', '48k',                                    // Bitrate de áudio de alta performance
+                '-ac', '1',                                       // Mono
+                '-f', 'ogg',                                      // Container Ogg para iOS/Android
+                'pipe:1'                                          // Saída via stdout
             ]);
 
             const chunks = [];
