@@ -999,8 +999,7 @@ class KeyRotationEngine {
             "qwen/qwen3-next-80b-a3b-instruct:free",
             "deepseek/deepseek-v4-flash:free",
             "meta-llama/llama-3.2-3b-instruct:free",
-            "google/gemini-2.5-flash",
-            "google/gemini-2.5-pro"
+            "google/gemini-2.5-flash:free"
         ];
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
@@ -1187,8 +1186,7 @@ class KeyRotationEngine {
         if (hasMedia) {
             // Se possui mídia, filtramos estritamente para modelos multimodais de alta performance
             const multimodalModels = [
-                "google/gemini-2.5-flash",
-                "google/gemini-2.5-pro"
+                "google/gemini-2.5-flash:free"
             ];
             list = list.filter(m => multimodalModels.includes(m));
             list.sort((a, b) => {
@@ -1199,6 +1197,7 @@ class KeyRotationEngine {
         } else if (isCoding) {
             // Se for programação/desenvolvimento
             const codingModels = [
+                "google/gemini-2.5-flash:free",
                 "qwen/qwen3-coder:free",
                 "meta-llama/llama-3.3-70b-instruct:free",
                 "google/gemma-4-31b-it:free"
@@ -1211,9 +1210,8 @@ class KeyRotationEngine {
         } else if (hasTools) {
             // Se possui tools, Function Calling
             const eliteToolsModels = [
-                "meta-llama/llama-3.3-70b-instruct:free",
-                "google/gemini-2.5-flash",
-                "google/gemini-2.5-pro"
+                "google/gemini-2.5-flash:free",
+                "meta-llama/llama-3.3-70b-instruct:free"
             ];
             list.sort((a, b) => {
                 const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
@@ -1223,10 +1221,10 @@ class KeyRotationEngine {
         } else {
             // Conversação geral / fofocas / sarcasmo
             const talkModels = [
+                "google/gemini-2.5-flash:free",
                 "deepseek/deepseek-v4-flash:free",
                 "meta-llama/llama-3.3-70b-instruct:free",
                 "google/gemma-4-31b-it:free",
-                "qwen/qwen3-next-80b-a3b-instruct:free",
                 "meta-llama/llama-3.2-3b-instruct:free"
             ];
             list.sort((a, b) => {
