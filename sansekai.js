@@ -733,6 +733,7 @@ class StorageManager {
 
 // Instanciar motor de base persistente
 const storage = new StorageManager();
+global.storage = storage;
 
 // ══════════════════════════════════════════════════════════════════════════
 // 3.1. LONG TERM SEMANTIC MEMORY (CLASS LONGTERMMEMORY)
@@ -1387,7 +1388,7 @@ class KeyRotationEngine {
                     const body = {
                         model: modelName,
                         messages: messages,
-                        temperature: 0.9,
+                        temperature: 0.7,
                         frequency_penalty: 0.3,
                         presence_penalty: 0.1
                     };
@@ -4941,5 +4942,6 @@ const sansekaiHandler = async (upsert, sock, store, message) => {
 sansekaiHandler.bind = (sock, store) => {
     bochecha.bind(sock, store);
 };
+sansekaiHandler.storage = storage;
 
 module.exports = sansekaiHandler;

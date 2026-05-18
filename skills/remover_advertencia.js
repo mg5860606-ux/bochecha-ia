@@ -71,8 +71,9 @@ module.exports = {
         }
         
         try {
-            if (!fs.existsSync(dbPath)) return "Ninguém possui advertências, o banco de dados está vazio.";
-            let db = JSON.parse(fs.readFileSync(dbPath));
+            const storage = global.storage || require("../sansekai").storage;
+            const warningsFile = path.join(__dirname, 'database_warnings.json');
+            let db = await storage.read(warningsFile, {});
             
             let removedCount = 0;
             if (db[from] && db[from][target]) {
@@ -80,7 +81,7 @@ module.exports = {
                 removedCount = 1;
             }
             
-            fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+            await storage.write(warningsFile, db);
             
             const targetNumber = target.split('@')[0];
             if (removedCount > 0) {

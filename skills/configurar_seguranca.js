@@ -29,11 +29,8 @@ module.exports = {
     async execute(args, { sock, from }) {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
         
-        let db = JSON.parse(fs.readFileSync(dbPath));
-        if (!db[from]) db[from] = { antilink: false, antifake: false, antiflood: false };
-        
-        db[from][args.protecao] = args.estado;
-        fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+        const storage = global.storage || require("../sansekai").storage;
+        await storage.updateGroupSecurity(from, args.protecao, args.estado);
         
         const status = args.estado ? "ATIVADO ✅" : "DESATIVADO ❌";
         await sock.sendMessage(from, { text: `🛡️ Segurança de Grupo Atualizada!\n\nProteção: *${args.protecao.toUpperCase()}*\nEstado: ${status}` });

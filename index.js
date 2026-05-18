@@ -224,7 +224,7 @@ async function startBot() {
 	sock.ev.on('connection.update', async (update) => {
 		const { connection, lastDisconnect, qr } = update;
 
-		if (qr) {
+		if (qr && !hasSession) {
 			consecutiveFailures = 0; // Se gerou QR Code, reseta falha de conexão porque o canal está saudável!
 			console.log(chalk.cyan('\n=================================================='));
 			console.log(chalk.cyan('   ESCANEIE O QR CODE ABAIXO COM O WHATSAPP:'));

@@ -84,13 +84,16 @@ module.exports = {
             return `🚨 Erro de segurança: Não tenho permissão para advertir o criador Marcos ou a mim mesma (@${cleanTarget})!`;
         }
 
-        let db = JSON.parse(fs.readFileSync(dbPath));
+        const storage = global.storage || require("../sansekai").storage;
+        const warningsFile = path.join(__dirname, 'database_warnings.json');
+        
+        let db = await storage.read(warningsFile, {});
         if (!db[from]) db[from] = {};
         if (!db[from][target]) db[from][target] = 0;
         
         db[from][target] += 1;
         const avisos = db[from][target];
-        fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+        await storage.write(warningsFile, db);
         
         const targetNumber = target.split('@')[0];
         let msg = `⚠️ *ADVERTÊNCIA OFICIAL* ⚠️\n\nMembro: @${targetNumber}\nAviso: ${avisos}/3`;
