@@ -175,6 +175,16 @@ module.exports = {
 ┇ |🌀⋆͜͡҈➳ ${prefix}lembrete
 ┇ |🌀⋆͜͡҈➳ ${prefix}fato
 ┇ |
+┇ | 🤖 *𝐇𝐀𝐁𝐈𝐋𝐈𝐃𝐀𝐃𝐄𝐒 𝐀𝐔𝐓𝐎̂𝐍𝐎𝐌𝐀𝐒 𝐃𝐀 𝐈𝐀*
+┇ | _Fale naturalmente com o Bochecha:_
+┇ |🗣️⋆͜͡҈➳ Áudios: Mande áudios ou peça pra ele falar
+┇ |🗣️⋆͜͡҈➳ Mídia: "Faz figurinha", "Gera imagem", "Edita foto"
+┇ |🗣️⋆͜͡҈➳ Admin: "Bane o @", "Averte", "Promove"
+┇ |🗣️⋆͜͡҈➳ PV: "Manda mensagem no PV dizendo..."
+┇ |🗣️⋆͜͡҈➳ Busca: "Pesquisa no YouTube", "Baixa o vídeo"
+┇ |🗣️⋆͜͡҈➳ Lembretes: "Me lembra em 10 min de..."
+┇ |🗣️⋆͜͡҈➳ Status: "Posta isso no seu status"
+┇ |
 ┇╰┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
 ╰╼╼╼╼╼╍⋅⊹⋅⋅⦁ ⚡ ⦁⋅⋅⊹⋅╍╾╾╾╾☾⋆
     _${NomeDoBot} Power by ${DonoName}_
