@@ -3176,15 +3176,15 @@ ${chatLogs}`;
                 storage.addCoins(from, rawSender, randomCoins).catch(() => {});
             }
 
-            const myNumber = sock.user.id.split(':')[0];
-            const myLid = sock.authState?.creds?.me?.lid?.split(':')[0] || "SEMLID";
+            const myNumber = (sock.user?.id || "").replace(/:.*/, "").replace(/@.*/, "");
+            const myLid = (sock.authState?.creds?.me?.lid || "SEMLID").replace(/:.*/, "").replace(/@.*/, "");
             const audioContextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
             const quotedSender = audioContextInfo.participant || "";
             
             const mentionedJids = audioContextInfo.mentionedJid || [];
-            const isTag = mentionedJids.some(jid => jid.includes(myNumber) || jid.includes(myLid));
-            const isTextTag = body.includes('@' + myNumber);
-            const isReply = quotedSender.includes(myNumber) || quotedSender.includes(myLid);
+            const isTag = mentionedJids.some(jid => areJidsSameUser(jid, sock.user.id));
+            const isTextTag = (myNumber && body.includes('@' + myNumber)) || (myLid !== "SEMLID" && body.includes('@' + myLid));
+            const isReply = quotedSender ? areJidsSameUser(quotedSender, sock.user.id) : false;
             const isMentioned = isTag || isTextTag || isReply || lowBody.includes("bochecha");
 
             // 🎙️ TRANSCRIÇÃO AUTOMÁTICA E INJEÇÃO DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
@@ -3771,7 +3771,8 @@ ${chatLogs}`;
             if (isGroup) {
                 if (isMentioned || lowBody.includes('bochecha')) {
                     act = true;
-                    clean = clean.replace(new RegExp(`@${myNumber}`, 'g'), '').trim();
+                    if (myNumber) clean = clean.replace(new RegExp(`@${myNumber}`, 'g'), '').trim();
+                    if (myLid !== "SEMLID") clean = clean.replace(new RegExp(`@${myLid}`, 'g'), '').trim();
                     if (clean === "" || clean.toLowerCase() === "bochecha") clean = "fui chamado";
 
                     // Se existir uma mensagem respondida (Reply), empacota ela junto para a IA analisar
