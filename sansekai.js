@@ -1300,11 +1300,11 @@ class KeyRotationEngine {
             // Conversação geral / fofocas / sarcasmo
             const talkModels = [
                 "anthropic/claude-3.7-sonnet",
-                "deepseek/deepseek-r1:free",
-                "meta-llama/llama-3.3-70b-instruct:free",
+                "google/gemini-2.5-pro:free",
+                "anthropic/claude-3.5-sonnet",
                 "google/gemini-2.5-flash:free",
-                "openai/gpt-4o-mini:free",
-                "meta-llama/llama-3.2-3b-instruct:free"
+                "openai/gpt-4o",
+                "openai/gpt-4o-mini:free"
             ];
             list.sort((a, b) => {
                 const aVal = talkModels.includes(a) ? talkModels.indexOf(a) : 99;
