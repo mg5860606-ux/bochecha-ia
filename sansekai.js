@@ -1045,20 +1045,11 @@ class KeyRotationEngine {
             "anthropic/claude-3.7-sonnet",
             "anthropic/claude-3.7-sonnet:thinking",
             "openai/o3-mini",
-            "deepseek/deepseek-r1:free",
             "deepseek/deepseek-r1",
             "anthropic/claude-3.5-sonnet",
             "openai/gpt-4o",
-            "openai/gpt-4o-mini:free",
-            "google/gemini-2.5-pro:free",
-            "google/gemini-2.5-flash:free",
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "qwen/qwen-2.5-coder-32b-instruct:free",
-            "openai/gpt-oss-120b:free",
-            "openai/gpt-oss-20b:free",
-            "minimax/minimax-m2.5:free",
-            "deepseek/deepseek-v4-flash:free",
-            "meta-llama/llama-3.2-3b-instruct:free"
+            "google/gemini-2.5-pro",
+            "google/gemini-2.5-pro:free"
         ];
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
@@ -1253,10 +1244,9 @@ class KeyRotationEngine {
         if (hasMedia) {
             // Se possui mídia, filtramos estritamente para modelos multimodais de alta performance
             const multimodalModels = [
+                "google/gemini-2.5-pro",
                 "google/gemini-2.5-pro:free",
-                "google/gemini-2.5-flash:free",
                 "openai/gpt-4o",
-                "openai/gpt-4o-mini:free",
                 "anthropic/claude-3.7-sonnet",
                 "anthropic/claude-3.5-sonnet"
             ];
@@ -1273,8 +1263,8 @@ class KeyRotationEngine {
                 "anthropic/claude-3.7-sonnet",
                 "openai/o3-mini",
                 "deepseek/deepseek-r1",
-                "qwen/qwen-2.5-coder-32b-instruct:free",
                 "anthropic/claude-3.5-sonnet",
+                "google/gemini-2.5-pro",
                 "google/gemini-2.5-pro:free"
             ];
             list.sort((a, b) => {
@@ -1287,9 +1277,10 @@ class KeyRotationEngine {
             const eliteToolsModels = [
                 "anthropic/claude-3.7-sonnet",
                 "openai/o3-mini",
-                "google/gemini-2.5-pro:free",
                 "anthropic/claude-3.5-sonnet",
-                "openai/gpt-4o"
+                "openai/gpt-4o",
+                "google/gemini-2.5-pro",
+                "google/gemini-2.5-pro:free"
             ];
             list.sort((a, b) => {
                 const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
@@ -1300,11 +1291,10 @@ class KeyRotationEngine {
             // Conversação geral / fofocas / sarcasmo
             const talkModels = [
                 "anthropic/claude-3.7-sonnet",
-                "google/gemini-2.5-pro:free",
                 "anthropic/claude-3.5-sonnet",
-                "google/gemini-2.5-flash:free",
                 "openai/gpt-4o",
-                "openai/gpt-4o-mini:free"
+                "google/gemini-2.5-pro",
+                "google/gemini-2.5-pro:free"
             ];
             list.sort((a, b) => {
                 const aVal = talkModels.includes(a) ? talkModels.indexOf(a) : 99;
