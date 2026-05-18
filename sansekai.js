@@ -993,13 +993,14 @@ function mapGeminiToolsToOpenRouter(geminiTools) {
 class KeyRotationEngine {
     constructor() {
         this.availableModels = [
+            "openai/gpt-oss-120b:free",
+            "openai/gpt-oss-20b:free",
+            "minimax/minimax-m2.5:free",
             "meta-llama/llama-3.3-70b-instruct:free",
             "qwen/qwen3-coder:free",
             "google/gemma-4-31b-it:free",
-            "qwen/qwen3-next-80b-a3b-instruct:free",
             "deepseek/deepseek-v4-flash:free",
-            "meta-llama/llama-3.2-3b-instruct:free",
-            "google/gemini-2.5-flash:free"
+            "meta-llama/llama-3.2-3b-instruct:free"
         ];
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
@@ -1186,7 +1187,7 @@ class KeyRotationEngine {
         if (hasMedia) {
             // Se possui mídia, filtramos estritamente para modelos multimodais de alta performance
             const multimodalModels = [
-                "google/gemini-2.5-flash:free"
+                "google/gemma-4-31b-it:free"
             ];
             list = list.filter(m => multimodalModels.includes(m));
             list.sort((a, b) => {
@@ -1197,7 +1198,8 @@ class KeyRotationEngine {
         } else if (isCoding) {
             // Se for programação/desenvolvimento
             const codingModels = [
-                "google/gemini-2.5-flash:free",
+                "openai/gpt-oss-120b:free",
+                "openai/gpt-oss-20b:free",
                 "qwen/qwen3-coder:free",
                 "meta-llama/llama-3.3-70b-instruct:free",
                 "google/gemma-4-31b-it:free"
@@ -1210,7 +1212,8 @@ class KeyRotationEngine {
         } else if (hasTools) {
             // Se possui tools, Function Calling
             const eliteToolsModels = [
-                "google/gemini-2.5-flash:free",
+                "openai/gpt-oss-120b:free",
+                "openai/gpt-oss-20b:free",
                 "meta-llama/llama-3.3-70b-instruct:free"
             ];
             list.sort((a, b) => {
@@ -1221,10 +1224,11 @@ class KeyRotationEngine {
         } else {
             // Conversação geral / fofocas / sarcasmo
             const talkModels = [
-                "google/gemini-2.5-flash:free",
+                "openai/gpt-oss-120b:free",
+                "openai/gpt-oss-20b:free",
+                "minimax/minimax-m2.5:free",
                 "deepseek/deepseek-v4-flash:free",
                 "meta-llama/llama-3.3-70b-instruct:free",
-                "google/gemma-4-31b-it:free",
                 "meta-llama/llama-3.2-3b-instruct:free"
             ];
             list.sort((a, b) => {

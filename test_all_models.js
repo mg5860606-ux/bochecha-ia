@@ -5,6 +5,7 @@ const chalk = require("chalk");
 const apiFetch = typeof fetch === 'function' ? fetch : require('node-fetch');
 
 const models = [
+    "google/gemini-2.5-flash:free",
     "google/gemma-4-31b-it:free",
     "poolside/laguna-m.1:free",
     "openrouter/free",
