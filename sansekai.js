@@ -1333,6 +1333,9 @@ class KeyRotationEngine {
                         body.tool_choice = "auto";
                     }
 
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 6000); // Tolerância máxima de 6 segundos por tentativa de modelo
+
                     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                         method: "POST",
                         headers: {
@@ -1341,8 +1344,9 @@ class KeyRotationEngine {
                             "X-Title": "Bochecha-IA",
                             "Content-Type": "application/json"
                         },
-                        body: JSON.stringify(body)
-                    });
+                        body: JSON.stringify(body),
+                        signal: controller.signal
+                    }).finally(() => clearTimeout(timeoutId));
 
                     if (!response.ok) {
                         const errorText = await response.text();
