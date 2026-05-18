@@ -22,14 +22,35 @@ module.exports = {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
 
         let target = "";
-        const contextInfo = message.message?.extendedTextMessage?.contextInfo || message.message?.[Object.keys(message.message || {})[0]]?.contextInfo;
         
-        if (contextInfo?.mentionedJid?.length > 0) {
-            target = contextInfo.mentionedJid[0];
-        } else if (contextInfo?.participant) {
-            target = contextInfo.participant;
-        } else if (args.mencao) {
-            target = args.mencao.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+        // 1. Se o modelo de IA especificou explicitamente um alvo nas propriedades da ferramenta, usamos ele!
+        if (args.mencao) {
+            const cleanedMention = args.mencao.replace(/[^0-9]/g, '');
+            if (args.mencao.includes('@lid')) {
+                target = cleanedMention + '@lid';
+            } else if (args.mencao.includes('@g.us')) {
+                target = args.mencao;
+            } else {
+                target = cleanedMention + '@s.whatsapp.net';
+            }
+        }
+        
+        // 2. Fallbacks secundários de contexto (apenas se args.mencao não foi informado)
+        if (!target) {
+            const contextInfo = message.message?.extendedTextMessage?.contextInfo || message.message?.[Object.keys(message.message || {})[0]]?.contextInfo;
+            if (contextInfo?.mentionedJid?.length > 0) {
+                // Filtramos para não perdoar o próprio bot se ele foi mencionado para ativação
+                const myNumber = (sock.user?.id || "").replace(/:.*/, "").replace(/@.*/, "");
+                const myLid = (sock.authState?.creds?.me?.lid || "").replace(/:.*/, "").replace(/@.*/, "");
+                const validJid = contextInfo.mentionedJid.find(jid => {
+                    const clean = jid.split('@')[0];
+                    return clean !== myNumber && clean !== myLid;
+                });
+                if (validJid) target = validJid;
+            }
+            if (!target && contextInfo?.participant) {
+                target = contextInfo.participant;
+            }
         }
 
         if (!target || target.length < 15) {
