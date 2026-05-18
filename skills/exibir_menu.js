@@ -52,153 +52,120 @@ module.exports = {
 ╭┤ˑ࣪    ִ .̇  ۫  ̣ ֽ֗🛸 𝐌𝐄𝐍𝐔 - 𝐆𝐄𝐑𝐀𝐋 🛸·๋  ִ֗  ᐧ ֶּ֓ ˑ࣪ 
 ┇├┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
 ┇ | 
-┇ |♱˖ ▸ ${prefix}ping
-┇ |♱˖ ▸ ${prefix}status
-┇ |♱˖ ▸ ${prefix}infogp
-┇ |♱˖ ▸ ${prefix}ranking
-┇ |♱˖ ▸ ${prefix}estatisticas
+┇ | ♰ *𝐈𝐍𝐅𝐎𝐒 & 𝐒𝐓𝐀𝐓𝐔𝐒*
+┇ |♱˖ ▸ ${prefix}ping (Testa latência)
+┇ |♱˖ ▸ ${prefix}status (Status do sistema)
+┇ |♱˖ ▸ ${prefix}infogp (Informações do grupo)
+┇ |♱˖ ▸ ${prefix}ranking (Exibe ranking de XP)
+┇ |♱˖ ▸ ${prefix}total_comandos (Total de comandos)
 ┇ |
-┇ | ♰ *𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐒*
-┇ |💿⋆͜͡҈➳ ${prefix}play
-┇ |💿⋆͜͡҈➳ ${prefix}video
-┇ |💿⋆͜͡҈➳ ${prefix}tiktok
-┇ |💿⋆͜͡҈➳ ${prefix}insta
-┇ |💿⋆͜͡҈➳ ${prefix}facebook
-┇ |💿⋆͜͡҈➳ ${prefix}pinterest
-┇ |💿⋆͜͡҈➳ ${prefix}ytsearch
-┇ |
-┇ | ♰ *𝐏𝐄𝐒𝑄𝐔𝐈𝐒𝐀𝐒*
-┇ |🎲⋆͜͡҈➳ ${prefix}consultar
-┇ |🎲⋆͜͡҈➳ ${prefix}clima
-┇ |🎲⋆͜͡҈➳ ${prefix}google
-┇ |🎲⋆͜͡҈➳ ${prefix}wiki
-┇ |🎲⋆͜͡҈➳ ${prefix}cpf
-┇ |🎲⋆͜͡҈➳ ${prefix}cnpj
-┇ |🎲⋆͜͡҈➳ ${prefix}placa
-┇ |🎲⋆͜͡҈➳ ${prefix}cep
-┇ |🎲⋆͜͡҈➳ ${prefix}ip
+┇ | ♰ *𝐏𝐄𝐒𝑄𝐔𝐈𝐒𝐀𝐒 & 𝐃𝐀𝐃𝐎𝐒*
+┇ |🎲⋆͜͡҈➳ ${prefix}clima (Consulta o clima)
+┇ |🎲⋆͜͡҈➳ ${prefix}google (Busca no Google)
+┇ |🎲⋆͜͡҈➳ ${prefix}wiki (Busca na Wikipédia)
+┇ |🎲⋆͜͡҈➳ ${prefix}cpf (Consulta de CPF)
+┇ |🎲⋆͜͡҈➳ ${prefix}cnpj (Consulta de CNPJ)
+┇ |🎲⋆͜͡҈➳ ${prefix}placa (Consulta de Placa)
+┇ |🎲⋆͜͡҈➳ ${prefix}cep (Consulta de CEP)
+┇ |🎲⋆͜͡҈➳ ${prefix}ip (Consulta de IP)
 ┇ |
 ┇ | ♰ *𝐈𝐍𝐓𝐄𝐋𝐈𝐆𝐄̂𝐍𝐂𝐈𝐀 𝐀𝐑𝐓𝐈𝐅𝐈𝐂𝐈𝐀𝐋*
-┇ |✨⋆͜͡҈➳ ${prefix}gpt
-┇ |✨⋆͜͡҈➳ ${prefix}gerar
-┇ |✨⋆͜͡҈➳ ${prefix}anime
-┇ |✨⋆͜͡҈➳ ${prefix}efeitos
-┇ |✨⋆͜͡҈➳ ${prefix}removebg
-┇ |✨⋆͜͡҈➳ ${prefix}revelar
+┇ |✨⋆͜͡҈➳ ${prefix}gpt (Falar com a IA)
+┇ |✨⋆͜͡҈➳ ${prefix}gerar (Gera imagem por IA)
+┇ |✨⋆͜͡҈➳ ${prefix}efeitos (Efeitos na imagem)
+┇ |✨⋆͜͡҈➳ ${prefix}revelar (Revelar mensagem oculta)
+┇ |✨⋆͜͡҈➳ ${prefix}falar (Texto para áudio premium)
+┇ |✨⋆͜͡҈➳ ${prefix}resumir (Resumo inteligente de fofocas)
 ┇ |
 ┇ | ♰ *𝐅𝐈𝐆𝐔𝐑𝐈𝐍𝐇𝐀𝐒*
-┇ |🎭⋆͜͡҈➳ ${prefix}s
-┇ |🎭⋆͜͡҈➳ ${prefix}fstiker
-┇ |🎭⋆͜͡҈➳ ${prefix}attp
-┇ |🎭⋆͜͡҈➳ ${prefix}rename
+┇ |🎭⋆͜͡҈➳ ${prefix}s (Cria figurinha de imagem)
+┇ |🎭⋆͜͡҈➳ ${prefix}fstiker (Efeitos e artes de stickers)
+┇ |🎭⋆͜͡҈➳ ${prefix}attp (Figurinha de texto animada)
+┇ |🎭⋆͜͡҈➳ ${prefix}rename (Renomeia figurinha)
 ┇ |
 ┇ | ♰ *𝐀𝐃𝐌𝐈𝐍𝐈𝐒𝐓𝐑𝐀𝐂̧𝐀̃𝐎*
-┇ |🛡️⋆͜͡҈➳ ${prefix}ban
-┇ |🛡️⋆͜͡҈➳ ${prefix}promover
-┇ |🛡️⋆͜͡҈➳ ${prefix}rebaixar
-┇ |🛡️⋆͜͡҈➳ ${prefix}warn
-┇ |🛡️⋆͜͡҈➳ ${prefix}mutar
-┇ |🛡️⋆͜͡҈➳ ${prefix}desmutar
-┇ |🛡️⋆͜͡҈➳ ${prefix}apagar
-┇ |🛡️⋆͜͡҈➳ ${prefix}todos
-┇ |🛡️⋆͜͡҈➳ ${prefix}bv
+┇ |🛡️⋆͜͡҈➳ ${prefix}ban (Remove membro)
+┇ |🛡️⋆͜͡҈➳ ${prefix}promover (Dá admin)
+┇ |🛡️⋆͜͡҈➳ ${prefix}rebaixar (Tira admin)
+┇ |🛡️⋆͜͡҈➳ ${prefix}warn (Adverte membro)
+┇ |🛡️⋆͜͡҈➳ ${prefix}radv (Remove advertência)
+┇ |🛡️⋆͜͡҈➳ ${prefix}mutar (Muta o grupo)
+┇ |🛡️⋆͜͡҈➳ ${prefix}desmutar (Desmuta o grupo)
+┇ |🛡️⋆͜͡҈➳ ${prefix}apagar (Apaga mensagens)
+┇ |🛡️⋆͜͡҈➳ ${prefix}todos (Marca todos os membros)
+┇ |🛡️⋆͜͡҈➳ ${prefix}bv (Configura boas-vindas)
+┇ |🛡️⋆͜͡҈➳ ${prefix}configurar_grupo (Configura o grupo)
+┇ |🛡️⋆͜͡҈➳ ${prefix}noturno (Modo noturno automático)
+┇ |🛡️⋆͜͡҈➳ ${prefix}postar_status (Posta status)
 ┇ |
-┇ | ♰ *𝐄𝐂𝐎𝐍𝐎𝐌𝐈𝐀 𝐄 𝐁𝐀𝐍𝐂𝐎*
-┇ |💰⋆͜͡҈➳ ${prefix}saldo
-┇ |💰⋆͜͡҈➳ ${prefix}minerar
-┇ |💰⋆͜͡҈➳ ${prefix}pix
-┇ |💰⋆͜͡҈➳ ${prefix}duelo
-┇ |💰⋆͜͡҈➳ ${prefix}ricos
+┇ | ♰ *𝐒𝐄𝐆𝐔𝐑𝐀𝐍𝐂̧𝐀 & 𝐓𝐑𝐀𝐕𝐀𝐒*
+┇ |🛡️⋆͜͡҈➳ ${prefix}configurar_seguranca (Configura antilink/antiporn/antistatus)
+┇ |🛡️⋆͜͡҈➳ ${prefix}antilink <on/off> (Bloqueia links de grupo)
+┇ |🛡️⋆͜͡҈➳ ${prefix}antiporn <on/off> (Bloqueia pornografia)
+┇ |🛡️⋆͜͡҈➳ ${prefix}antidelete <on/off> (Reenvia msgs deletadas)
+┇ |🛡️⋆͜͡҈➳ ${prefix}antifake <on/off> (Bloqueia números gringos)
+┇ |🛡️⋆͜͡҈➳ ${prefix}antistatus <on/off> (Bloqueia links nos status)
+┇ |🛡️⋆͜͡҈➳ ${prefix}antipromote <on/off> (Segurança de promoção de admins)
+┇ |🛡️⋆͜͡҈➳ ${prefix}antidemote <on/off> (Segurança de rebaixamento de admins)
+┇ |🛡️⋆͜͡҈➳ ${prefix}antipagamento <on/off> (Bloqueia pagamentos)
+┇ |🛡️⋆͜͡҈➳ ${prefix}antiflood <on/off> (Muta spammers)
+┇ |🛡️⋆͜͡҈➳ ${prefix}bemvindo <on/off> (Boas-vindas automáticas)
+┇ |
+┇ | ♰ *𝐄𝐂𝐎𝐍𝐎𝐌𝐈𝐀 𝐄 𝐂𝐀𝐒𝐒𝐈𝐍𝐎*
+┇ |💰⋆͜͡҈➳ ${prefix}saldo (Ver Bochecha-Coins)
+┇ |💰⋆͜͡҈➳ ${prefix}minerar (Minera moedas)
+┇ |💰⋆͜͡҈➳ ${prefix}pix (Transfere moedas)
+┇ |💰⋆͜͡҈➳ ${prefix}duelo (Duelo de moedas)
+┇ |💰⋆͜͡҈➳ ${prefix}blackjack (Jogo do Blackjack)
+┇ |💰⋆͜͡҈➳ ${prefix}cassino (Jogo de Cassino)
+┇ |💰⋆͜͡҈➳ ${prefix}ricos (Mais ricos do grupo)
 ┇ |
 ┇ | ♰ *𝐉𝐎𝐆𝐎𝐒 & 𝐙𝐎𝐄𝐈𝐑𝐀*
-┇ |🕹⋆͜͡҈➳ ${prefix}velha
-┇ |🕹⋆͜͡҈➳ ${prefix}forca
-┇ |🕹⋆͜͡҈➳ ${prefix}roleta
-┇ |🕹⋆͜͡҈➳ ${prefix}blackjack
-┇ |🕹⋆͜͡҈➳ ${prefix}quiz
-┇ |🕹⋆͜͡҈➳ ${prefix}jokenpo
-┇ |🕹⋆͜͡҈➳ ${prefix}enquete
-┇ |🕹⋆͜͡҈➳ ${prefix}gay
-┇ |🕹⋆͜͡҈➳ ${prefix}corno
-┇ |🕹⋆͜͡҈➳ ${prefix}gado
-┇ |🕹⋆͜͡҈➳ ${prefix}fofo
-┇ |🕹⋆͜͡҈➳ ${prefix}lindo
-┇ |🕹⋆͜͡҈➳ ${prefix}beijar
-┇ |🕹⋆͜͡҈➳ ${prefix}abracar
-┇ |🕹⋆͜͡҈➳ ${prefix}tapa
-┇ |🕹⋆͜͡҈➳ ${prefix}chute
-┇ |🕹⋆͜͡҈➳ ${prefix}matar
-┇ |🕹⋆͜͡҈➳ ${prefix}namorar
-┇ |🕹⋆͜͡҈➳ ${prefix}separar
-┇ |🕹⋆͜͡҈➳ ${prefix}casais
-┇ |🕹⋆͜͡҈➳ ${prefix}comer
-┇ |🕹⋆͜͡҈➳ ${prefix}shipar
+┇ |🕹⋆͜͡҈➳ ${prefix}velha (Jogo da velha)
+┇ |🕹⋆͜͡҈➳ ${prefix}forca (Jogo da forca)
+┇ |🕹⋆͜͡҈➳ ${prefix}roleta (Roleta russa)
+┇ |🕹⋆͜͡҈➳ ${prefix}quiz (Quiz interativo)
+┇ |🕹⋆͜͡҈➳ ${prefix}jokenpo (Pedra, papel, tesoura)
+┇ |🕹⋆͜͡҈➳ ${prefix}enquete (Cria enquetes)
+┇ |🕹⋆͜͡҈➳ ${prefix}namorar (Namora alguém)
+┇ |🕹⋆͜͡҈➳ ${prefix}separar (Separa namoro)
+┇ |🕹⋆͜͡҈➳ ${prefix}casais (Forma casais)
+┇ |🕹⋆͜͡҈➳ ${prefix}dado_rpg (Dado RPG)
+┇ |🕹⋆͜͡҈➳ ${prefix}piada (Conta piadas)
+┇ |🕹⋆͜͡҈➳ ${prefix}fato_curioso (Conta fatos)
+┇ |🕹⋆͜͡҈➳ ${prefix}desafio (Desafios zueiros)
+┇ |🕹⋆͜͡҈➳ ${prefix}moeda (Cara ou coroa)
+┇ |🕹⋆͜͡҈➳ ${prefix}enquete_rapida (Enquete rápida)
+┇ |🕹⋆͜͡҈➳ ${prefix}matar (Brincadeira matar)
+┇ |🕹⋆͜͡҈➳ ${prefix}comer (Brincadeira comer)
+┇ |🕹⋆͜͡҈➳ ${prefix}beijar (Brincadeira beijar)
+┇ |🕹⋆͜͡҈➳ ${prefix}abracar (Brincadeira abraçar)
+┇ |🕹⋆͜͡҈➳ ${prefix}tapa (Brincadeira dar tapa)
+┇ |🕹⋆͜͡҈➳ ${prefix}chute (Brincadeira dar chute)
+┇ |🕹⋆͜͡҈➳ ${prefix}gay (Mede nível gay)
+┇ |🕹⋆͜͡҈➳ ${prefix}corno (Mede nível corno)
+┇ |🕹⋆͜͡҈➳ ${prefix}gado (Mede nível gado)
+┇ |🕹⋆͜͡҈➳ ${prefix}fofo (Mede nível fofo)
+┇ |🕹⋆͜͡҈➳ ${prefix}lindo (Mede nível lindo)
 ┇ |
-┇ | 🛡️ *𝐀𝐃𝐌𝐈𝐍𝐈𝐒𝐓𝐑𝐀𝐂̧𝐀̃𝐎*
-┇ |🛡⋆͜͡҈➳ ${prefix}ban
-┇ |🛡⋆͜͡҈➳ ${prefix}kick
-┇ |🛡⋆͜͡҈➳ ${prefix}promover
-┇ |🛡⋆͜͡҈➳ ${prefix}rebaixar
-┇ |🛡⋆͜͡҈➳ ${prefix}marcar
-┇ |🛡⋆͜͡҈➳ ${prefix}del
-┇ |🛡⋆͜͡҈➳ ${prefix}mute
-┇ |🛡⋆͜͡҈➳ ${prefix}unmute
-┇ |🛡⋆͜͡҈➳ ${prefix}config
-┇ |🛡⋆͜͡҈➳ ${prefix}noturno
-┇ |🛡⋆͜͡҈➳ ${prefix}bemvindo1
-┇ |🛡⋆͜͡҈➳ ${prefix}bemvindo2
-┇ |🛡⋆͜͡҈➳ ${prefix}nomegp
-┇ |🛡⋆͜͡҈➳ ${prefix}descgp
-┇ |🛡⋆͜͡҈➳ ${prefix}fotogp
-┇ |🛡⋆͜͡҈➳ ${prefix}linkgp
-┇ |🛡⋆͜͡҈➳ ${prefix}resetlink
-┇ |🛡⋆͜͡҈➳ ${prefix}advertir
-┇ |🛡⋆͜͡҈➳ ${prefix}radv
-┇ |🛡⋆͜͡҈➳ ${prefix}postar_status
+┇ | ♰ *♈ 𝐀𝐒𝐓𝐑𝐎𝐋𝐎𝐆𝐈𝐀 & 𝐌𝐔𝐍𝐃𝐎*
+┇ |🔮⋆͜͡҈➳ ${prefix}horoscopo (Ver horóscopo do dia)
+┇ |🔮⋆͜͡҈➳ ${prefix}signo (Ver signo)
+┇ |🔮⋆͜͡҈➳ ${prefix}hora_mundial (Ver hora no mundo)
 ┇ |
-┇ | 🛡️ *𝐒𝐄𝐆𝐔𝐑𝐀𝐍𝐂̧𝐀 (𝐓𝐑𝐀𝐕𝐀𝐒)*
-┇ |🛡⋆͜͡҈➳ ${prefix}antidelete
-┇ |🛡⋆͜͡҈➳ ${prefix}antilink
-┇ |🛡⋆͜͡҈➳ ${prefix}antipromote
-┇ |🛡⋆͜͡҈➳ ${prefix}antidemote
-┇ |🛡⋆͜͡҈➳ ${prefix}antifake
-┇ |🛡⋆͜͡҈➳ ${prefix}antiporn
-┇ |🛡⋆͜͡҈➳ ${prefix}bemvindo
-┇ |
-┇ | 💰 *𝐄𝐂𝐎𝐍𝐎𝐌𝐈𝐀*
-┇ |💰⋆͜͡҈➳ ${prefix}minerar
-┇ |💰⋆͜͡҈➳ ${prefix}cassino
-┇ |💰⋆͜͡҈➳ ${prefix}saldo
-┇ |💰⋆͜͡҈➳ ${prefix}pix
-┇ |
-┇ | 🚀 *𝐎𝐔𝐓𝐑𝐎𝐒*
-┇ |🌀⋆͜͡҈➳ ${prefix}lembrete
-┇ |🌀⋆͜͡҈➳ ${prefix}fato
-┇ |🌀⋆͜͡҈➳ ${prefix}avisos
-┇ |🌀⋆͜͡҈➳ ${prefix}contagem
-┇ |🌀⋆͜͡҈➳ ${prefix}placar
-┇ |🌀⋆͜͡҈➳ ${prefix}votacao
-┇ |
-┇ | 🧮 *𝐅𝐄𝐑𝐑𝐀𝐌𝐄𝐍𝐓𝐀𝐒*
-┇ |🔧⋆͜͡҈➳ ${prefix}calcular
-┇ |🔧⋆͜͡҈➳ ${prefix}sorteio
-┇ |🔧⋆͜͡҈➳ ${prefix}tradutor
-┇ |🔧⋆͜͡҈➳ ${prefix}texto
-┇ |🔧⋆͜͡҈➳ ${prefix}base64
-┇ |🔧⋆͜͡҈➳ ${prefix}cor_hex
-┇ |
-┇ | 🎮 *𝐃𝐈𝐕𝐄𝐑𝐒𝐀̃𝐎*
-┇ |🎲⋆͜͡҈➳ ${prefix}dado_rpg
-┇ |🎲⋆͜͡҈➳ ${prefix}piada
-┇ |🎲⋆͜͡҈➳ ${prefix}fato_curioso
-┇ |🎲⋆͜͡҈➳ ${prefix}desafio
-┇ |🎲⋆͜͡҈➳ ${prefix}moeda
-┇ |🎲⋆͜͡҈➳ ${prefix}enquete_rapida
-┇ |
-┇ | ♈ *𝐀𝐒𝐓𝐑𝐎𝐋𝐎𝐆𝐈𝐀 & 𝐌𝐔𝐍𝐃𝐎*
-┇ |🔮⋆͜͡҈➳ ${prefix}horoscopo
-┇ |🔮⋆͜͡҈➳ ${prefix}signo
-┇ |🔮⋆͜͡҈➳ ${prefix}hora_mundial
+┇ | ♰ *🧮 𝐅𝐄𝐑𝐑𝐀𝐌𝐄𝐍𝐓𝐀𝐒 & 𝐔́𝐓𝐄𝐈𝐒*
+┇ |🔧⋆͜͡҈➳ ${prefix}calcular (Calculadora avançada)
+┇ |🔧⋆͜͡҈➳ ${prefix}sorteio (Realiza sorteio)
+┇ |🔧⋆͜͡҈➳ ${prefix}tradutor (Traduz texto)
+┇ |🔧⋆͜͡҈➳ ${prefix}texto (Modifica textos)
+┇ |🔧⋆͜͡҈➳ ${prefix}base64 (Codifica/Decodifica)
+┇ |🔧⋆͜͡҈➳ ${prefix}cor_hex (Gera cores hex)
+┇ |🔧⋆͜͡҈➳ ${prefix}lembrete (Cria lembretes)
+┇ |🔧⋆͜͡҈➳ ${prefix}fato (Lembra fatos importantes)
+┇ |🔧⋆͜͡҈➳ ${prefix}avisos (Gerencia avisos)
+┇ |🔧⋆͜͡҈➳ ${prefix}contagem (Contagem regressiva)
+┇ |🔧⋆͜͡҈➳ ${prefix}placar (Ver placar do grupo)
+┇ |🔧⋆͜͡҈➳ ${prefix}votacao (Inicia votações)
 ┇ |
 ┇ | 🤖 *𝐇𝐀𝐁𝐈𝐋𝐈𝐃𝐀𝐃𝐄𝐒 𝐀𝐔𝐓𝐎̂𝐍𝐎𝐌𝐀𝐒 𝐃𝐀 𝐈𝐀*
 ┇ | _Fale naturalmente com o Bochecha:_
@@ -211,9 +178,8 @@ module.exports = {
 ┇ |🗣️⋆͜͡҈➳ Status: "Posta isso no seu status"
 ┇ |
 ┇╰┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
-╰╼╼╼╼╼╍⋅⊹⋅⋅⦁ ⚡ ⦁⋅⋅⊹⋅╍╾╾╾╾☾⋆
-    _${NomeDoBot} Power by ${DonoName}_
-`;
+  _${NomeDoBot} Power by ${DonoName}_
+ ╰╼╼╼╼╼╍⋅⊹⋅⋅⦁ ⚡ ⦁⋅⋅⊹⋅╍╾╾╾╾☾⋆`;
 
             await sock.sendMessage(from, {
                 video: { url: "https://files.catbox.moe/mcnawn.mp4" },
