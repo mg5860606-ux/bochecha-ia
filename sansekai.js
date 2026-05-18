@@ -315,27 +315,61 @@ class StorageManager {
     async read(filePath, defaultValue = {}) {
         const release = await this._acquireLock(filePath);
         try {
-            if (!fs.existsSync(filePath)) {
+            let localData = defaultValue;
+            let existsLocal = fs.existsSync(filePath);
+
+            if (!existsLocal) {
                 fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2));
                 this.cache.set(filePath, defaultValue);
-                return JSON.parse(JSON.stringify(defaultValue));
+                localData = defaultValue;
+            } else {
+                const raw = fs.readFileSync(filePath, 'utf8').trim();
+                if (!raw) {
+                    this.cache.set(filePath, defaultValue);
+                    localData = defaultValue;
+                } else {
+                    localData = JSON.parse(raw);
+                    this.cache.set(filePath, localData);
+                }
             }
-            const raw = fs.readFileSync(filePath, 'utf8').trim();
-            if (!raw) {
-                this.cache.set(filePath, defaultValue);
-                return JSON.parse(JSON.stringify(defaultValue));
-            }
-            const data = JSON.parse(raw);
-            this.cache.set(filePath, data);
-            return JSON.parse(JSON.stringify(data));
+
+            // Sincronização em Background com o Cloud Firestore
+            const baseName = path.basename(filePath);
+            const { db, doc, getDoc, setDoc } = require('./firebase_connector');
+            const docRef = doc(db, "database_json", baseName);
+
+            getDoc(docRef).then(async (snap) => {
+                if (snap.exists()) {
+                    const cloudDoc = snap.data();
+                    const cloudData = cloudDoc.data;
+                    
+                    // Se o dado da nuvem for mais recente, atualiza o cache local
+                    if (cloudDoc.lastUpdated && (!localData._lastLocalUpdate || cloudDoc.lastUpdated > localData._lastLocalUpdate)) {
+                        console.log(chalk.green(`[🔥 FIREBASE] Sincronizado '${baseName}' do Firestore!`));
+                        this.cache.set(filePath, cloudData);
+                        fs.writeFileSync(filePath, JSON.stringify(cloudData, null, 2));
+                    }
+                } else {
+                    // Migração automática de inicialização para a nuvem
+                    console.log(chalk.yellow(`[🔥 FIREBASE] Backup inicial de '${baseName}' enviado ao Firestore.`));
+                    await setDoc(docRef, {
+                        data: localData,
+                        lastUpdated: Date.now()
+                    });
+                }
+            }).catch(err => {
+                // Silencioso
+            });
+
+            return JSON.parse(JSON.stringify(localData));
         } catch (e) {
             Logger.error(`StorageManager.read(${path.basename(filePath)})`, e);
-            // Self-Healing: Se corrompido, gera backup da falha e reinicia base vazia
+            // Self-Healing
             try {
                 const corruptPath = `${filePath}.corrupt_${Date.now()}`;
                 if (fs.existsSync(filePath)) fs.renameSync(filePath, corruptPath);
                 fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2));
-                Logger.warn("StorageManager.SelfHealing", `Arquivo corrompido ${path.basename(filePath)} recuperado para novo estado padrão.`);
+                Logger.warn("StorageManager.SelfHealing", `Arquivo corrompido ${path.basename(filePath)} recuperado.`);
                 this.cache.set(filePath, defaultValue);
                 return JSON.parse(JSON.stringify(defaultValue));
             } catch (recoveryErr) {
@@ -347,20 +381,35 @@ class StorageManager {
         }
     }
 
-    /**
-     * Grava dados de forma segura no disco e atualiza caches.
-     * @param {string} filePath Caminho de destino.
-     * @param {any} data Dados a gravar.
-     * @returns {Promise<boolean>}
-     */
     async write(filePath, data) {
         const release = await this._acquireLock(filePath);
         try {
             if (fs.existsSync(filePath)) {
                 fs.copyFileSync(filePath, `${filePath}.bak`);
             }
-            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-            this.cache.set(filePath, JSON.parse(JSON.stringify(data)));
+            
+            // Adiciona timestamp local para controle de versionamento
+            const dataToSave = { ...data };
+            const lastUpdate = Date.now();
+            dataToSave._lastLocalUpdate = lastUpdate;
+
+            fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2));
+            this.cache.set(filePath, dataToSave);
+
+            // Escrita assíncrona não-bloqueante no Firestore
+            const baseName = path.basename(filePath);
+            const { db, doc, setDoc } = require('./firebase_connector');
+            const docRef = doc(db, "database_json", baseName);
+
+            setDoc(docRef, {
+                data: dataToSave,
+                lastUpdated: lastUpdate
+            }).then(() => {
+                // Sucesso silencioso
+            }).catch(err => {
+                console.error(`[🔥 FIREBASE] Falha ao salvar '${baseName}' no Firestore:`, err.message);
+            });
+
             return true;
         } catch (e) {
             Logger.error(`StorageManager.write(${path.basename(filePath)})`, e);

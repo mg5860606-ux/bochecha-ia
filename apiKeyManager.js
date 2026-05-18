@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
+const { db, doc, getDoc, setDoc } = require('./firebase_connector');
 
 const CONFIG_PATH = path.join(__dirname, 'key.json');
 
@@ -27,6 +28,42 @@ function saveConfig(cfg) {
   }
 }
 
+async function saveToFirestore() {
+  try {
+    const docRef = doc(db, "configuracoes", "chaves_api");
+    await setDoc(docRef, {
+      keys: keys,
+      claudekeys: claudekeys,
+      ultima_atualizacao: Date.now()
+    });
+    console.log(chalk.green(`[🔥 FIREBASE] Chaves salvas na nuvem (Firestore) com sucesso!`));
+  } catch (err) {
+    console.error(chalk.red(`[🔥 FIREBASE] Erro ao salvar chaves no Firestore:`), err);
+  }
+}
+
+async function syncWithFirestore() {
+  try {
+    const docRef = doc(db, "configuracoes", "chaves_api");
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      console.log(chalk.green(`[🔥 FIREBASE] Chaves de API sincronizadas do Firestore! Gemini: ${data.keys?.length || 0} | Claude: ${data.claudekeys?.length || 0}`));
+      if (Array.isArray(data.keys)) {
+        keys = data.keys;
+      }
+      if (Array.isArray(data.claudekeys)) {
+        claudekeys = data.claudekeys;
+      }
+    } else {
+      console.log(chalk.yellow(`[🔥 FIREBASE] Nenhuma chave encontrada no Firestore. Iniciando backup automático na nuvem...`));
+      await saveToFirestore();
+    }
+  } catch (err) {
+    console.error(chalk.red(`[🔥 FIREBASE] Erro ao sincronizar chaves do Firestore:`), err);
+  }
+}
+
 function init() {
   const cfg = loadConfig();
   if (cfg.keys && Array.isArray(cfg.keys)) {
@@ -45,6 +82,9 @@ function init() {
   } else {
     claudekeys = [];
   }
+
+  // Sincroniza em background com o Firestore
+  syncWithFirestore();
 }
 
 let currentKey = null;
@@ -104,8 +144,9 @@ function markClaudeFailure(failedKey, force = false) {
     if (cfg.claudekeys && Array.isArray(cfg.claudekeys)) {
       cfg.claudekeys = cfg.claudekeys.filter(k => k !== failedKey);
       saveConfig(cfg);
-      console.log(chalk.yellow(`[AVISO] apiKeyManager: Chave Claude removida permanentemente por solicitação: ${failedKey.substring(0, 8)}...`));
     }
+    saveToFirestore();
+    console.log(chalk.yellow(`[AVISO] apiKeyManager: Chave Claude removida permanentemente: ${failedKey.substring(0, 8)}...`));
   } catch (e) {
     console.error(chalk.red('[ERRO] apiKeyManager: Falha ao persistir remoção de chave Claude: ' + (e && e.message)));
   }
@@ -140,8 +181,9 @@ function markFailure(failedKey, force = false) {
     if (cfg.keys && Array.isArray(cfg.keys)) {
       cfg.keys = cfg.keys.filter(k => k !== failedKey);
       saveConfig(cfg);
-      console.log(chalk.yellow(`[AVISO] apiKeyManager: Chave Gemini removida permanentemente por solicitação: ${failedKey.substring(0, 8)}...`));
     }
+    saveToFirestore();
+    console.log(chalk.yellow(`[AVISO] apiKeyManager: Chave Gemini removida permanentemente: ${failedKey.substring(0, 8)}...`));
   } catch (e) {
     console.error(chalk.red('[ERRO] apiKeyManager: Falha ao persistir remoção de chave: ' + (e && e.message)));
   }
@@ -162,6 +204,7 @@ function addKey(newKey) {
     const cfg = loadConfig();
     cfg[configField] = Array.isArray(cfg[configField]) ? cfg[configField].concat([v]) : [v];
     saveConfig(cfg);
+    saveToFirestore();
     console.log(chalk.green(`[INFO] apiKeyManager: Nova chave ${isClaude ? 'Claude' : 'Gemini'} adicionada com sucesso.`));
   } catch (e) {
     console.error(chalk.red(`[ERRO] apiKeyManager: Falha ao salvar nova chave ${isClaude ? 'Claude' : 'Gemini'}: ` + (e && e.message)));
@@ -188,5 +231,6 @@ module.exports = {
   markClaudeFailure,
   addKey, 
   hasKeys,
-  hasClaudeKeys
+  hasClaudeKeys,
+  syncWithFirestore
 };
