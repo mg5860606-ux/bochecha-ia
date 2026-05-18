@@ -4037,7 +4037,7 @@ ${chatLogs}`;
 
                         cleanedReply = cleanedReply.trim();
                         if (!cleanedReply) {
-                            cleanedReply = "Deu um pequeno branco na rede aqui, chefinho! Mas já estou de volta na atividade. 😎";
+                            cleanedReply = "Deu um pequeno branco na rede aqui, parceiro! Mas já tô de volta na atividade. 😎";
                         }
 
                         const msgOptions = isGroup ? { quoted: q.msgRef } : {};
@@ -4288,9 +4288,9 @@ ${chatLogs}`;
             if (wasToolExecuted && lastExecutedTool) {
                 // Se uma ferramenta foi executada com sucesso, mas o modelo falhou no retorno, geramos um fallback perfeito no estilo do Bochecha!
                 if (lastExecutedTool === "enviar_mensagem_privada") {
-                    output = "Já dei o papo reto lá no PV dele, chefinho! Tá avisado. 😉";
+                    output = "Já mandei a visão lá no PV do parceiro! Tá avisado. 😉";
                 } else if (lastExecutedTool === "remover_membro") {
-                    output = "Já passei o rodo e removi o meliante do grupo, chefe! 💥";
+                    output = "Já passei o rodo e removi o meliante do grupo! 💥";
                 } else if (lastExecutedTool === "advertir_membro") {
                     output = "Já dei aquela advertência de cria no rapaz, tá anotado! 🤫";
                 } else if (lastExecutedTool === "remover_advertencia") {
@@ -4300,7 +4300,7 @@ ${chatLogs}`;
                 } else if (lastExecutedTool === "rebaixar_membro") {
                     output = "Rebaixei o sujeito, perdeu a moral de administrador! 📉";
                 } else {
-                    output = "Feito, chefinho! A tarefa foi executada com sucesso. 😎";
+                    output = "Missão dada é missão cumprida! A parada já foi feita. 😎";
                 }
             } else {
                 throw new Error("Resposta da Inteligência Artificial retornou vazia.");
