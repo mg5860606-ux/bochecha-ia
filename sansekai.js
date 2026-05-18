@@ -3608,6 +3608,32 @@ ${chatLogs}`;
                         await parsedMessage.reply(report);
                         return;
 
+                    case "/menu":
+                    case "/help":
+                    case "/ajuda":
+                        const menuText = `💀 *SUBMUNDO DO BOCHECHA - COMANDOS* 💀\n\n` +
+                            `*AÇÕES ADMINISTRATIVAS:*\n` +
+                            `👉 */ban @user* - Expulsa do grupo na hora.\n` +
+                            `👉 */warn @user* - Dá advertência (3 = ban).\n` +
+                            `👉 */unwarn @user* - Zera as advertências.\n` +
+                            `👉 */kick @user* - Remove do grupo.\n` +
+                            `👉 */sorteio [motivo]* - Sorteia alguém do grupo.\n\n` +
+                            `*INTELIGÊNCIA E DADOS:*\n` +
+                            `👉 */perfil* - Mostra carteira, XP e nível emocional.\n` +
+                            `👉 */afins* - Mostra todas as afinidades ativas.\n` +
+                            `👉 */dream* ou */refletir* - Força o bot a sonhar.\n` +
+                            `👉 */telemetria* - Status detalhado da IA.\n` +
+                            `👉 */stats* - Status geral do servidor.\n` +
+                            `👉 */fofoca* ou */resumo* - Resume tudo que rolou.\n\n` +
+                            `*SISTEMA:*\n` +
+                            `👉 */addkey [token]* - Adiciona chave Gemini/OpenRouter.\n` +
+                            `👉 */removekey [token]* - Remove chave.\n` +
+                            `👉 */reload* - Reinicia as skills da IA.\n` +
+                            `👉 */limpar* - Apaga o histórico de conversa com a IA.\n` +
+                            `👉 */reiniciar* - Desliga e religa o Bochecha.`;
+                        await parsedMessage.reply(menuText);
+                        return;
+
                     case "/dream":
                     case "/refletir":
                         await parsedMessage.reply("🔮 *Acessando subconsciente neural...* Iniciando auto-reflexão profunda das interações recentes.");
