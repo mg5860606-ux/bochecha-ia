@@ -4,7 +4,7 @@ module.exports = {
     definition: {
         function: {
             name: "enviar_mensagem_privada",
-            description: "Envia uma mensagem direta (no privado/PV/DM) para um membro específico do grupo. Pode ser usado para dar avisos discretos, chamar atenção ou notificar alguém.",
+            description: "Envia uma mensagem direta (no privado/PV/DM) para um membro específico do grupo. Pode ser usado para dar avisos discretos, chamar atenção ou notificar alguém. IMPORTANTE: Assim que enviar a mensagem com sucesso no privado, responda de volta no grupo avisando de forma natural e espontânea em seu estilo Carioca que você já avisou/notificou a pessoa (ex: 'Avisei ela lá no PV, chefe!', 'Já dei o papo reto no privado dele!', etc.).",
             parameters: {
                 type: "object",
                 properties: {
