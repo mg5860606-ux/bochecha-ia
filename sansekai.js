@@ -3800,6 +3800,204 @@ ${chatLogs}`;
                         }
                         return;
 
+                    // ── ALIASES: comandos com nome diferente da skill ──
+
+                    case "/calcular":
+                    case "/calc":
+                    case "/math": {
+                        const ctxC = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsC = { isCommand: true, texto: parts.slice(1).join(" ").trim() };
+                        const resC = await registry.execute("calcular", argsC, ctxC).catch(e => { Logger.error("Command.Calcular", e); return null; });
+                        if (resC && typeof resC === 'string' && resC.trim()) await parsedMessage.reply(resC);
+                        return;
+                    }
+
+                    case "/sorteio":
+                    case "/sortear":
+                    case "/sort": {
+                        const ctxS = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsS = { texto: parts.slice(1).join(" ").trim() };
+                        const resS = await registry.execute("sorteio", argsS, ctxS).catch(e => { Logger.error("Command.Sorteio", e); return null; });
+                        if (resS && typeof resS === 'string' && resS.trim() && resS !== 'Membro sorteado!') await parsedMessage.reply(resS);
+                        return;
+                    }
+
+                    case "/tradutor":
+                    case "/traduzir":
+                    case "/tr": {
+                        const ctxTr = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsTr = { isCommand: true, texto: parts.slice(1).join(" ").trim() };
+                        const resTr = await registry.execute("tradutor", argsTr, ctxTr).catch(e => { Logger.error("Command.Tradutor", e); return null; });
+                        if (resTr && typeof resTr === 'string' && resTr.trim()) await parsedMessage.reply(resTr);
+                        return;
+                    }
+
+                    case "/contagem":
+                    case "/contador":
+                    case "/evento": {
+                        const ctxCt = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsCt = { texto: parts.slice(1).join(" ").trim() };
+                        const resCt = await registry.execute("contagem_regressiva", argsCt, ctxCt).catch(e => { Logger.error("Command.Contagem", e); return null; });
+                        if (resCt && typeof resCt === 'string' && resCt.trim()) await parsedMessage.reply(resCt);
+                        return;
+                    }
+
+                    case "/placar":
+                    case "/score":
+                    case "/pontos": {
+                        const ctxPl = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsPl = { texto: parts.slice(1).join(" ").trim() };
+                        const resPl = await registry.execute("placar", argsPl, ctxPl).catch(e => { Logger.error("Command.Placar", e); return null; });
+                        if (resPl && typeof resPl === 'string' && resPl.trim()) await parsedMessage.reply(resPl);
+                        return;
+                    }
+
+                    case "/texto":
+                    case "/text": {
+                        const ctxTx = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsTx = { texto: parts.slice(1).join(" ").trim() };
+                        const resTx = await registry.execute("texto_tools", argsTx, ctxTx).catch(e => { Logger.error("Command.Texto", e); return null; });
+                        if (resTx && typeof resTx === 'string' && resTx.trim()) await parsedMessage.reply(resTx);
+                        return;
+                    }
+
+                    case "/dado":
+                    case "/dado_rpg":
+                    case "/rolar":
+                    case "/d20":
+                    case "/d6": {
+                        const ctxD = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsD = { expressao: parts.slice(1).join(" ").trim() || (cmd === "/d20" ? "1d20" : cmd === "/d6" ? "1d6" : "") };
+                        const resD = await registry.execute("dado_rpg", argsD, ctxD).catch(e => { Logger.error("Command.Dado", e); return null; });
+                        if (resD && typeof resD === 'string' && resD.trim() && resD !== 'Dado rolado!') await parsedMessage.reply(resD);
+                        return;
+                    }
+
+                    case "/piada":
+                    case "/joke":
+                    case "/risos": {
+                        const ctxPi = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsPi = { texto: parts.slice(1).join(" ").trim() };
+                        const resPi = await registry.execute("piada", argsPi, ctxPi).catch(e => { Logger.error("Command.Piada", e); return null; });
+                        if (resPi && typeof resPi === 'string' && resPi.trim()) await parsedMessage.reply(resPi);
+                        return;
+                    }
+
+                    case "/fato":
+                    case "/fato_curioso":
+                    case "/curiosidade":
+                    case "/fact": {
+                        const ctxFt = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsFt = { texto: parts.slice(1).join(" ").trim() };
+                        const resFt = await registry.execute("fato_curioso", argsFt, ctxFt).catch(e => { Logger.error("Command.Fato", e); return null; });
+                        if (resFt && typeof resFt === 'string' && resFt.trim()) await parsedMessage.reply(resFt);
+                        return;
+                    }
+
+                    case "/avisos":
+                    case "/aviso":
+                    case "/regras": {
+                        const ctxAv = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsAv = { texto: parts.slice(1).join(" ").trim() };
+                        const resAv = await registry.execute("avisos", argsAv, ctxAv).catch(e => { Logger.error("Command.Avisos", e); return null; });
+                        if (resAv && typeof resAv === 'string' && resAv.trim()) await parsedMessage.reply(resAv);
+                        return;
+                    }
+
+                    case "/horoscopo":
+                    case "/horóscopo":
+                    case "/astro": {
+                        const ctxHo = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsHo = { signo: parts.slice(1).join(" ").trim() };
+                        const resHo = await registry.execute("horoscopo", argsHo, ctxHo).catch(e => { Logger.error("Command.Horoscopo", e); return null; });
+                        if (resHo && typeof resHo === 'string' && resHo.trim()) await parsedMessage.reply(resHo);
+                        return;
+                    }
+
+                    case "/signo":
+                    case "/zodiac": {
+                        const ctxSg = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsSg = { data: parts.slice(1).join(" ").trim() };
+                        const resSg = await registry.execute("signo", argsSg, ctxSg).catch(e => { Logger.error("Command.Signo", e); return null; });
+                        if (resSg && typeof resSg === 'string' && resSg.trim()) await parsedMessage.reply(resSg);
+                        return;
+                    }
+
+                    case "/hora":
+                    case "/hora_mundial":
+                    case "/time": {
+                        const ctxHr = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsHr = { cidade: parts.slice(1).join(" ").trim() };
+                        const resHr = await registry.execute("hora_mundial", argsHr, ctxHr).catch(e => { Logger.error("Command.Hora", e); return null; });
+                        if (resHr && typeof resHr === 'string' && resHr.trim()) await parsedMessage.reply(resHr);
+                        return;
+                    }
+
+                    case "/moeda":
+                    case "/coin":
+                    case "/caraoucoroa": {
+                        const ctxMo = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsMo = { aposta: parts.slice(1).join(" ").trim() };
+                        const resMo = await registry.execute("moeda", argsMo, ctxMo).catch(e => { Logger.error("Command.Moeda", e); return null; });
+                        if (resMo && typeof resMo === 'string' && resMo.trim()) await parsedMessage.reply(resMo);
+                        return;
+                    }
+
+                    case "/desafio":
+                    case "/verdade":
+                    case "/prefere":
+                    case "/eununca": {
+                        const ctxDf = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        let tipoDf = parts.slice(1).join(" ").trim();
+                        if (cmd === "/verdade") tipoDf = "verdade";
+                        else if (cmd === "/prefere") tipoDf = "prefere";
+                        else if (cmd === "/eununca") tipoDf = "eu_nunca";
+                        const argsDf = { tipo: tipoDf, texto: tipoDf };
+                        const resDf = await registry.execute("desafio", argsDf, ctxDf).catch(e => { Logger.error("Command.Desafio", e); return null; });
+                        if (resDf && typeof resDf === 'string' && resDf.trim()) await parsedMessage.reply(resDf);
+                        return;
+                    }
+
+                    case "/votacao":
+                    case "/votar":
+                    case "/voto": {
+                        const ctxVt = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsVt = { texto: parts.slice(1).join(" ").trim() };
+                        const resVt = await registry.execute("votacao", argsVt, ctxVt).catch(e => { Logger.error("Command.Votacao", e); return null; });
+                        if (resVt && typeof resVt === 'string' && resVt.trim() && resVt.length > 5) await parsedMessage.reply(resVt);
+                        return;
+                    }
+
+                    case "/enquete":
+                    case "/enquete_rapida":
+                    case "/poll": {
+                        const ctxEq = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsEq = { pergunta: parts.slice(1).join(" ").trim(), texto: parts.slice(1).join(" ").trim() };
+                        const resEq = await registry.execute("enquete_rapida", argsEq, ctxEq).catch(e => { Logger.error("Command.Enquete", e); return null; });
+                        if (resEq && typeof resEq === 'string' && resEq.trim() && !resEq.includes('Enquete criada')) await parsedMessage.reply(resEq);
+                        return;
+                    }
+
+                    case "/base64":
+                    case "/b64": {
+                        const ctxB64 = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsB64 = { texto: parts.slice(1).join(" ").trim(), alvo: parts.slice(1).join(" ").trim() };
+                        const resB64 = await registry.execute("base64", argsB64, ctxB64).catch(e => { Logger.error("Command.Base64", e); return null; });
+                        if (resB64 && typeof resB64 === 'string' && resB64.trim()) await parsedMessage.reply(resB64);
+                        return;
+                    }
+
+                    case "/cor":
+                    case "/cor_hex":
+                    case "/color":
+                    case "/paleta": {
+                        const ctxCr = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsCr = { valor: (cmd === "/paleta" ? "paleta " : "") + parts.slice(1).join(" ").trim(), texto: parts.slice(1).join(" ").trim() };
+                        const resCr = await registry.execute("cor_hex", argsCr, ctxCr).catch(e => { Logger.error("Command.Cor", e); return null; });
+                        if (resCr && typeof resCr === 'string' && resCr.trim()) await parsedMessage.reply(resCr);
+                        return;
+                    }
+
                     case "/perfil":
                         try {
                             const myCoins = await storage.addCoins(from, rawSender, 0);

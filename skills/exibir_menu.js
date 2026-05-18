@@ -172,18 +172,43 @@ module.exports = {
 ┇ |💰⋆͜͡҈➳ ${prefix}pix
 ┇ |
 ┇ | 🚀 *𝐎𝐔𝐓𝐑𝐎𝐒*
-┇ |🌀⋆͜͡҈➳ ${prefix}lembrete
-┇ |🌀⋆͜͡҈➳ ${prefix}fato
+┇ |🌀⋆͜͡҈➳ ${prefix}lembrete
+┇ |🌀⋆͜͡҈➳ ${prefix}fato
+┇ |🌀⋆͜͡҈➳ ${prefix}avisos
+┇ |🌀⋆͜͡҈➳ ${prefix}contagem
+┇ |🌀⋆͜͡҈➳ ${prefix}placar
+┇ |🌀⋆͜͡҈➳ ${prefix}votacao
+┇ |
+┇ | 🧮 *𝐅𝐄𝐑𝐑𝐀𝐌𝐄𝐍𝐓𝐀𝐒*
+┇ |🔧⋆͜͡҈➳ ${prefix}calcular
+┇ |🔧⋆͜͡҈➳ ${prefix}sorteio
+┇ |🔧⋆͜͡҈➳ ${prefix}tradutor
+┇ |🔧⋆͜͡҈➳ ${prefix}texto
+┇ |🔧⋆͜͡҈➳ ${prefix}base64
+┇ |🔧⋆͜͡҈➳ ${prefix}cor_hex
+┇ |
+┇ | 🎮 *𝐃𝐈𝐕𝐄𝐑𝐒𝐀̃𝐎*
+┇ |🎲⋆͜͡҈➳ ${prefix}dado_rpg
+┇ |🎲⋆͜͡҈➳ ${prefix}piada
+┇ |🎲⋆͜͡҈➳ ${prefix}fato_curioso
+┇ |🎲⋆͜͡҈➳ ${prefix}desafio
+┇ |🎲⋆͜͡҈➳ ${prefix}moeda
+┇ |🎲⋆͜͡҈➳ ${prefix}enquete_rapida
+┇ |
+┇ | ♈ *𝐀𝐒𝐓𝐑𝐎𝐋𝐎𝐆𝐈𝐀 & 𝐌𝐔𝐍𝐃𝐎*
+┇ |🔮⋆͜͡҈➳ ${prefix}horoscopo
+┇ |🔮⋆͜͡҈➳ ${prefix}signo
+┇ |🔮⋆͜͡҈➳ ${prefix}hora_mundial
 ┇ |
 ┇ | 🤖 *𝐇𝐀𝐁𝐈𝐋𝐈𝐃𝐀𝐃𝐄𝐒 𝐀𝐔𝐓𝐎̂𝐍𝐎𝐌𝐀𝐒 𝐃𝐀 𝐈𝐀*
 ┇ | _Fale naturalmente com o Bochecha:_
-┇ |🗣️⋆͜͡҈➳ Áudios: Mande áudios ou peça pra ele falar
-┇ |🗣️⋆͜͡҈➳ Mídia: "Faz figurinha", "Gera imagem", "Edita foto"
-┇ |🗣️⋆͜͡҈➳ Admin: "Bane o @", "Averte", "Promove"
-┇ |🗣️⋆͜͡҈➳ PV: "Manda mensagem no PV dizendo..."
-┇ |🗣️⋆͜͡҈➳ Busca: "Pesquisa no YouTube", "Baixa o vídeo"
-┇ |🗣️⋆͜͡҈➳ Lembretes: "Me lembra em 10 min de..."
-┇ |🗣️⋆͜͡҈➳ Status: "Posta isso no seu status"
+┇ |🗣️⋆͜͡҈➳ Áudios: Mande áudios ou peça pra ele falar
+┇ |🗣️⋆͜͡҈➳ Mídia: "Faz figurinha", "Gera imagem", "Edita foto"
+┇ |🗣️⋆͜͡҈➳ Admin: "Bane o @", "Averte", "Promove"
+┇ |🗣️⋆͜͡҈➳ PV: "Manda mensagem no PV dizendo..."
+┇ |🗣️⋆͜͡҈➳ Busca: "Pesquisa no YouTube", "Baixa o vídeo"
+┇ |🗣️⋆͜͡҈➳ Lembretes: "Me lembra em 10 min de..."
+┇ |🗣️⋆͜͡҈➳ Status: "Posta isso no seu status"
 ┇ |
 ┇╰┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
 ╰╼╼╼╼╼╍⋅⊹⋅⋅⦁ ⚡ ⦁⋅⋅⊹⋅╍╾╾╾╾☾⋆
