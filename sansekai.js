@@ -4246,6 +4246,8 @@ ${chatLogs}`;
 
         let finalResponse = response.response;
         const functionCalls = finalResponse.functionCalls && finalResponse.functionCalls();
+        let wasToolExecuted = false;
+        let lastExecutedTool = null;
 
         // Tratamento de Chamada de Ferramentas / Skills
         if (functionCalls && functionCalls.length > 0) {
@@ -4255,6 +4257,9 @@ ${chatLogs}`;
                 const isGroup = chatId.endsWith("@g.us");
                 const ctx = { chatId, sock, from: chatId, message: messageRef, isOwner, isGroup, sender, pushname };
                 const res = await registry.execute(fn, call.args, ctx);
+
+                wasToolExecuted = true;
+                lastExecutedTool = fn;
 
                 replies.push({
                     functionResponse: {
@@ -4276,9 +4281,28 @@ ${chatLogs}`;
             modelName = secondary.modelName;
         }
 
-        const output = finalResponse.text();
+        let output = finalResponse.text() ? finalResponse.text().trim() : "";
         if (!output) {
-            throw new Error("Resposta da Inteligência Artificial retornou vazia.");
+            if (wasToolExecuted && lastExecutedTool) {
+                // Se uma ferramenta foi executada com sucesso, mas o modelo falhou no retorno, geramos um fallback perfeito no estilo do Bochecha!
+                if (lastExecutedTool === "enviar_mensagem_privada") {
+                    output = "Já dei o papo reto lá no PV dele, chefinho! Tá avisado. 😉";
+                } else if (lastExecutedTool === "remover_membro") {
+                    output = "Já passei o rodo e removi o meliante do grupo, chefe! 💥";
+                } else if (lastExecutedTool === "advertir_membro") {
+                    output = "Já dei aquela advertência de cria no rapaz, tá anotado! 🤫";
+                } else if (lastExecutedTool === "remover_advertencia") {
+                    output = "Pronto, limpei a ficha do parceiro, tá sem advertências agora! 🧼";
+                } else if (lastExecutedTool === "promover_membro") {
+                    output = "Membro promovido com sucesso, agora é adm da tropa! 👑";
+                } else if (lastExecutedTool === "rebaixar_membro") {
+                    output = "Rebaixei o sujeito, perdeu a moral de administrador! 📉";
+                } else {
+                    output = "Feito, chefinho! A tarefa foi executada com sucesso. 😎";
+                }
+            } else {
+                throw new Error("Resposta da Inteligência Artificial retornou vazia.");
+            }
         }
 
         // Armazena diálogo na memória da sessão
