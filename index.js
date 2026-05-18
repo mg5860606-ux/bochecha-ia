@@ -44,6 +44,9 @@ const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const gamesController = require('./skills/games_controller');
 
+let globalSock = null;
+let isHealing = false;
+
 // Cache para Anti-Delete e Ranking
 const messageCache = new Map();
 const rankingPath = path.join(__dirname, 'skills', 'database_ranking.json');
@@ -155,6 +158,8 @@ async function startBot() {
 		}
 	});
 
+	globalSock = sock;
+
 	// Interceptar sendMessage para rastrear IDs
 	const _origSend = sock.sendMessage.bind(sock);
 	sock.sendMessage = async (jid, message, options) => {
@@ -263,12 +268,136 @@ async function startBot() {
 	});
 }
 
+async function autoHeal(error) {
+    if (isHealing) return;
+    isHealing = true;
+
+    console.log(chalk.red('[Self-Healing] Iniciando diagnóstico de travamento automático...'));
+
+    try {
+        const stackLines = error.stack ? error.stack.split('\n') : [];
+        let targetFile = null;
+        let errorLine = null;
+
+        for (const line of stackLines) {
+            if (line.includes('.js') && !line.includes('node_modules') && !line.includes('internal/')) {
+                const match = line.match(/([\w\-\\._:]+\.js):(\d+):(\d+)/) || line.match(/\(([^)]+):(\d+):(\d+)\)/);
+                if (match) {
+                    targetFile = match[1];
+                    errorLine = match[2];
+                    break;
+                }
+            }
+        }
+
+        if (!targetFile) {
+            console.log(chalk.yellow('[Self-Healing] Não foi possível determinar o arquivo de origem do crash na stack trace.'));
+            return;
+        }
+
+        const absolutePath = path.isAbsolute(targetFile) ? targetFile : path.join(__dirname, targetFile);
+        if (!fs.existsSync(absolutePath)) {
+            console.log(chalk.yellow(`[Self-Healing] Arquivo não localizado no disco: ${absolutePath}`));
+            return;
+        }
+
+        console.log(chalk.yellow(`[Self-Healing] Arquivo que quebrou detectado: ${absolutePath} (linha ${errorLine})`));
+
+        // Carrega chave de API via rotador
+        const apiKeyManager = require('./apiKeyManager');
+        const key = apiKeyManager.getKey();
+        if (!key) {
+            console.log(chalk.red('[Self-Healing] Chave de API não disponível para auto-cura.'));
+            return;
+        }
+
+        const fileContent = fs.readFileSync(absolutePath, 'utf8');
+
+        const systemInstruction = "Você é um Engenheiro de Software Sênior especialista em JavaScript e NodeJS. Sua única tarefa é ler o código fornecido, analisar o erro que causou o crash do servidor e reescrever o código do arquivo para corrigir o bug de forma limpa e estável. Retorne EXCLUSIVAMENTE o código JS completo e corrigido, sem explicações, sem formatações markdown do tipo ```javascript ... ```. Apenas o código-fonte puro.";
+        
+        const prompt = `[CRITICAL REPAIR TASK]
+O processo NodeJS crashou com o seguinte erro:
+${error.stack || error.message}
+
+Arquivo causador: ${absolutePath} (Linha ${errorLine})
+
+Aqui está o código completo atual do arquivo:
+\`\`\`javascript
+${fileContent}
+\`\`\``;
+
+        console.log(chalk.cyan('[Self-Healing] Acionando neurônios neurais via OpenRouter para reparo dinâmico...'));
+
+        const axios = require('axios');
+        const res = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
+            model: "google/gemini-2.5-pro:free",
+            messages: [
+                { role: "system", content: systemInstruction },
+                { role: "user", content: prompt }
+            ]
+        }, {
+            headers: {
+                "Authorization": `Bearer ${key}`,
+                "Content-Type": "application/json"
+            },
+            timeout: 45000
+        });
+
+        let correctedCode = res.data?.choices?.[0]?.message?.content?.trim();
+        if (!correctedCode) {
+            throw new Error("Modelo retornou resposta vazia.");
+        }
+
+        if (correctedCode.startsWith("```")) {
+            correctedCode = correctedCode.replace(/^```[a-zA-Z]*\n/, '').replace(/\n```$/, '');
+        }
+
+        fs.writeFileSync(absolutePath, correctedCode, 'utf8');
+        console.log(chalk.green(`[Self-Healing] Arquivo ${path.basename(absolutePath)} reparado com sucesso!`));
+
+        if (globalSock) {
+            const owners = ["556584770585@s.whatsapp.net", "176291932332072@s.whatsapp.net"];
+            for (const owner of owners) {
+                try {
+                    await globalSock.sendMessage(owner, {
+                        text: `🛡️ *SISTEMA SELF-HEALING ATIVADO* 🛡️\n\n` +
+                              `⚠️ *Ocorreu um Crash Grave no Servidor!*\n` +
+                              `📁 *Arquivo:* \`${path.basename(absolutePath)}\` (linha ${errorLine})\n` +
+                              `❌ *Erro:* \`${error.message}\`\n\n` +
+                              `🔮 *Ação do Bochecha:* Analisei os logs, chamei as conexões neurais do submundo, **corrigi o bug automaticamente** e gravei o arquivo!\n\n` +
+                              `🔄 *Status:* Reiniciando o bot em background agora com o código saudável! 🥀💀⚡`
+                    });
+                } catch (msgErr) {
+                    console.error('[Self-Healing] Erro ao enviar mensagem de alerta:', msgErr.message);
+                }
+            }
+        }
+
+        console.log(chalk.cyan('[Self-Healing] Iniciando reinicialização autônoma do processo Bochecha...'));
+        const { spawn } = require('child_process');
+        setTimeout(() => {
+            const child = spawn(process.argv[0], process.argv.slice(1), {
+                detached: true,
+                stdio: 'inherit'
+            });
+            child.unref();
+            process.exit(0);
+        }, 1500);
+
+    } catch (healErr) {
+        console.error(chalk.red('[Self-Healing] Falha no sistema de auto-cura:', healErr.message));
+        process.exit(1);
+    }
+}
+
 process.on('uncaughtException', (error) => {
 	console.error('❌ Erro não capturado:', error);
+	autoHeal(error);
 });
 
 process.on('unhandledRejection', (error) => {
 	console.error('❌ Promise rejeitada:', error);
+	autoHeal(error instanceof Error ? error : new Error(String(error)));
 });
 
 process.on('SIGINT', () => {

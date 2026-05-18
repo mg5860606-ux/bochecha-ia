@@ -993,12 +993,21 @@ function mapGeminiToolsToOpenRouter(geminiTools) {
 class KeyRotationEngine {
     constructor() {
         this.availableModels = [
+            "anthropic/claude-3.7-sonnet",
+            "anthropic/claude-3.7-sonnet:thinking",
+            "openai/o3-mini",
+            "deepseek/deepseek-r1:free",
+            "deepseek/deepseek-r1",
+            "anthropic/claude-3.5-sonnet",
+            "openai/gpt-4o",
+            "openai/gpt-4o-mini:free",
+            "google/gemini-2.5-pro:free",
+            "google/gemini-2.5-flash:free",
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "qwen/qwen-2.5-coder-32b-instruct:free",
             "openai/gpt-oss-120b:free",
             "openai/gpt-oss-20b:free",
             "minimax/minimax-m2.5:free",
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "qwen/qwen3-coder:free",
-            "google/gemma-4-31b-it:free",
             "deepseek/deepseek-v4-flash:free",
             "meta-llama/llama-3.2-3b-instruct:free"
         ];
@@ -1184,10 +1193,23 @@ class KeyRotationEngine {
         // Fazer uma cópia dos modelos disponíveis
         let list = [...this.availableModels];
 
+        // Roteamento dinâmico: Prioriza o cérebro primário configurado pelo dono Marcos em settings.json
+        const cachedSettings = storage && storage.cache && storage.cache.get(SETTINGS_FILE);
+        const primaryModel = cachedSettings && cachedSettings.primaryModel;
+        if (primaryModel) {
+            list = list.filter(m => m !== primaryModel);
+            list.unshift(primaryModel);
+        }
+
         if (hasMedia) {
             // Se possui mídia, filtramos estritamente para modelos multimodais de alta performance
             const multimodalModels = [
-                "google/gemma-4-31b-it:free"
+                "google/gemini-2.5-pro:free",
+                "google/gemini-2.5-flash:free",
+                "openai/gpt-4o",
+                "openai/gpt-4o-mini:free",
+                "anthropic/claude-3.7-sonnet",
+                "anthropic/claude-3.5-sonnet"
             ];
             list = list.filter(m => multimodalModels.includes(m));
             list.sort((a, b) => {
@@ -1198,11 +1220,13 @@ class KeyRotationEngine {
         } else if (isCoding) {
             // Se for programação/desenvolvimento
             const codingModels = [
-                "openai/gpt-oss-120b:free",
-                "openai/gpt-oss-20b:free",
-                "qwen/qwen3-coder:free",
-                "meta-llama/llama-3.3-70b-instruct:free",
-                "google/gemma-4-31b-it:free"
+                "anthropic/claude-3.7-sonnet:thinking",
+                "anthropic/claude-3.7-sonnet",
+                "openai/o3-mini",
+                "deepseek/deepseek-r1",
+                "qwen/qwen-2.5-coder-32b-instruct:free",
+                "anthropic/claude-3.5-sonnet",
+                "google/gemini-2.5-pro:free"
             ];
             list.sort((a, b) => {
                 const aVal = codingModels.includes(a) ? codingModels.indexOf(a) : 99;
@@ -1212,9 +1236,11 @@ class KeyRotationEngine {
         } else if (hasTools) {
             // Se possui tools, Function Calling
             const eliteToolsModels = [
-                "openai/gpt-oss-120b:free",
-                "openai/gpt-oss-20b:free",
-                "meta-llama/llama-3.3-70b-instruct:free"
+                "anthropic/claude-3.7-sonnet",
+                "openai/o3-mini",
+                "google/gemini-2.5-pro:free",
+                "anthropic/claude-3.5-sonnet",
+                "openai/gpt-4o"
             ];
             list.sort((a, b) => {
                 const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
@@ -1224,11 +1250,11 @@ class KeyRotationEngine {
         } else {
             // Conversação geral / fofocas / sarcasmo
             const talkModels = [
-                "openai/gpt-oss-120b:free",
-                "openai/gpt-oss-20b:free",
-                "minimax/minimax-m2.5:free",
-                "deepseek/deepseek-v4-flash:free",
+                "anthropic/claude-3.7-sonnet",
+                "deepseek/deepseek-r1:free",
                 "meta-llama/llama-3.3-70b-instruct:free",
+                "google/gemini-2.5-flash:free",
+                "openai/gpt-4o-mini:free",
                 "meta-llama/llama-3.2-3b-instruct:free"
             ];
             list.sort((a, b) => {
@@ -1685,15 +1711,24 @@ const https = require('https');
 class VoiceSynthesizer {
     static checkFFmpeg() {
         return new Promise((resolve) => {
-            exec('ffmpeg -version', (err) => {
-                resolve(!err);
-            });
+            try {
+                const ffmpegPath = require('ffmpeg-static');
+                const fs = require('fs');
+                if (ffmpegPath && fs.existsSync(ffmpegPath)) {
+                    resolve(true);
+                } else {
+                    resolve(false);
+                }
+            } catch (e) {
+                resolve(false);
+            }
         });
     }
 
     static convertMp3ToOggOpus(mp3Buffer) {
         return new Promise((resolve, reject) => {
-            const ffmpeg = spawn('ffmpeg', [
+            const ffmpegPath = require('ffmpeg-static');
+            const ffmpeg = spawn(ffmpegPath, [
                 '-i', 'pipe:0',           // Entrada via stdin
                 '-c:a', 'libopus',        // Codec Opus
                 '-b:a', '48k',            // Bitrate de áudio de alta performance
@@ -1721,44 +1756,26 @@ class VoiceSynthesizer {
 
     static async speak(sock, chatId, text, msgRef) {
         try {
-            Logger.info("VoiceSynthesizer", `Gerando voz para: "${text.substring(0, 40)}..."`);
+            Logger.info("VoiceSynthesizer", `Gerando voz humana premium para: "${text.substring(0, 40)}..."`);
             
-            // Marcos pediu áudios de resposta de no máximo 40 segundos.
-            // 40 segundos equivale a aproximadamente 600 caracteres de texto.
-            // Vamos truncar o texto total para no máximo 500 caracteres por segurança.
+            // Trunca o texto para evitar áudios longos demais no chat
             const cleanText = text.substring(0, 500);
 
-            // Obtém as URLs de áudio separadas pelo limite de 200 caracteres da API do Google
-            const urls = googleTTS.getAllAudioUrls(cleanText, {
-                lang: 'pt-BR',
-                slow: false,
-                host: 'https://translate.google.com',
-                timeout: 10000,
-            });
-
-            Logger.info("VoiceSynthesizer", `Dividido em ${urls.length} parte(s) de áudio.`);
-
-            // Baixa todas as partes em paralelo
-            const bufferPromises = urls.map(item => {
-                return new Promise((resolve, reject) => {
-                    https.get(item.url, (res) => {
-                        const chunks = [];
-                        res.on('data', (chunk) => chunks.push(chunk));
-                        res.on('end', () => resolve(Buffer.concat(chunks)));
-                        res.on('error', reject);
-                    }).on('error', reject);
-                });
-            });
-
-            const buffers = await Promise.all(bufferPromises);
+            // Importa a biblioteca Edge TTS de forma segura
+            const { UniversalEdgeTTS } = require('edge-tts-universal');
             
-            // Concatena todos os buffers MP3 em um único arquivo de áudio final
-            const finalBuffer = Buffer.concat(buffers);
+            // pt-BR-AntonioNeural: Voz premium e ultra-realista masculina brasileira
+            const tts = new UniversalEdgeTTS(cleanText, 'pt-BR-AntonioNeural');
+            const result = await tts.synthesize();
+            
+            // Converte Blob do áudio sintetizado para Buffer do NodeJS
+            const arrayBuffer = await result.audio.arrayBuffer();
+            const finalBuffer = Buffer.from(arrayBuffer);
 
             const hasFFmpeg = await this.checkFFmpeg();
             if (hasFFmpeg) {
                 try {
-                    Logger.info("VoiceSynthesizer", "FFmpeg disponível. Convertendo MP3 para Ogg/Opus para compatibilidade nativa com iOS...");
+                    Logger.info("VoiceSynthesizer", "FFmpeg disponível. Convertendo MP3 para Ogg/Opus para nota de voz nativa...");
                     const oggBuffer = await this.convertMp3ToOggOpus(finalBuffer);
                     
                     await sock.sendMessage(chatId, {
@@ -1767,7 +1784,7 @@ class VoiceSynthesizer {
                         ptt: true
                     }, { quoted: msgRef });
                     
-                    Logger.success("VoiceSynthesizer", "Áudio de resposta em formato real de nota de voz (Ogg/Opus) enviado com sucesso!");
+                    Logger.success("VoiceSynthesizer", "Áudio de resposta humana enviado como nota de voz nativa!");
                     return true;
                 } catch (convErr) {
                     Logger.error("VoiceSynthesizer.conversion", convErr);
@@ -1782,7 +1799,7 @@ class VoiceSynthesizer {
                 ptt: false
             }, { quoted: msgRef });
 
-            Logger.success("VoiceSynthesizer", "Áudio de resposta em formato player enviado com sucesso!");
+            Logger.success("VoiceSynthesizer", "Áudio de resposta humana enviado com sucesso!");
             return true;
         } catch (e) {
             Logger.error("VoiceSynthesizer.speak", e);
@@ -3545,6 +3562,37 @@ ${chatLogs}`;
             );
 
             // ═══════════════════════════════
+            // REGISTRO DE HISTÓRICO PARA ANÁLISE PSICOLÓGICA
+            // ═══════════════════════════════
+            if (body && !body.startsWith("/") && from.endsWith("@g.us")) {
+                try {
+                    const fs = require('fs');
+                    const path = require('path');
+                    const moment = require('moment-timezone');
+                    const historyPath = path.join(__dirname, 'skills', 'database_history.json');
+                    let historyDb = {};
+                    if (fs.existsSync(historyPath)) {
+                        historyDb = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+                    }
+                    if (!historyDb[from]) historyDb[from] = {};
+                    if (!historyDb[from][sender]) historyDb[from][sender] = [];
+                    
+                    historyDb[from][sender].push({
+                        text: body,
+                        time: moment().toISOString()
+                    });
+                    
+                    if (historyDb[from][sender].length > 35) {
+                        historyDb[from][sender].shift();
+                    }
+                    
+                    fs.writeFileSync(historyPath, JSON.stringify(historyDb, null, 2), 'utf8');
+                } catch (err) {
+                    // Silencia falhas
+                }
+            }
+
+            // ═══════════════════════════════
             // COMANDOS PÚBLICOS (Qualquer um pode usar)
             // ═══════════════════════════════
 
@@ -3553,6 +3601,135 @@ ${chatLogs}`;
                 const cmd = parts[0].toLowerCase();
 
                 switch (cmd) {
+                    case "/ias":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            await registry.execute("gerenciar_ias", { isCommand: true, command: cmd }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.Ias", err);
+                        }
+                        return;
+
+                    case "/setia":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("gerenciar_ias", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.SetIa", err);
+                        }
+                        return;
+
+                    case "/git":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("git_manager", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.Git", err);
+                        }
+                        return;
+
+                    case "/read":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("web_reader", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.Read", err);
+                        }
+                        return;
+
+                    case "/github":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("github_explorer", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.GithubExplorer", err);
+                        }
+                        return;
+
+                    case "/buscaria":
+                    case "/superia":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("github_ai_hunter", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.GithubAiHunter", err);
+                        }
+                        return;
+
+                    case "/limparkeys":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            await registry.execute("limpar_keys", {}, ctx);
+                        } catch (err) {
+                            Logger.error("Command.LimparKeys", err);
+                        }
+                        return;
+
+                    case "/fofoca":
+                    case "/resumir":
+                        try {
+                            const ctx = { sock, from, chatId: from, message: parsedMessage, isOwner };
+                            await registry.execute("resumir_fofoca", {}, ctx);
+                        } catch (err) {
+                            Logger.error("Command.ResumirFofoca", err);
+                        }
+                        return;
+
+                    case "/release":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("release_generator", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.ReleaseGenerator", err);
+                        }
+                        return;
+
+                    case "/issue":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("issue_operator", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.IssueOperator", err);
+                        }
+                        return;
+
+                    case "/perfil":
+                        try {
+                            const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("analista_psicologico", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.Perfil", err);
+                        }
+                        return;
+
+                    case "/mentira":
+                        try {
+                            const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("analista_psicologico", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.Mentira", err);
+                        }
+                        return;
+
+                    case "/clima":
+                        try {
+                            const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("analista_psicologico", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.Clima", err);
+                        }
+                        return;
+
                     case "/menu":
                     case "/help":
                     case "/ajuda":

@@ -24,7 +24,7 @@ module.exports = {
 
         try {
             // Usando Pollinations.ai que é excelente, gratuito e rápido
-            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(args.prompt)}?width=1024&height=1024&nologo=true&seed=${Math.floor(Math.random() * 1000)}`;
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(args.prompt)}?width=1024&height=1024&nologo=true&private=true&enhance=false&model=flux&seed=${Math.floor(Math.random() * 1000)}`;
 
             await sock.sendMessage(from, { 
                 image: { url: imageUrl }, 
