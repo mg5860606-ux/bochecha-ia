@@ -27,12 +27,25 @@ module.exports = {
         // 1. Se o modelo de IA especificou explicitamente um alvo nas propriedades da ferramenta, usamos ele!
         if (args.mencao) {
             const cleanedMention = args.mencao.replace(/[^0-9]/g, '');
-            if (args.mencao.includes('@lid')) {
-                target = cleanedMention + '@lid';
-            } else if (args.mencao.includes('@g.us')) {
-                target = args.mencao;
-            } else {
-                target = cleanedMention + '@s.whatsapp.net';
+            try {
+                const metadata = await sock.groupMetadata(from);
+                const participants = metadata.participants || [];
+                const found = participants.find(p => p.id.split('@')[0] === cleanedMention);
+                if (found) {
+                    target = found.id;
+                }
+            } catch (e) {
+                console.error("Erro ao buscar JID nos participantes do grupo:", e);
+            }
+
+            if (!target) {
+                if (args.mencao.includes('@lid')) {
+                    target = cleanedMention + '@lid';
+                } else if (args.mencao.includes('@g.us')) {
+                    target = args.mencao;
+                } else {
+                    target = cleanedMention + '@s.whatsapp.net';
+                }
             }
         }
         
