@@ -1322,7 +1322,9 @@ class KeyRotationEngine {
                     const body = {
                         model: modelName,
                         messages: messages,
-                        temperature: 0.3
+                        temperature: 0.9,
+                        frequency_penalty: 0.3,
+                        presence_penalty: 0.1
                     };
 
                     if (openRouterTools && openRouterTools.length > 0) {
