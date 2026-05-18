@@ -3920,7 +3920,6 @@ ${chatLogs}`;
                         cleanedReply = cleanedReply.replace(/(@\d+)([a-zA-ZáéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ])/g, "$1 $2");
 
                         // Resolução e substituição dinâmica de menções textuais por JIDs reais
-                        // Exemplo: se a IA escreveu @Marcos ou @João, procuramos no grupo se há alguém com esse nome/pushname e substituímos por @número!
                         const resolvedMentions = [];
                         try {
                             const mentionsMatches = cleanedReply.match(/@([a-zA-Z0-9áéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ._-]+)/g) || [];
@@ -3989,15 +3988,18 @@ ${chatLogs}`;
                                         // Se encontrou o JID real, substitui o nome pelo número no texto da mensagem se for telefone, ou mantém como texto e coloca nas menções se for LID!
                                         if (foundJid) {
                                             if (foundJid.endsWith('@lid')) {
-                                                // Se for LID, não exibe o número feio do LID no chat, mantém o pushname textual original mas adiciona nas menções ocultas para taggear!
                                                 resolvedMentions.push(foundJid);
-                                                Logger.success("MentionResolver", `Resolvida menção de LID [${mentionMatch}] -> Mantido texto original, adicionado nos metadados (${foundJid})`);
+                                                Logger.success("MentionResolver", `Resolvida menção de LID [${mentionMatch}] -> Mantido texto original (${foundJid})`);
                                             } else {
                                                 const num = foundJid.split('@')[0];
                                                 cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
                                                 resolvedMentions.push(foundJid);
                                                 Logger.success("MentionResolver", `Resolvida menção de Telefone [${mentionMatch}] -> [@${num}] (${foundJid})`);
                                             }
+                                        } else {
+                                            // Se não encontrou JID válido para o nome, removemos o "@" para evitar links quebrados!
+                                            cleanedReply = cleanedReply.replace(mentionMatch, rawName);
+                                            Logger.warn("MentionResolver", `Menção textual não resolvida [${mentionMatch}] -> Removido '@'`);
                                         }
                                     }
                                 }
@@ -4006,16 +4008,33 @@ ${chatLogs}`;
                             Logger.error("MentionResolver.Critical", resolverErr);
                         }
 
-                        // Extrai menções reais do tipo @5511999999999 da resposta limpa da IA para marcar de verdade no WhatsApp
-                        const mentions = [...resolvedMentions];
-                        const mentionRegex = /@(\d+)/g;
-                        let match;
-                        while ((match = mentionRegex.exec(cleanedReply)) !== null) {
-                            const jid = match[1] + "@s.whatsapp.net";
-                            if (!mentions.includes(jid)) {
-                                mentions.push(jid);
-                            }
+                        // Validação avançada e filtragem de menções numéricas
+                        try {
+                            const metadata = BochechaEngine.storeRef?.chats?.get(from) || (isGroup ? await sock.groupMetadata(from).catch(() => null) : null);
+                            const participants = metadata?.participants || [];
+                            
+                            cleanedReply = cleanedReply.replace(/@(\d+)/g, (match, digits) => {
+                                const clean = digits.trim();
+                                const foundPart = participants.find(p => p.id.split('@')[0] === clean);
+                                const isOwnerNum = DEFAULT_OWNERS.includes(clean);
+                                
+                                if (foundPart || isOwnerNum) {
+                                    const matchedJid = foundPart ? foundPart.id : clean + '@s.whatsapp.net';
+                                    if (!resolvedMentions.includes(matchedJid)) {
+                                        resolvedMentions.push(matchedJid);
+                                    }
+                                    return `@${clean}`;
+                                } else {
+                                    // Se o número mencionado pela IA não está no grupo e não é o dono, removemos o "@"!
+                                    Logger.warn("MentionResolver", `Menção numérica inválida/fora do grupo [@${clean}] -> Removido '@'`);
+                                    return clean;
+                                }
+                            });
+                        } catch (err) {
+                            Logger.error("MentionResolver.NumericValidation", err);
                         }
+
+                        const mentions = [...resolvedMentions];
 
                         const msgOptions = isGroup ? { quoted: q.msgRef } : {};
                         await sock.sendMessage(from, { text: cleanedReply + '\u200B', mentions }, msgOptions);
@@ -4076,8 +4095,39 @@ ${chatLogs}`;
         }));
 
         const tools = registry.getGeminiTools();
-        const isLid = (typeof rawSender !== 'undefined' && rawSender && rawSender.includes('lid')) || (sender && sender.includes('lid'));
-        const formatted = isLid ? `[De: ${pushname}] ${prompt}` : `[De: ${pushname} (@${sender.split('@')[0]})] ${prompt}`;
+        
+        // Determina a hierarquia do remetente no grupo
+        let hierarchy = "Membro Comum (👤 Plebe)";
+        if (isOwner) {
+            hierarchy = "Criador (👑 Dono Absoluto)";
+        } else {
+            let isUserAdmin = false;
+            if (chatId.endsWith('@g.us') && sock) {
+                try {
+                    const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await sock.groupMetadata(chatId);
+                    const participants = metadata.participants || [];
+                    const senderPart = participants.find(p => p.id.split('@')[0] === sender.split('@')[0]);
+                    isUserAdmin = senderPart?.admin === 'admin' || senderPart?.admin === 'superadmin';
+                } catch {}
+            }
+            if (isUserAdmin) {
+                hierarchy = "Administrador (🛡️ Privilegiado)";
+            }
+        }
+
+        const timeStr = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false });
+        const cleanSender = sender.split('@')[0];
+        const isLid = sender && sender.includes('lid');
+        
+        // Estrutura de última geração para formatação da mensagem do interlocutor
+        const formatted = 
+            `=========================================\n` +
+            `[💬 CHAT: "${logGroupName}"]\n` +
+            `[👤 USUÁRIO: "${pushname}" | 📞 CONTATO: ${isLid ? 'Conta Business LID' : '@' + cleanSender} | 🕒 HORA: ${timeStr} | 🏷️ HIERARQUIA: ${hierarchy}]\n` +
+            `-----------------------------------------\n` +
+            `MENSAGEM: ${prompt}\n` +
+            `=========================================`;
+
         const parts = [formatted];
 
         // Processamento Multimodal de Mídia Universal (Imagens, Vídeos, Documentos/PDFs, Áudios/Gifs e Texto Citado)
