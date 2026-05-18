@@ -3182,6 +3182,23 @@ ${chatLogs}`;
             const myNumber = (sock.user?.id || "").replace(/:.*/, "").replace(/@.*/, "");
             const myLid = (sock.authState?.creds?.me?.lid || "SEMLID").replace(/:.*/, "").replace(/@.*/, "");
             
+            // Helper para remover menções ao bot de forma ultra flexível (com espaços, dashes, etc.)
+            const cleanBotMentions = (text) => {
+                if (!text) return "";
+                let cleaned = text;
+                const cleanFlex = (txt, numStr) => {
+                    if (!txt || !numStr) return txt;
+                    const pattern = numStr.split("").map((digit, idx) => {
+                        return idx === numStr.length - 1 ? digit : `${digit}[\\s+\\-()]*`;
+                    }).join("");
+                    const flexRegex = new RegExp(`@\\+?${pattern}`, 'g');
+                    return txt.replace(flexRegex, '');
+                };
+                if (myNumber) cleaned = cleanFlex(cleaned, myNumber);
+                if (myLid && myLid !== "SEMLID") cleaned = cleanFlex(cleaned, myLid);
+                return cleaned.trim();
+            };
+            
             // Extração robusta de mensagem respondida (Reply)
             const audioContextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
             const quotedSender = audioContextInfo.participant || "";
@@ -3787,13 +3804,13 @@ ${chatLogs}`;
             if (isGroup) {
                 if (isMentioned || lowBody.includes('bochecha')) {
                     act = true;
-                    if (myNumber) clean = clean.replace(new RegExp(`@${myNumber}`, 'g'), '').trim();
-                    if (myLid !== "SEMLID") clean = clean.replace(new RegExp(`@${myLid}`, 'g'), '').trim();
+                    clean = cleanBotMentions(clean);
                     if (clean === "" || clean.toLowerCase() === "bochecha") clean = "fui chamado";
 
                     // Se existir uma mensagem respondida (Reply), empacota ela junto para a IA analisar
-                    if (quotedText) {
-                        clean = `[MENSAGEM DE CONTEXTO/REPLY]: O usuário está respondendo a seguinte mensagem: "${quotedText}".\n\n[COMENTÁRIO DO USUÁRIO]: ${clean}`;
+                    const cleanedQuotedText = cleanBotMentions(quotedText);
+                    if (cleanedQuotedText) {
+                        clean = `[MENSAGEM DE CONTEXTO/REPLY]: O usuário está respondendo a seguinte mensagem: "${cleanedQuotedText}".\n\n[COMENTÁRIO DO USUÁRIO]: ${clean}`;
                     }
                 } else if (hasMedia) {
                     // Visão Autônoma com menção explícita
@@ -3801,15 +3818,16 @@ ${chatLogs}`;
                     if (hasCaptionMention) {
                         act = true;
                         const caption = parsedMessage.message[msgType]?.caption || "";
-                        clean = caption;
+                        clean = cleanBotMentions(caption);
                     } else {
                         // Sem menção, chance baixíssima (2%) e apenas para outros membros (evita floodar o dono sem ele pedir)
                         const triggerChance = isOwner ? 0.0 : 0.02;
                         if (Math.random() < triggerChance) {
                             act = true;
                             const caption = parsedMessage.message[msgType]?.caption || "";
-                            clean = caption 
-                                ? `[Visão Autônoma] Comente de forma sarcástica, curta e inteligente sobre esta imagem que enviaram com a legenda: "${caption}"`
+                            const cleanedCaption = cleanBotMentions(caption);
+                            clean = cleanedCaption 
+                                ? `[Visão Autônoma] Comente de forma sarcástica, curta e inteligente sobre esta imagem que enviaram com a legenda: "${cleanedCaption}"`
                                 : `[Visão Autônoma] Comente de forma inteligente, sarcástica e curta sobre esta imagem enviada no grupo.`;
                             
                             Logger.info("AutonomousVision", `Imagem interceptada de forma autônoma (2% chance) de ${pushname}`);
@@ -3818,8 +3836,10 @@ ${chatLogs}`;
                 }
             } else {
                 act = true; // DM / Privado responde sempre
-                if (quotedText) {
-                    clean = `[MENSAGEM DE CONTEXTO/REPLY]: O usuário está respondendo a seguinte mensagem: "${quotedText}".\n\n[COMENTÁRIO DO USUÁRIO]: ${clean}`;
+                clean = cleanBotMentions(clean);
+                const cleanedQuotedText = cleanBotMentions(quotedText);
+                if (cleanedQuotedText) {
+                    clean = `[MENSAGEM DE CONTEXTO/REPLY]: O usuário está respondendo a seguinte mensagem: "${cleanedQuotedText}".\n\n[COMENTÁRIO DO USUÁRIO]: ${clean}`;
                 }
             }
 
