@@ -1,86 +1,126 @@
 const fs = require('fs');
 const path = require('path');
 
-const dbPath = path.join(__dirname, '../database_tictactoe.json');
-if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({ velha: {} }));
+// Usa o games_controller para guardar estado em memória (interceptado antes da IA)
+let gamesController;
+try { gamesController = require('./games_controller'); } catch {}
 
 module.exports = {
     definition: {
         function: {
             name: "jogo_da_velha",
-            description: "Inicia ou faz uma jogada no tabuleiro de Jogo da Velha contra o bot. Linhas e Colunas vão de 0 a 2.",
+            description: "Inicia um Jogo da Velha entre dois jogadores ou contra o bot. Use /velha @usuario para desafiar alguém.",
             parameters: {
                 type: "object",
                 properties: {
-                    acao: { type: "string", enum: ["iniciar", "jogada"], description: "Ação a executar" },
-                    linha: { type: "number", description: "Linha da jogada (0, 1 ou 2)" },
-                    coluna: { type: "number", description: "Coluna da jogada (0, 1 ou 2)" }
+                    acao: { type: "string", enum: ["iniciar", "jogada", "desistir"], description: "Ação" },
+                    linha: { type: "number", description: "Linha (0-2)" },
+                    coluna: { type: "number", description: "Coluna (0-2)" }
                 },
                 required: ["acao"]
             }
         }
     },
-    async execute(args, { sock, from, sender }) {
-        let db = JSON.parse(fs.readFileSync(dbPath));
-        if (!db.velha) db.velha = {};
-        
-        if (args.acao === "iniciar") {
-            db.velha[from] = {
-                tabuleiro: [ ["⬛", "⬛", "⬛"], ["⬛", "⬛", "⬛"], ["⬛", "⬛", "⬛"] ],
-                ativa: true
-            };
-            fs.writeFileSync(dbPath, JSON.stringify(db));
-            let board = db.velha[from].tabuleiro.map(r => r.join('')).join('\n');
-            await sock.sendMessage(from, { text: `❌ *JOGO DA VELHA* ⭕\n\nJogo iniciado! Você é o ❌.\n\n${board}\n\nPara jogar, diga algo como: "Bochecha, marca a linha 1, coluna 1 no jogo da velha". (Lembre-se: é de 0 a 2).` });
-            return "Jogo iniciado com sucesso.";
+    async execute(args, { sock, from, sender, pushname, message }) {
+        const raw = (args.texto || args.alvo || '').trim();
+
+        // ── MODO COMANDO DIRETO ──
+        // /velha           → jogo solo contra o bot
+        // /velha @usuario  → desafio 2 jogadores
+        // /velha desistir  → abandona jogo ativo
+        if (!args.acao) {
+            const low = raw.toLowerCase();
+
+            if (low === 'desistir' || low === 'sair' || low === 'cancelar') {
+                if (gamesController?.activeGames?.has(from)) {
+                    gamesController.activeGames.delete(from);
+                    return `🏳️ *${pushname}* desistiu do jogo da velha! 💀`;
+                }
+                return "❌ Nenhum jogo ativo pra desistir.";
+            }
+
+            // Verifica se já tem jogo ativo
+            if (gamesController?.activeGames?.has(from)) {
+                const g = gamesController.activeGames.get(from);
+                return `⚠️ Já tem um jogo ativo!\n\n${renderBoard(g.board)}\n\nVez de: @${(g.turn === 'X' ? g.player1 : g.player2).split('@')[0]}\n\nDigita um número de 1-9 pra jogar ou /velha desistir.`;
+            }
+
+            // Verifica menções para 2 jogadores
+            const mentioned = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid;
+            const opponent = mentioned && mentioned[0] ? mentioned[0] : null;
+
+            const board = [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '];
+
+            if (opponent && opponent !== sender) {
+                // 2 jogadores
+                if (gamesController) {
+                    gamesController.activeGames.set(from, {
+                        type: 'velha',
+                        board,
+                        turn: 'X',
+                        player1: sender,      // X
+                        player2: opponent,    // O
+                        vsBot: false
+                    });
+                }
+                await sock.sendMessage(from, {
+                    text: `❌⭕ *JOGO DA VELHA* ❌⭕\n\n🆚 @${sender.split('@')[0]} *(X)* vs @${opponent.split('@')[0]} *(O)*\n\n${renderBoard(board)}\n\n${renderGuia()}\n\nVez de: @${sender.split('@')[0]} *(X)*\nDigita o número da posição (1-9)!`,
+                    mentions: [sender, opponent]
+                });
+                return "Jogo iniciado!";
+            } else {
+                // Solo contra o bot
+                if (gamesController) {
+                    gamesController.activeGames.set(from, {
+                        type: 'velha',
+                        board,
+                        turn: 'X',
+                        player1: sender,
+                        player2: 'BOT',
+                        vsBot: true
+                    });
+                }
+                await sock.sendMessage(from, {
+                    text: `❌⭕ *JOGO DA VELHA* ❌⭕\n\n🤖 @${sender.split('@')[0]} *(X)* vs *BOCHECHA (O)*\n\n${renderBoard(board)}\n\n${renderGuia()}\n\nSua vez! Digita o número (1-9):`,
+                    mentions: [sender]
+                });
+                return "Jogo iniciado!";
+            }
         }
-        
-        if (args.acao === "jogada") {
-            const jogo = db.velha[from];
-            if (!jogo || !jogo.ativa) return "Nenhum jogo ativo no momento.";
-            
-            let l = args.linha; let c = args.coluna;
-            if (l < 0 || l > 2 || c < 0 || c > 2) return "Aviso: Linha e coluna devem ser números entre 0 e 2.";
-            if (jogo.tabuleiro[l][c] !== "⬛") return "Essa posição já está ocupada! Peça para ele escolher outra vazia.";
-            
-            // Jogada do Usuário
-            jogo.tabuleiro[l][c] = "❌";
-            if (verificarVitoria(jogo.tabuleiro, "❌")) return encerrar(jogo, db, from, sock, `🏆 Parabéns! Você ganhou de mim!`);
-            
-            // Jogada do Bot (A IA responde automaticamente marcando a primeira posição livre aleatória)
-            let vazios = [];
-            for(let i=0; i<3; i++) for(let j=0; j<3; j++) if(jogo.tabuleiro[i][j] === "⬛") vazios.push({i,j});
-            if (vazios.length === 0) return encerrar(jogo, db, from, sock, `Deu velha! Empatamos.`);
-            
-            let jB = vazios[Math.floor(Math.random() * vazios.length)];
-            jogo.tabuleiro[jB.i][jB.j] = "⭕";
-            if (verificarVitoria(jogo.tabuleiro, "⭕")) return encerrar(jogo, db, from, sock, `🤖 HAHAHA! O Bochecha venceu!`);
-            
-            vazios = vazios.filter(v => !(v.i === jB.i && v.j === jB.j));
-            if (vazios.length === 0) return encerrar(jogo, db, from, sock, `Deu velha! Empatamos.`);
-            
-            fs.writeFileSync(dbPath, JSON.stringify(db));
-            let board = jogo.tabuleiro.map(r => r.join('')).join('\n');
-            await sock.sendMessage(from, { text: `❌ *JOGO DA VELHA* ⭕\n\nMinha vez! Joguei em (${jB.i}, ${jB.j}).\n\n${board}\n\nSua vez! Mande a próxima linha e coluna.` });
-            return "Jogada feita, vez do usuário.";
+
+        // ── MODO IA (compatibilidade antiga) ──
+        if (args.acao === 'desistir') {
+            gamesController?.activeGames?.delete(from);
+            return "🏳️ Jogo encerrado.";
+        }
+
+        if (args.acao === 'iniciar') {
+            const board = [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '];
+            if (gamesController) {
+                gamesController.activeGames.set(from, {
+                    type: 'velha', board, turn: 'X',
+                    player1: sender, player2: 'BOT', vsBot: true
+                });
+            }
+            await sock.sendMessage(from, {
+                text: `❌⭕ *JOGO DA VELHA*\n\n${renderBoard(board)}\n\n${renderGuia()}\n\nDigita o número da posição (1-9):`,
+                mentions: [sender]
+            });
+            return "Jogo da velha iniciado!";
         }
     }
 };
 
-function verificarVitoria(t, p) {
-    for (let i = 0; i < 3; i++) {
-        if (t[i][0] === p && t[i][1] === p && t[i][2] === p) return true;
-        if (t[0][i] === p && t[1][i] === p && t[2][i] === p) return true;
-    }
-    if (t[0][0] === p && t[1][1] === p && t[2][2] === p) return true;
-    if (t[0][2] === p && t[1][1] === p && t[2][0] === p) return true;
-    return false;
+function renderBoard(b) {
+    return `┏━━━┳━━━┳━━━┓\n┃ ${fmt(b[0],1)} ┃ ${fmt(b[1],2)} ┃ ${fmt(b[2],3)} ┃\n┣━━━╋━━━╋━━━┫\n┃ ${fmt(b[3],4)} ┃ ${fmt(b[4],5)} ┃ ${fmt(b[5],6)} ┃\n┣━━━╋━━━╋━━━┫\n┃ ${fmt(b[6],7)} ┃ ${fmt(b[7],8)} ┃ ${fmt(b[8],9)} ┃\n┗━━━┻━━━┻━━━┛`;
 }
 
-async function encerrar(jogo, db, from, sock, msgResult) {
-    let board = jogo.tabuleiro.map(r => r.join('')).join('\n');
-    jogo.ativa = false;
-    fs.writeFileSync(path.join(__dirname, '../database_tictactoe.json'), JSON.stringify(db));
-    await sock.sendMessage(from, { text: `❌ *JOGO DA VELHA* ⭕\n\n${board}\n\n${msgResult}` });
-    return "O jogo acabou.";
+function fmt(val, num) {
+    if (val === 'X') return '❌';
+    if (val === 'O') return '⭕';
+    return num;
+}
+
+function renderGuia() {
+    return `📌 *Posições:*\n┌1┬2┬3┐\n├4┼5┼6┤\n└7┴8┴9┘`;
 }

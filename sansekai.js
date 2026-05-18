@@ -4043,6 +4043,73 @@ ${chatLogs}`;
             }
 
             // ═══════════════════════════════
+            // COMANDOS DE JOGOS (sem IA)
+            // ═══════════════════════════════
+            if (body.startsWith('/')) {
+                const gParts = body.split(' ');
+                const gCmd = gParts[0].toLowerCase();
+                const gTexto = gParts.slice(1).join(' ').trim();
+                const gCtx = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+
+                switch (gCmd) {
+                    case '/velha':
+                    case '/tictactoe': {
+                        const argsV = { texto: gTexto, alvo: gTexto };
+                        const resV = await registry.execute('jogo_da_velha', argsV, gCtx).catch(e => { Logger.error('Command.Velha', e); return null; });
+                        if (resV && typeof resV === 'string' && resV.trim() && !['Jogo iniciado!'].includes(resV)) await parsedMessage.reply(resV);
+                        return;
+                    }
+
+                    case '/forca':
+                    case '/hangman': {
+                        // Inicia forca autônoma: bot escolhe palavra sem precisar de IA
+                        const palavras = [
+                            {p:'javascript',d:'Linguagem de programação web'},
+                            {p:'whatsapp',d:'Aplicativo de mensagens'},
+                            {p:'computador',d:'Máquina que processa dados'},
+                            {p:'programador',d:'Quem escreve código'},
+                            {p:'algoritmo',d:'Sequência de passos para resolver um problema'},
+                            {p:'internet',d:'Rede mundial de computadores'},
+                            {p:'inteligencia',d:'Capacidade de aprender e resolver problemas'},
+                            {p:'teclado',d:'Periférico de entrada de texto'},
+                            {p:'servidor',d:'Computador que fornece serviços na rede'},
+                            {p:'database',d:'Banco de dados'},
+                            {p:'chocolate',d:'Alimento doce feito de cacau'},
+                            {p:'futebol',d:'Esporte mais popular do Brasil'},
+                            {p:'carnaval',d:'Festa popular brasileira'},
+                            {p:'cachorro',d:'Animal doméstico fiel'},
+                            {p:'pizza',d:'Prato italiano redondo'},
+                            {p:'bochecha',d:'O bot mais foda do WhatsApp'},
+                            {p:'saudade',d:'Sentimento tipicamente brasileiro'},
+                            {p:'capoeira',d:'Arte marcial brasileira'},
+                            {p:'cangaceiro',d:'Figura do sertão nordestino'},
+                            {p:'estrela',d:'Astro que brilha no céu'},
+                        ];
+                        const escolha = palavras[Math.floor(Math.random() * palavras.length)];
+                        const argsF = { acao: 'iniciar', palavra_secreta: escolha.p, dica: escolha.d };
+                        const resF = await registry.execute('jogo_forca', argsF, gCtx).catch(e => { Logger.error('Command.Forca', e); return null; });
+                        if (resF && typeof resF === 'string' && resF.length > 10 && !resF.includes('iniciado')) await parsedMessage.reply(resF);
+                        return;
+                    }
+
+                    case '/jokenpo':
+                    case '/pedrapapeltesoura': {
+                        const argsJ = { texto: gTexto, alvo: gTexto };
+                        const resJ = await registry.execute('jokenpo', argsJ, gCtx).catch(e => { Logger.error('Command.Jokenpo', e); return null; });
+                        if (resJ && typeof resJ === 'string' && resJ.trim()) await parsedMessage.reply(resJ);
+                        return;
+                    }
+
+                    case '/quiz': {
+                        const argsQ = { texto: gTexto };
+                        const resQ = await registry.execute('quiz', argsQ, gCtx).catch(e => { Logger.error('Command.Quiz', e); return null; });
+                        if (resQ && typeof resQ === 'string' && resQ.trim()) await parsedMessage.reply(resQ);
+                        return;
+                    }
+                }
+            }
+
+            // ═══════════════════════════════
             // COMANDOS DE ADMINISTRAÇÃO E PROPRIEDADE
             // ═══════════════════════════════
 
@@ -4266,6 +4333,49 @@ ${chatLogs}`;
                         }
                         break;
                     }
+                }
+            }
+
+            // ═══════════════════════════════════════════════════════
+            // INTERCEPTOR DE JOGOS — processa jogadas ANTES da IA
+            // ═══════════════════════════════════════════════════════
+            if (!parsedMessage.key.fromMe && !body.startsWith('/')) {
+                try {
+                    const gamesController = require('./skills/games_controller');
+                    const jogoAtivo = gamesController.activeGames.get(from);
+
+                    if (jogoAtivo) {
+                        // Tenta processar como jogada
+                        const handled = await gamesController.processMove(sock, from, rawSender, body.trim());
+                        if (handled) return; // jogada processada — NÃO ativa a IA
+                    }
+
+                    // Forca: intercepta letra única (ex: "A", "b") quando há jogo ativo no DB
+                    if (!jogoAtivo) {
+                        const forcaDb = (() => {
+                            try {
+                                const p = require('path').join(__dirname, 'database_games.json');
+                                if (require('fs').existsSync(p)) return JSON.parse(require('fs').readFileSync(p, 'utf8'));
+                            } catch {}
+                            return null;
+                        })();
+                        if (forcaDb?.forca?.[from]?.ativa) {
+                            const letra = body.trim().toLowerCase();
+                            if (/^[a-z]$/.test(letra)) {
+                                const ctx = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                                const res = await registry.execute('jogo_forca', { acao: 'tentar_letra', letra }, ctx).catch(() => null);
+                                if (res) {
+                                    // Se for confirmação interna, não manda de volta (já enviou no execute)
+                                    if (typeof res === 'string' && res.length > 5 && !res.includes('tentada')) {
+                                        await parsedMessage.reply(res);
+                                    }
+                                }
+                                return; // bloqueia a IA
+                            }
+                        }
+                    }
+                } catch (e) {
+                    Logger.error("GameInterceptor", e);
                 }
             }
 
