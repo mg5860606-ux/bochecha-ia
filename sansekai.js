@@ -3195,11 +3195,17 @@ ${chatLogs}`;
             
             // 2. Marcado/Taggeado diretamente via JIDs ou menção textual de número
             const mentionedJids = audioContextInfo.mentionedJid || [];
-            const isTag = mentionedJids.some(jid => areJidsSameUser(jid, sock.user.id));
+            const isTag = mentionedJids.some(jid => 
+                areJidsSameUser(jid, sock.user.id) || 
+                (sock.authState?.creds?.me?.lid && areJidsSameUser(jid, sock.authState.creds.me.lid))
+            );
             const isTextTag = (myNumber && body.includes('@' + myNumber)) || (myLid !== "SEMLID" && body.includes('@' + myLid));
             
             // 3. Respondendo a uma mensagem do Bochecha ou que contém menção a ele
-            const isReply = quotedSender ? areJidsSameUser(quotedSender, sock.user.id) : false;
+            const isReply = quotedSender ? (
+                areJidsSameUser(quotedSender, sock.user.id) || 
+                (sock.authState?.creds?.me?.lid && areJidsSameUser(quotedSender, sock.authState.creds.me.lid))
+            ) : false;
             const isQuotedMention = quotedText ? (quotedText.toLowerCase().includes("bochecha") || (myNumber && quotedText.includes(myNumber)) || (myLid !== "SEMLID" && quotedText.includes(myLid))) : false;
             
             // Ativação geral por menção ou palavra-chave
