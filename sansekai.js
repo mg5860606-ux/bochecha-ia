@@ -3478,6 +3478,14 @@ ${chatLogs}`;
         try {
             if (!parsedMessage || !parsedMessage.message) return;
 
+            const from = parsedMessage.from || parsedMessage.key.remoteJid;
+
+            // Visualização automática de leitura (ticks azuis) e sinalizador de "digitando..."
+            if (!parsedMessage.key.fromMe) {
+                await sock.readMessages([parsedMessage.key]).catch(() => {});
+                await sock.sendPresenceUpdate('composing', from).catch(() => {});
+            }
+
             // Atualiza tempo de última interação ativa para controle de silêncio/sonho
             this.lastMessageTime = Date.now();
             this.hasDreamedThisSilence = false;
