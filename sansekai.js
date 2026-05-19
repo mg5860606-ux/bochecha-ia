@@ -2552,14 +2552,23 @@ class ModerationSystem {
             const warns = await storage.addWarning(chatId, userId);
 
             if (warns >= 3) {
-                await sock.sendMessage(chatId, {
-                    text: `🚨 *SPAMMER EXPULSO* 🚨\n\nO membro @${cleanUser} ignorou os alertas de flood do Bochecha-IA e foi banido automaticamente (${warns}/3 advertências).\n\n*Adeus, vacilão!* ☠️`,
-                    mentions: [userId]
-                });
                 try {
+                    // Tenta remover primeiro
                     await sock.groupParticipantsUpdate(chatId, [userId], 'remove');
+                    
+                    // Se deu certo, avisa no grupo
+                    await sock.sendMessage(chatId, {
+                        text: `🚨 *SPAMMER EXPULSO* 🚨\n\nO membro @${cleanUser} ignorou os alertas de flood do Bochecha-IA e foi banido automaticamente (${warns}/3 advertências).\n\n*Adeus, vacilão!* ☠️`,
+                        mentions: [userId]
+                    });
                 } catch (e) {
                     Logger.error("ModerationSystem.AutoBan", e);
+                    
+                    // Se falhar por permissão (não é admin), avisa no grupo
+                    await sock.sendMessage(chatId, {
+                        text: `⚠️ *SPAM DETECTADO* ⚠️\n\nO membro @${cleanUser} excedeu o limite máximo de advertências por flood (${warns}/3 advertências).\n\nEu gostaria de removê-lo, mas não sou administrador deste grupo para efetuar o banimento físico. Administradores, por favor, retirem o spammer! 💀`,
+                        mentions: [userId]
+                    });
                 }
             } else {
                 await sock.sendMessage(chatId, {
@@ -2587,15 +2596,26 @@ class ModerationSystem {
         }
 
         try {
+            // Tenta remover primeiro
+            await sock.groupParticipantsUpdate(chatId, [targetUser], 'remove');
+            
+            // Se deu certo, envia confirmação
             await sock.sendMessage(chatId, {
                 text: `💀 *REMOÇÃO EFETUADA* 💀\n\nO Bochecha aplicou a remoção administrativa no usuário @${clean}.\n\n💬 *Motivo:* ${reason}\n\n*Vocês acharam que era K.O? Segura esse ban!* 🖕`,
                 mentions: [targetUser]
             });
-            await sock.groupParticipantsUpdate(chatId, [targetUser], 'remove');
+            
             Logger.success("ModerationSystem", `Usuário ${targetUser} expulso.`);
             return `Membro @${clean} banido com sucesso.`;
         } catch (e) {
             Logger.error("ModerationSystem.Ban", e);
+            
+            // Se for erro de permissão (not-authorized / 401 / 403), avisa no grupo de forma inteligente
+            await sock.sendMessage(chatId, {
+                text: `⚠️ *INFRAÇÃO GRAVE DETECTADA* ⚠️\n\nO usuário @${clean} cometeu uma infração grave (*Motivo:* ${reason}).\n\nEu gostaria de expulsá-lo imediatamente, mas não sou administrador do grupo para concluir a remoção física no WhatsApp. Algum administrador humano, por favor, assuma e tome a postura! 💀`,
+                mentions: [targetUser]
+            });
+            
             return `Erro ao expulsar membro. Certifique-se de que possuo cargo administrativo.`;
         }
     }
