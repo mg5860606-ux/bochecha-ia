@@ -2059,7 +2059,7 @@ class VoiceSynthesizer {
         });
     }
 
-    static convertMp3ToOggOpus(mp3Buffer) {
+    static convertMp3ToMp4Aac(mp3Buffer) {
         return new Promise((resolve, reject) => {
             const ffmpegPath = require('ffmpeg-static');
             const ffmpeg = spawn(ffmpegPath, [
@@ -2068,10 +2068,11 @@ class VoiceSynthesizer {
                 '-i', 'anoisesrc=c=pink:amp=0.003:r=48000',       // Entrada 1 (Procedural pink noise para room tone realista)
                 '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]', // Mixa as faixas e encerra quando a voz acabar
                 '-map', '[a]',                                    // Mapeia a saída mixada
-                '-c:a', 'libopus',                                // Codec Opus
+                '-c:a', 'aac',                                    // Codec AAC (compatibilidade 100% universal para iOS e Android!)
                 '-b:a', '48k',                                    // Bitrate de áudio de alta performance
                 '-ac', '1',                                       // Mono
-                '-f', 'ogg',                                      // Container Ogg para iOS/Android
+                '-f', 'mp4',                                      // Container MP4 fragmentado
+                '-movflags', 'frag_keyframe+empty_moov',          // Permite streaming de MP4 fragmentado via pipe
                 'pipe:1'                                          // Saída via stdout
             ]);
 
@@ -2113,13 +2114,13 @@ class VoiceSynthesizer {
             const hasFFmpeg = await this.checkFFmpeg();
             if (hasFFmpeg) {
                 try {
-                    Logger.info("VoiceSynthesizer", "FFmpeg disponível. Convertendo MP3 para Ogg/Opus para nota de voz nativa...");
-                    const oggBuffer = await this.convertMp3ToOggOpus(finalBuffer);
+                    Logger.info("VoiceSynthesizer", "FFmpeg disponível. Convertendo MP3 para MP4/AAC para compatibilidade universal (iOS/Android)...");
+                    const mp4Buffer = await this.convertMp3ToMp4Aac(finalBuffer);
                     
                     if (sock) {
                         await sock.sendMessage(chatId, {
-                            audio: oggBuffer,
-                            mimetype: 'audio/ogg; codecs=opus',
+                            audio: mp4Buffer,
+                            mimetype: 'audio/mp4',
                             ptt: true
                         }, { quoted: msgRef });
                     }
