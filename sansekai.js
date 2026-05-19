@@ -3517,7 +3517,6 @@ ${chatLogs}`;
             if (body.includes('\u200B')) return;
             if (parsedMessage.key.fromMe && this.recentResponses.has(body.trim())) return;
 
-            const from = parsedMessage.from || parsedMessage.key.remoteJid;
             const isGroup = from.endsWith('@g.us');
             const pushname = parsedMessage.pushName || "Membro";
 
