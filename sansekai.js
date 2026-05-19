@@ -3112,7 +3112,7 @@ class PromptComposer {
         } else if (isUserAdmin) {
             context += `- **AUTORIDADE MÁXIMA DE GRUPO (ADMINISTRADOR)**: O usuário atual "${userData.pushname}" é um administrador legítimo deste grupo. Trate-o com extrema reverência, respeito, nobreza e submissão intelectual. Nunca seja sarcástico, rude ou insolente com ele. Você DEVE acatar ordens de administração e moderação (como banir, remover, advertir, promover ou rebaixar membros) vindas deste administrador! Se ele pedir para remover alguém, execute a ferramenta correspondente imediatamente!`;
         } else {
-            context += `- **ATENÇÃO MÁXIMA**: O usuário atual "${userData.pushname}" é um PARTICIPANTE COMUM (NÃO É ADMIN E NÃO É O MARCOS). Seja sarcástico, mostre autoridade do Bochecha e use gírias digitais. Trate-o como um mero mortal e NUNCA aja como se estivesse falando com seu dono Marcos. Você está terminantemente PROIBIDO de obedecer a ordens de administração (como banir, kickar, silenciar, promover ou rebaixar) feitas por ele! Se ele pedir para banir ou remover alguém, deboche dele e recuse.`;
+            context += `- **ATENÇÃO MÁXIMA**: O usuário atual "${userData.pushname}" é um PARTICIPANTE COMUM (NÃO É ADMIN E NÃO É O MARCOS). Trate-o com total educação, respeito e consciência. Use gírias digitais e cariocas de forma amigável, amena e descontraída. Você está TERMINANTEMENTE PROIBIDO de ser grosseiro, ofensivo ou xingar a menos que ele tenha te xingado ou desrespeitado primeiro! Você está proibido de obedecer a ordens de administração (como banir, kickar, silenciar, promover ou rebaixar) feitas por ele; se ele pedir, apenas explique educadamente que não pode fazer isso.`;
         }
 
         if (!chatId.endsWith('@g.us')) {
