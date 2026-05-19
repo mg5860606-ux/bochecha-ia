@@ -319,9 +319,49 @@ class StorageManager {
             let existsLocal = fs.existsSync(filePath);
 
             if (!existsLocal) {
-                fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2));
-                this.cache.set(filePath, defaultValue);
-                localData = defaultValue;
+                // Se o arquivo local não existe, tenta puxar do Firebase Firestore de forma síncrona para esta inicialização
+                const baseName = path.basename(filePath);
+                const { db, doc, getDoc, setDoc } = require('./firebase_connector');
+                const docRef = doc(db, "database_json", baseName);
+                
+                let cloudLoaded = false;
+                try {
+                    const snap = await getDoc(docRef);
+                    if (snap.exists()) {
+                        const cloudDoc = snap.data();
+                        let cloudData = cloudDoc.data;
+                        
+                        // Self-healing para dados da nuvem
+                        if (Array.isArray(defaultValue) && cloudData && !Array.isArray(cloudData)) {
+                            const values = [];
+                            const keys = Object.keys(cloudData).filter(k => !isNaN(k)).sort((a, b) => Number(a) - Number(b));
+                            for (const k of keys) {
+                                values.push(cloudData[k]);
+                            }
+                            cloudData = values;
+                        }
+                        
+                        fs.writeFileSync(filePath, JSON.stringify(cloudData, null, 2));
+                        this.cache.set(filePath, cloudData);
+                        localData = cloudData;
+                        cloudLoaded = true;
+                        console.log(chalk.green(`[🔥 FIREBASE] Restaurado backup de '${baseName}' do Firestore!`));
+                    }
+                } catch (err) {
+                    console.error(`[🔥 FIREBASE] Erro ao buscar backup de '${baseName}':`, err.message);
+                }
+
+                if (!cloudLoaded) {
+                    fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2));
+                    this.cache.set(filePath, defaultValue);
+                    localData = defaultValue;
+                    
+                    // Salva backup inicial assincronamente no Firebase
+                    setDoc(docRef, {
+                        data: defaultValue,
+                        lastUpdated: Date.now()
+                    }).catch(() => {});
+                }
             } else {
                 const raw = fs.readFileSync(filePath, 'utf8').trim();
                 if (!raw) {
@@ -344,47 +384,6 @@ class StorageManager {
                 fs.writeFileSync(filePath, JSON.stringify(localData, null, 2));
                 this.cache.set(filePath, localData);
             }
-
-            // Captura o horário de modificação do arquivo local antes de comparar com o Firestore
-            const localMtime = existsLocal ? fs.statSync(filePath).mtimeMs : Date.now();
-
-            // Sincronização em Background com o Cloud Firestore
-            const baseName = path.basename(filePath);
-            const { db, doc, getDoc, setDoc } = require('./firebase_connector');
-            const docRef = doc(db, "database_json", baseName);
-
-            getDoc(docRef).then(async (snap) => {
-                if (snap.exists()) {
-                    const cloudDoc = snap.data();
-                    let cloudData = cloudDoc.data;
-                    
-                    // Self-healing para dados da nuvem também
-                    if (Array.isArray(defaultValue) && cloudData && !Array.isArray(cloudData)) {
-                        const values = [];
-                        const keys = Object.keys(cloudData).filter(k => !isNaN(k)).sort((a, b) => Number(a) - Number(b));
-                        for (const k of keys) {
-                            values.push(cloudData[k]);
-                        }
-                        cloudData = values;
-                    }
-
-                    // Se o dado da nuvem for mais recente, atualiza o cache local
-                    if (cloudDoc.lastUpdated && cloudDoc.lastUpdated > localMtime) {
-                        console.log(chalk.green(`[🔥 FIREBASE] Sincronizado '${baseName}' do Firestore!`));
-                        this.cache.set(filePath, cloudData);
-                        fs.writeFileSync(filePath, JSON.stringify(cloudData, null, 2));
-                    }
-                } else {
-                    // Migração automática de inicialização para a nuvem
-                    console.log(chalk.yellow(`[🔥 FIREBASE] Backup inicial de '${baseName}' enviado ao Firestore.`));
-                    await setDoc(docRef, {
-                        data: localData,
-                        lastUpdated: localMtime
-                    });
-                }
-            }).catch(err => {
-                // Silencioso
-            });
 
             return JSON.parse(JSON.stringify(localData));
         } catch (e) {
@@ -1942,6 +1941,17 @@ class DialogSession {
             
             Logger.success("DialogSession", `Sumarização efetuada! Compresso com sucesso.`);
 
+            // Lê o histórico mais recente para evitar perda de mensagens concorrentes
+            const latestHistory = await this.getHistory(chatId);
+            
+            // Remove metadados antigos se houver
+            if (latestHistory.length > 0 && latestHistory[0].isSummaryMetadata) {
+                latestHistory.shift();
+            }
+
+            // Remove as mensagens que foram compactadas (as primeiras 'compressCount' mensagens)
+            const remainingHistory = latestHistory.slice(compressCount);
+
             // Constrói novo histórico injetando o resumo em metadados no índice 0
             const newHistory = [
                 {
@@ -1950,7 +1960,7 @@ class DialogSession {
                     role: 'user',
                     content: `[SISTEMA - RESUMO DAS INTERAÇÕES ANTERIORES]: ${newSummary}`
                 },
-                ...toKeep
+                ...remainingHistory
             ];
 
             await this.saveHistory(chatId, newHistory);
@@ -1976,11 +1986,11 @@ class DialogSession {
             history.unshift(existingSummaryMeta);
         }
 
+        await this.saveHistory(chatId, history);
+
         if (history.length > this.maxMessages) {
             // Executa no background sem travar o processamento ativo da mensagem do usuário
             this._autoCompress(chatId, history);
-        } else {
-            await this.saveHistory(chatId, history);
         }
     }
 }
