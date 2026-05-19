@@ -18,7 +18,10 @@ module.exports = {
             }
         }
     },
-    async execute(args) {
+    async execute(args, ctx) {
+        if (!ctx || !ctx.isOwner) {
+            return "Erro crítico de segurança: Apenas o Arquiteto Marcos (Dono do Bot) pode executar comandos no terminal do sistema.";
+        }
         return new Promise((resolve) => {
             const cmd = args.command || "";
             exec(cmd, (error, stdout, stderr) => {

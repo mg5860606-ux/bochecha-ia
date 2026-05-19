@@ -234,5 +234,7 @@ module.exports = {
                 }
             }
         }
-    }
+    },
+    MODEL_ALIASES,
+    FRIENDLY_NAMES
 };

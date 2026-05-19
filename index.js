@@ -446,7 +446,15 @@ const banner = `
 
 console.clear();
 console.log(chalk.cyan(banner));
-require("./sansekai.js"); // Pré-carrega as skills agora, depois de limpar a tela
+const sansekai = require("./sansekai.js"); // Pré-carrega as skills agora, depois de limpar a tela
+
+// Inicializa o Painel Web na porta 3030
+try {
+	const { startPanelServer } = require("./lib/panelServer.js");
+	startPanelServer(3030, sansekai, () => globalSock);
+} catch (panelErr) {
+	console.error("Erro ao iniciar painel web:", panelErr);
+}
 
 startBot().catch(error => {
 	console.error('❌ Erro ao iniciar bot:', error);

@@ -3151,6 +3151,7 @@ class PromptComposer {
             `- ID Único do Chat: ${chatId}\n` +
             `- Usuário Falando com Você: ${userData.pushname || "Membro"} (número: ${userData.userId ? userData.userId.split('@')[0] : 'desconhecido'})\n` +
             `- **IDENTIDADE DO INTERLOCUTOR ATUAL (REGRA ABSOLUTA)**: A pessoa que está enviando a mensagem AGORA é "${userData.pushname || "Membro"}". Você está falando EXCLUSIVAMENTE com ela nesta resposta. O histórico do chat contém mensagens anteriores de outras pessoas do grupo (inclusive do Marcos ou de adms). NUNCA chame a pessoa atual pelo nome de outra pessoa do histórico! Se a pessoa atual NÃO for o Marcos, você NUNCA deve chamá-la de Marcos nem tratá-la como seu criador! Fale com ela usando o nome "${userData.pushname || "Membro"}" diretamente.\n` +
+            `- **ENTENDIMENTO DO GRUPO E HISTÓRICO**: Cada mensagem do histórico de usuários contém um cabeçalho identificando quem a enviou (ex: \`[👤 USUÁRIO: "Nome" | ...]\`). Use isso para entender quem é quem no grupo, quem falou o quê e o contexto da conversa. Ao responder, lembre-se que você está respondendo apenas à pessoa atual do interlocutor, mas que você tem plena consciência do histórico do grupo. Isso evita que você confunda o Marcos com outros membros.\n` +
             `- **REGRA DE MENÇÃO (OPCIONAL)**: Você NÃO precisa marcar com @ toda hora. Use o nome da pessoa diretamente no texto — isso é o mais natural. Quando quiser marcar de verdade (para notificar, advertir ou dar impacto), aí use @Nome (ex: @${userData.pushname || 'Membro'}) ou @número (ex: @${userData.userId ? userData.userId.split('@')[0] : ''}). Nosso servidor resolve automaticamente e cria a marcação clicável real. NUNCA insira sinal de '+', espaços ou traços.\n` +
             `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
@@ -3667,6 +3668,54 @@ ${chatLogs}`;
 
             const settings = await storage.getSettings();
             const isOwner = DEFAULT_OWNERS.includes(sender) || settings.owners.includes(sender) || parsedMessage.key.fromMe;
+
+            // Salva todas as mensagens normais no histórico para cognição social de grupo ("fofoca")
+            if (!parsedMessage.key.fromMe && (body || hasMedia)) {
+                const isCommand = body.startsWith('/') || body.startsWith('.') || body.startsWith('!');
+                if (!isCommand) {
+                    try {
+                        let logGroupName = "Privado";
+                        if (isGroup && sock) {
+                            const metadata = BochechaEngine.storeRef?.chats?.get(from) || await sock.groupMetadata(from).catch(() => null);
+                            logGroupName = metadata?.subject || metadata?.name || "Grupo";
+                        }
+                        
+                        let hierarchy = "Membro Comum (👤 Plebe)";
+                        if (isOwner) {
+                            hierarchy = "Criador (👑 Dono Absoluto)";
+                        } else {
+                            let isUserAdmin = false;
+                            if (isGroup && sock) {
+                                try {
+                                    const metadata = BochechaEngine.storeRef?.chats?.get(from) || await sock.groupMetadata(from).catch(() => null);
+                                    const participants = metadata?.participants || [];
+                                    const senderPart = participants.find(p => p.id.split('@')[0] === rawSender.split('@')[0]);
+                                    isUserAdmin = senderPart?.admin === 'admin' || senderPart?.admin === 'superadmin';
+                                } catch {}
+                            }
+                            if (isUserAdmin) {
+                                hierarchy = "Administrador (🛡️ Privilegiado)";
+                            }
+                        }
+
+                        const timeStr = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false });
+                        const cleanSender = rawSender.split('@')[0];
+                        const isLid = rawSender && rawSender.includes('lid');
+                        
+                        const formattedMsgForHistory = 
+                            `=========================================\n` +
+                            `[💬 CHAT: "${logGroupName}"]\n` +
+                            `[👤 USUÁRIO: "${pushname}" | 📞 CONTATO: ${isLid ? 'Conta Business LID' : '@' + cleanSender} | 🕒 HORA: ${timeStr} | 🏷️ HIERARQUIA: ${hierarchy}]\n` +
+                            `-----------------------------------------\n` +
+                            `MENSAGEM: ${body || "(Mídia/Imagem/Vídeo)"}\n` +
+                            `=========================================`;
+
+                        await sessionManager.addMessage(from, 'user', formattedMsgForHistory);
+                    } catch (histErr) {
+                        Logger.error("handleMessage.HistorySave", histErr);
+                    }
+                }
+            }
 
             // 🤬 DETECTOR SUPREMO DE OFENSA À MÃE (DO DONO OU DO BOT)
             if (isGroup && !isOwner && !parsedMessage.key.fromMe) {
@@ -4990,7 +5039,16 @@ ${chatLogs}`;
         
         // Garante que rawHistory é sempre um array (Firebase pode retornar objeto ou null)
         const safeHistory = Array.isArray(rawHistory) ? rawHistory : [];
-        const history = safeHistory.map(m => ({
+        
+        // Remove a última mensagem de usuário se ela existir no final do histórico, pois ela
+        // representa a mensagem atual e será enviada como o prompt atual (input) no rotator.
+        // Isso previne que a IA leia a mensagem atual em duplicidade.
+        const historyToUse = [...safeHistory];
+        if (historyToUse.length > 0 && historyToUse[historyToUse.length - 1].role === 'user') {
+            historyToUse.pop();
+        }
+
+        const history = historyToUse.map(m => ({
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }]
         }));
@@ -5204,8 +5262,7 @@ ${chatLogs}`;
             }
         }
 
-        // Armazena diálogo na memória da sessão
-        await sessionManager.addMessage(chatId, 'user', formatted);
+        // Armazena diálogo na memória da sessão (a mensagem do usuário já foi registrada no handleMessage)
         await sessionManager.addMessage(chatId, 'assistant', output);
 
         return { output, modelName };
@@ -5243,5 +5300,7 @@ sansekaiHandler.bind = (sock, store) => {
     bochecha.bind(sock, store);
 };
 sansekaiHandler.storage = storage;
+sansekaiHandler.sessionManager = sessionManager;
+sansekaiHandler.bochecha = bochecha;
 
 module.exports = sansekaiHandler;
