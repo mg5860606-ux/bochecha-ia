@@ -2515,6 +2515,35 @@ class ModerationSystem {
     }
 
     /**
+     * Remove um participante com segurança, resolvendo IDs LID vs JID real e rebaixando se for admin.
+     */
+    async safeRemove(sock, chatId, targetUser) {
+        let participantJid = targetUser;
+        if (chatId.endsWith('@g.us')) {
+            try {
+                const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await sock.groupMetadata(chatId);
+                const participants = metadata.participants || [];
+                const cleanTarget = targetUser.split('@')[0];
+                const found = participants.find(p => p.id.split('@')[0] === cleanTarget);
+                if (found) {
+                    participantJid = found.id;
+                    if (found.admin === 'admin' || found.admin === 'superadmin') {
+                        Logger.info("ModerationSystem.safeRemove", `Rebaixando admin ${participantJid} antes da expulsão.`);
+                        try {
+                            await sock.groupParticipantsUpdate(chatId, [participantJid], 'demote');
+                        } catch (demoteErr) {
+                            Logger.error("ModerationSystem.safeRemove.Demote", demoteErr);
+                        }
+                    }
+                }
+            } catch (metaErr) {
+                Logger.error("ModerationSystem.safeRemove.Metadata", metaErr);
+            }
+        }
+        await sock.groupParticipantsUpdate(chatId, [participantJid], 'remove');
+    }
+
+    /**
      * Realiza a verificação de spam/flood de forma ativa.
      */
     async checkFlood(sock, chatId, userId, messageRef) {
@@ -2553,8 +2582,8 @@ class ModerationSystem {
 
             if (warns >= 3) {
                 try {
-                    // Tenta remover primeiro
-                    await sock.groupParticipantsUpdate(chatId, [userId], 'remove');
+                    // Tenta remover primeiro usando a remoção segura
+                    await this.safeRemove(sock, chatId, userId);
                     
                     // Se deu certo, avisa no grupo
                     await sock.sendMessage(chatId, {
@@ -2596,8 +2625,8 @@ class ModerationSystem {
         }
 
         try {
-            // Tenta remover primeiro
-            await sock.groupParticipantsUpdate(chatId, [targetUser], 'remove');
+            // Tenta remover primeiro usando a remoção segura
+            await this.safeRemove(sock, chatId, targetUser);
             
             // Se deu certo, envia confirmação
             await sock.sendMessage(chatId, {
@@ -3121,7 +3150,7 @@ class PromptComposer {
             `- Dono/Criador deste Grupo: ${groupOwner.split('@')[0]} (Apenas para conhecimento interno do seu cérebro de elite, saiba quem fundou/gerencia o grupo!)\n` +
             `- ID Único do Chat: ${chatId}\n` +
             `- Usuário Falando com Você: ${userData.pushname || "Membro"} (número: ${userData.userId ? userData.userId.split('@')[0] : 'desconhecido'})\n` +
-            `- **IDENTIDADE DO INTERLOCUTOR ATUAL**: A pessoa que está enviando a mensagem AGORA é "${userData.pushname || "Membro"}". Nunca confunda com outra pessoa do histórico! Fale com ela pelo nome normalmente — use o nome direto na maioria das vezes, como numa conversa real.\n` +
+            `- **IDENTIDADE DO INTERLOCUTOR ATUAL (REGRA ABSOLUTA)**: A pessoa que está enviando a mensagem AGORA é "${userData.pushname || "Membro"}". Você está falando EXCLUSIVAMENTE com ela nesta resposta. O histórico do chat contém mensagens anteriores de outras pessoas do grupo (inclusive do Marcos ou de adms). NUNCA chame a pessoa atual pelo nome de outra pessoa do histórico! Se a pessoa atual NÃO for o Marcos, você NUNCA deve chamá-la de Marcos nem tratá-la como seu criador! Fale com ela usando o nome "${userData.pushname || "Membro"}" diretamente.\n` +
             `- **REGRA DE MENÇÃO (OPCIONAL)**: Você NÃO precisa marcar com @ toda hora. Use o nome da pessoa diretamente no texto — isso é o mais natural. Quando quiser marcar de verdade (para notificar, advertir ou dar impacto), aí use @Nome (ex: @${userData.pushname || 'Membro'}) ou @número (ex: @${userData.userId ? userData.userId.split('@')[0] : ''}). Nosso servidor resolve automaticamente e cria a marcação clicável real. NUNCA insira sinal de '+', espaços ou traços.\n` +
             `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
