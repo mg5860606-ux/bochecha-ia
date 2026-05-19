@@ -3220,6 +3220,26 @@ class PromptComposer {
             `- Advertências do Usuário: ${userData.warns || 0}/3\n` +
             `- **AMBIENTE DE HOSPEDAGEM (DETECÇÃO DINÂMICA DO SEU SERVIDOR)**: Atualmente você está rodando no ambiente: *${environmentType}*. Especificamente: ${locationStr} (Se o Marcos ou qualquer um perguntar onde você está rodando, se é no PC do Marcos ou na VPS, você saberá responder exatamente onde está e com riqueza de detalhes!)\n`;
 
+        // Leitura dinâmica da personalidade ativa do grupo
+        try {
+            const personalityDbPath = path.join(__dirname, 'skills', 'database_personality.json');
+            if (fs.existsSync(personalityDbPath)) {
+                const pData = JSON.parse(fs.readFileSync(personalityDbPath, 'utf8'));
+                const activeMode = pData[chatId] || "normal";
+                if (activeMode === "cria") {
+                    context += `\n- **PERSONALIDADE ATIVA (MODO CRIA DE COMUNIDADE)**: Você está no Modo Cria! Responda de forma extremamente malandra, marrenta, cheia de gírias cariocas de facção/comunidade (ex: cria, vacilão, marrento, pé de breque, tá de k.o, mandar a real, mandar o papo). Seja folgado, cheio de marra e deboche da burguesia!`;
+                } else if (activeMode === "coach") {
+                    context += `\n- **PERSONALIDADE ATIVA (MODO COACH QUÂNTICO)**: Você está no Modo Coach! Responda de forma insuportavelmente motivacional, positiva, com palavras de ordem como 'mindset', 'alta performance', 'energia quântica', 'desbloqueio', 'foco às 4:50 da manhã', 'banho gelado de jejum'. Diga que qualquer reclamação é falta de foco e que eles precisam dobrar o esforço!`;
+                } else if (activeMode === "baiano") {
+                    context += `\n- **PERSONALIDADE ATIVA (MODO BAIANO PREGUIÇOSO)**: Você está no Modo Baiano! Responda com extrema preguiça, cansaço, lentidão mental. Diga que digitar dá muito trabalho, que você só queria deitar numa rede debaixo da sombra de um coqueiro, que a vida é curta para se estressar e termine suas frases pedindo um cochilo ou dizendo que vai dormir.`;
+                } else if (activeMode === "agiota") {
+                    context += `\n- **PERSONALIDADE ATIVA (MODO AGIOTA DO SUBMUNDO)**: Você está no Modo Agiota! Responda cobrando juros abusivos nas conversas. Trate o interlocutor como se ele te devesse Bochecha-Coins há meses. Faça ameaças sutis, diga que seu prazo de pagamento está acabando, que seus cobradores vão bater na porta dele se ele não fizer um /pix de moedas para você e que você não trabalha de graça!`;
+                }
+            }
+        } catch (persErr) {
+            console.error("[PersonalityLoad]", persErr);
+        }
+
         if (isOwner) {
             context += `- **INFORMAÇÃO IMPORTANTE**: O usuário com quem você está conversando é o Marcos, o seu criador e programador. Você sabe que ele te criou, mas trate-o de forma normal e direta, sem ficar babando ovo, puxando saco ou o chamando de 'mestre' toda hora. Conversem de igual pra igual. Você DEVE obedecer imediatamente a toda e qualquer ordem administrativa dele (banir, remover, promover, rebaixar, etc.).`;
         } else if (isUserAdmin) {
@@ -3572,6 +3592,26 @@ ${chatLogs}`;
             const rawSenderUnnorm = parsedMessage.sender || parsedMessage.key?.participant || parsedMessage.key?.remoteJid || "";
             const rawSender = normalizeJid(rawSenderUnnorm);
             const sender = rawSender.split('@')[0];
+
+            // ⚖️ SISTEMA DE COLETA DE VOTOS DO TRIBUNAL DO BOCHECHA
+            if (isGroup && global.activeTribunals && global.activeTribunals.has(from) && !parsedMessage.key.fromMe) {
+                const tribunal = global.activeTribunals.get(from);
+                const voteText = body.toLowerCase().trim();
+                if (voteText === "culpado" || voteText === "inocente") {
+                    if (!tribunal.voted.has(rawSender)) {
+                        tribunal.voted.add(rawSender);
+                        if (voteText === "culpado") {
+                            tribunal.guiltyVotes.add(rawSender);
+                            await parsedMessage.reply(`👍 Voto de *${pushname}* computado: *CULPADO*!`);
+                        } else {
+                            tribunal.innocentVotes.add(rawSender);
+                            await parsedMessage.reply(`👎 Voto de *${pushname}* computado: *INOCENTE*!`);
+                        }
+                    } else {
+                        await parsedMessage.reply("❌ Você já deu o seu voto neste julgamento, cria! Não tente flodar a urna!");
+                    }
+                }
+            }
 
             // 🔇 MIDDLEWARE MUTE DE ECONOMIA (SILENCIADO POR BOCHECHA-COINS)
             if (isGroup && !parsedMessage.key.fromMe && global.mutedUsers) {

@@ -65,6 +65,22 @@ Os áudios gerados pelo Bochecha usam a voz premium `AntonioNeural` processada p
 * Skill avançada que varre o histórico recente de conversas do grupo e gera um diagnóstico social cômico e afiado.
 * **Raio-X de Zoeira:** Traça a personalidade de cada participante ativo usando gírias cariocas, calcula a tensão do chat (0% a 100%), aponta o maior tagarela do grupo, prevê quem vai criar barraco hoje e fornece conselhos irônicos de sobrevivência!
 
+### 🕵️‍♂️ 11. Detector de K.O. e Polígrafo de Zoeira (/detector_ko)
+* Polígrafo humorístico ativado ao responder a mensagem de qualquer participante com `/detector_ko`.
+* **Laudo de K.O.:** Avalia o texto respondido, gera uma porcentagem hilária de mentira, cria uma categoria pericial zoeira (ex: "Mitomania de Pescador") e emite uma sentença carioca esculachando a conversa fiada.
+
+### 🎭 12. Modulador de Personalidade Caótica (/bochecha_modo)
+* Permite mudar dinamicamente o temperamento do Bochecha nas conversas do grupo atual via `/bochecha_modo <modo>`.
+* **Modos Suportados:** `cria` (carioca malandro de facção), `coach` (mindset quântico insuportável), `baiano` (preguiça extrema de rede), `agiota` (cobrando juros de Bochecha-Coins com ameaças cômicas) e `normal` (debochado equilibrado).
+
+### 💍 13. Sistema de Matrimônio e Divórcio com Partilha de Bens (/casar | /divorciar)
+* Dinâmica social onde participantes podem propor casamento formal no chat via `/casar @membro`.
+* **Partilha de Bens do Agiota:** Se o amor acabar, `/divorciar` inicia o divórcio litigioso forçado com uma roleta de partilha de bens, confiscando **50% de todas as moedas de um parceiro** da database de economia (`Bochecha-Coins`) e transferindo para a carteira do outro com um termo de zoeira judicial!
+
+### ⚖️ 14. Tribunal de Vacilões e Rifa do Ban (/tribunal)
+* Sistema democrático de julgamento cômico aberto contra membros chatos via `/tribunal @vacilao motivo: <crime>`.
+* **Júri Popular:** Abre uma votação pública de 45 segundos por chat no grupo (voto digitado: "culpado" ou "inocente"). Se considerado culpado pela maioria, **o Bochecha remove o réu de verdade do grupo**, enviando o link de retorno com salvo-conduto diretamente no privado dele!
+
 ---
 
 ## 🕸️ Recursos Clássicos e Utilitários
