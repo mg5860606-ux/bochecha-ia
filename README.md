@@ -57,6 +57,14 @@ Os áudios gerados pelo Bochecha usam a voz premium `AntonioNeural` processada p
 * Sistema autônomo de telemetria capaz de examinar os metadados do host operacional e o usuário logado em tempo de execução.
 * Identifica automaticamente se está no Computador Pessoal Local do Marcos (Ambiente de Testes) ou na VPS Cloud dedicada (Produção), permitindo que a IA saiba responder exatamente sua localização física!
 
+### 🚨 9. Agente de Controle Remoto e Telemetria do PC (/controle_pc)
+* Permite ao desenvolvedor Marcos controlar e monitorar seu PC local à distância por comandos ou conversa natural no zap.
+* **Recursos de Hardware Nativo:** `/controle_pc print` (tira screenshot em tempo real do monitor e envia no WhatsApp), `bloquear` (tranca a tela do Windows instantaneamente), `status` (exibe telemetria de RAM, CPU e Uptime) e `processos` (lista os 10 processos mais pesados na CPU).
+
+### 📊 10. Relatório de Inteligência Social e Perfis do Grupo (/analise_grupo)
+* Skill avançada que varre o histórico recente de conversas do grupo e gera um diagnóstico social cômico e afiado.
+* **Raio-X de Zoeira:** Traça a personalidade de cada participante ativo usando gírias cariocas, calcula a tensão do chat (0% a 100%), aponta o maior tagarela do grupo, prevê quem vai criar barraco hoje e fornece conselhos irônicos de sobrevivência!
+
 ---
 
 ## 🕸️ Recursos Clássicos e Utilitários
