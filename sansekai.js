@@ -333,6 +333,18 @@ class StorageManager {
                 }
             }
 
+            // Self-healing global para arrays corrompidos como objetos
+            if (Array.isArray(defaultValue) && localData && !Array.isArray(localData)) {
+                const values = [];
+                const keys = Object.keys(localData).filter(k => !isNaN(k)).sort((a, b) => Number(a) - Number(b));
+                for (const k of keys) {
+                    values.push(localData[k]);
+                }
+                localData = values;
+                fs.writeFileSync(filePath, JSON.stringify(localData, null, 2));
+                this.cache.set(filePath, localData);
+            }
+
             // Captura o horário de modificação do arquivo local antes de comparar com o Firestore
             const localMtime = existsLocal ? fs.statSync(filePath).mtimeMs : Date.now();
 
@@ -344,8 +356,18 @@ class StorageManager {
             getDoc(docRef).then(async (snap) => {
                 if (snap.exists()) {
                     const cloudDoc = snap.data();
-                    const cloudData = cloudDoc.data;
+                    let cloudData = cloudDoc.data;
                     
+                    // Self-healing para dados da nuvem também
+                    if (Array.isArray(defaultValue) && cloudData && !Array.isArray(cloudData)) {
+                        const values = [];
+                        const keys = Object.keys(cloudData).filter(k => !isNaN(k)).sort((a, b) => Number(a) - Number(b));
+                        for (const k of keys) {
+                            values.push(cloudData[k]);
+                        }
+                        cloudData = values;
+                    }
+
                     // Se o dado da nuvem for mais recente, atualiza o cache local
                     if (cloudDoc.lastUpdated && cloudDoc.lastUpdated > localMtime) {
                         console.log(chalk.green(`[🔥 FIREBASE] Sincronizado '${baseName}' do Firestore!`));
@@ -1843,7 +1865,17 @@ class DialogSession {
      */
     async getHistory(chatId) {
         const file = this._getFilePath(chatId);
-        return await storage.read(file, []);
+        let history = await storage.read(file, []);
+        if (history && !Array.isArray(history)) {
+            const values = [];
+            const keys = Object.keys(history).filter(k => !isNaN(k)).sort((a, b) => Number(a) - Number(b));
+            for (const k of keys) {
+                values.push(history[k]);
+            }
+            history = values;
+            await this.saveHistory(chatId, history);
+        }
+        return history;
     }
 
     /**
