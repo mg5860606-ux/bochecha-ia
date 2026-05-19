@@ -3286,6 +3286,9 @@ class BochechaEngine {
             Logger.info("DreamEngine", "Iniciando estado de reflexão e sonho da consciência...");
             
             // Busca conversas recentes do histórico
+            if (!sessionManager || typeof sessionManager.sessions === 'undefined') {
+                return; // Pula a reflexão se o backend de sessões em memória foi descontinuado ou movido pro Firebase
+            }
             const keys = Array.from(sessionManager.sessions.keys());
             if (keys.length === 0) {
                 if (isManual) {
@@ -5105,14 +5108,15 @@ ${chatLogs}`;
                 return null;
             };
 
-            const msgType = Object.keys(messageRef.message || {})[0] === 'senderKeyDistributionMessage' 
-                ? Object.keys(messageRef.message || {})[1] 
-                : Object.keys(messageRef.message || {})[0];
+            const safeMessage = messageRef?.message || {};
+            const msgType = Object.keys(safeMessage)[0] === 'senderKeyDistributionMessage' 
+                ? Object.keys(safeMessage)[1] 
+                : Object.keys(safeMessage)[0];
 
-            const contextInfo = messageRef.message?.[msgType]?.contextInfo || messageRef.message?.extendedTextMessage?.contextInfo;
+            const contextInfo = safeMessage[msgType]?.contextInfo || safeMessage.extendedTextMessage?.contextInfo;
 
             // 1. Verifica mídia na mensagem principal ou na mensagem citada/marcada (quoted)
-            let media = getMediaDetails(messageRef.message);
+            let media = getMediaDetails(safeMessage);
             if (!media && contextInfo && contextInfo.quotedMessage) {
                 media = getMediaDetails(contextInfo.quotedMessage);
             }
