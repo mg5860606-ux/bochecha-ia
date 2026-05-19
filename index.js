@@ -237,9 +237,7 @@ async function startBot() {
 			const lastStatus = lastDisconnect?.error?.output?.statusCode ?? lastDisconnect?.error?.status;
 			console.log(chalk.yellow(`[🔌 Conexão Fechada] Status: ${lastStatus} (Tentativa consecutiva: ${consecutiveFailures})`));
 			
-			const isRegistered = sock.authState?.creds?.registered;
-			const isTemporary = lastStatus === 515 || lastStatus === 408 || lastStatus === 503;
-			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401 || (!isRegistered && !isTemporary);
+			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401;
 			const shouldReconnect = !isLoggedOut;
 
 			if (shouldReconnect) {
