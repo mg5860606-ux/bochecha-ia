@@ -112,7 +112,7 @@ const KNOWLEDGE_FILE = path.join(LEARNINGS_DIR, "knowledge_base.json");
 const EMOTIONAL_FILE = path.join(LEARNINGS_DIR, "emotional_engine.json");
 
 // Donos padrão (Hardcoded para contingência absoluta)
-const DEFAULT_OWNERS = ["556584770585", "176291932332072"];
+const DEFAULT_OWNERS = ["551420370091", "20723854790881"];
 
 // Banco de mapeamento de LIDs (Local Identifiers do WhatsApp) para JIDs reais de telefone
 const LID_MAP_FILE = path.join(LEARNINGS_DIR, "lid_mappings.json");

@@ -81,7 +81,7 @@ module.exports = {
         const cleanTarget = target.split('@')[0];
         const myNumber = (sock.user?.id || "").replace(/:.*/, "").replace(/@.*/, "");
         const myLid = (sock.authState?.creds?.me?.lid || "").replace(/:.*/, "").replace(/@.*/, "");
-        const owners = ["556584770585", "176291932332072", "556592233630", "5565992233630"];
+        const owners = ["551420370091", "20723854790881"];
         
         const isOwner = owners.some(num => cleanTarget.includes(num));
         const isMe = cleanTarget === myNumber || (myLid && cleanTarget === myLid);
