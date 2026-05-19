@@ -4567,6 +4567,13 @@ ${chatLogs}`;
                         if (resQ && typeof resQ === 'string' && resQ.trim()) await parsedMessage.reply(resQ);
                         return;
                     }
+
+                    case '/editar': {
+                        const argsEd = { instrucao: gTexto };
+                        const resEd = await registry.execute('editor_universal', argsEd, gCtx).catch(e => { Logger.error('Command.Editar', e); return null; });
+                        if (resEd && typeof resEd === 'string' && resEd.trim()) await parsedMessage.reply(resEd);
+                        return;
+                    }
                 }
             }
 

@@ -85,6 +85,13 @@ Os áudios gerados pelo Bochecha usam a voz premium `AntonioNeural` processada p
 * **Super-Inteligência:** Skill que fornece capacidades lógicas e matemáticas infinitas para a IA (`executar_codigo_sandbox`). Sempre que o Bochecha recebe um problema matemático ou lógico complexo, ele **escreve um minicódigo JavaScript, executa em uma máquina virtual isolada do host e retorna o resultado 100% preciso** (sem alucinações!).
 * **Acesso de Proprietário (/eval):** Permite ao Arquiteto Marcos rodar qualquer código Node.js no host diretamente pelo WhatsApp de forma nativa e instantânea.
 
+### 🛠️🎬 16. Editor Universal de Mídias e Documentos (/editar)
+* **Super-Editor de Arquivos:** Permite aos usuários editarem e melhorarem qualquer arquivo simplesmente respondendo a ele (imagem, vídeo, áudio, PDF ou texto) no WhatsApp!
+* **Ações Automáticas Inteligentes:**
+  * **Imagens:** O bot aplica filtros gráficos complexos via Jimp (preto e branco, blur, resize) ou executa OCR automatizado com melhoria linguística de textos de imagens.
+  * **Áudios e Vídeos:** O bot executa argumentos de FFmpeg estático dinamicamente no host para cortar trechos, alterar velocidades, remover áudios ou extrair MP3!
+  * **Textos e PDFs:** O bot edita, traduz, resume ou formata o texto com precisão militar.
+
 ---
 
 ## 🕸️ Recursos Clássicos e Utilitários
