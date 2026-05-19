@@ -2068,26 +2068,30 @@ class VoiceSynthesizer {
                     Logger.info("VoiceSynthesizer", "FFmpeg disponível. Convertendo MP3 para Ogg/Opus para nota de voz nativa...");
                     const oggBuffer = await this.convertMp3ToOggOpus(finalBuffer);
                     
-                    await sock.sendMessage(chatId, {
-                        audio: oggBuffer,
-                        mimetype: 'audio/ogg; codecs=opus',
-                        ptt: true
-                    }, { quoted: msgRef });
+                    if (sock) {
+                        await sock.sendMessage(chatId, {
+                            audio: oggBuffer,
+                            mimetype: 'audio/ogg; codecs=opus',
+                            ptt: true
+                        }, { quoted: msgRef });
+                    }
                     
                     Logger.success("VoiceSynthesizer", "Áudio de resposta humana enviado como nota de voz nativa!");
                     return true;
                 } catch (convErr) {
-                    Logger.error("VoiceSynthesizer.conversion", convErr);
+                    Logger.error("VoiceSynthesizer.conversion", convErr.message);
                 }
             }
 
             // Fallback robusto se FFmpeg não estiver disponível no servidor: envia em MP4 como player (ptt: false)
             Logger.warn("VoiceSynthesizer", "FFmpeg indisponível no servidor. Enviando áudio em formato player MP4 (ptt: false) para compatibilidade universal...");
-            await sock.sendMessage(chatId, {
-                audio: finalBuffer,
-                mimetype: 'audio/mp4',
-                ptt: false
-            }, { quoted: msgRef });
+            if (sock) {
+                await sock.sendMessage(chatId, {
+                    audio: finalBuffer,
+                    mimetype: 'audio/mp4',
+                    ptt: false
+                }, { quoted: msgRef });
+            }
 
             Logger.success("VoiceSynthesizer", "Áudio de resposta humana enviado com sucesso!");
             return true;

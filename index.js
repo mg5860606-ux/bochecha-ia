@@ -353,7 +353,9 @@ ${fileContent}
 
         for (const key of keys) {
             if (success) break;
+            let isKeyDead = false;
             for (const model of healModels) {
+                if (isKeyDead) break;
                 try {
                     console.log(chalk.yellow(`[Self-Healing] Tentando curar com modelo ${model} usando chave ${key.substring(0, 8)}...`));
                     const res = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
@@ -377,7 +379,15 @@ ${fileContent}
                         break;
                     }
                 } catch (e) {
-                    console.log(chalk.red(`[Self-Healing] Falha ao curar com ${model}: ${e.message}`));
+                    const status = e.response?.status;
+                    if (status === 401 || status === 402 || status === 429) {
+                        console.log(chalk.red(`[Self-Healing] Chave rejeitada/sem saldo (Status ${status}). Pulando para próxima chave...`));
+                        isKeyDead = true;
+                    } else if (status === 404) {
+                        console.log(chalk.yellow(`[Self-Healing] Modelo ${model} indisponível (404). Testando próximo modelo...`));
+                    } else {
+                        console.log(chalk.red(`[Self-Healing] Falha ao curar com ${model}: ${e.message}`));
+                    }
                 }
             }
         }

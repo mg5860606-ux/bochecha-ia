@@ -1,8 +1,10 @@
 {
   "owners": [
+    "551420370091",
+    "34008238932083",
     "556584770585",
     "176291932332072"
   ],
   "isPublic": true,
-  "primaryModel": "openai/gpt-4o"
+  "primaryModel": "anthropic/claude-3.7-sonnet"
 }

@@ -35,10 +35,10 @@
             background: radial-gradient(circle at top right, #09132e 0%, var(--bg-main) 100%);
             color: var(--text-primary);
             min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-        }
 
         /* Header Cyberpunk */
         header {
@@ -250,10 +250,36 @@
             scrollbar-color: var(--neon-blue) transparent;
         }
 
+        .message-wrapper {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.75rem;
+            width: 100%;
+        }
+
+        .message-wrapper.user {
+            justify-content: flex-end;
+        }
+
+        .message-wrapper.bot {
+            justify-content: flex-start;
+        }
+
+        .chat-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--neon-blue);
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+            flex-shrink: 0;
+            margin-bottom: 1.2rem;
+        }
+
         .message {
             display: flex;
             flex-direction: column;
-            max-width: 70%;
+            max-width: 80%;
             animation: msgFadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
@@ -626,9 +652,66 @@
 
         /* Media Queries */
         @media (max-width: 900px) {
-            main { grid-template-columns: 1fr; height: auto; }
-            .sidebar { border-right: none; border-bottom: 1px solid var(--border-neon); max-height: 250px; }
-            .chat-messages { height: 50vh; }
+            body { height: 100dvh; overflow: hidden; }
+            main { display: flex; flex-direction: column; height: calc(100dvh - 78px); overflow: hidden; }
+            .sidebar { border-right: none; border-bottom: 1px solid var(--border-neon); max-height: 250px; overflow-y: auto; flex-shrink: 0; }
+            .chat-container { flex: 1; height: auto; overflow: hidden; display: flex; flex-direction: column; }
+            .chat-messages { flex: 1; overflow-y: auto; min-height: 0; }
+        }
+
+        /* Novas Classes para Abas e Controles */
+        .sidebar-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid var(--border-neon);
+            padding-bottom: 0.5rem;
+        }
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            transition: all 0.3s;
+            border-radius: 8px;
+        }
+        .tab-btn.active {
+            color: var(--neon-blue);
+            background: rgba(0, 242, 254, 0.1);
+            box-shadow: inset 0 0 10px rgba(0, 242, 254, 0.2);
+        }
+        .btn-clear {
+            background: rgba(255, 0, 127, 0.15);
+            color: var(--neon-pink);
+            border: 1px solid var(--neon-pink);
+            padding: 0.8rem;
+            border-radius: 10px;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-clear:hover {
+            background: var(--neon-pink);
+            color: #fff;
+            box-shadow: var(--shadow-neon-pink);
+        }
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .setting-item label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -645,13 +728,14 @@
     </header>
 
     <main>
-        <!-- Sidebar - Seletor de Modelo -->
+        <!-- Sidebar -->
         <div class="sidebar">
-            <div>
-                <div class="section-header">
-                    <span style="font-size: 1.25rem;">🧠</span>
-                    <h3 class="section-title">Selecionar Cérebro</h3>
-                </div>
+            <div class="sidebar-tabs">
+                <button class="tab-btn active" id="tab-btn-models" onclick="switchTab('models')">🧠 Cérebros</button>
+                <button class="tab-btn" id="tab-btn-settings" onclick="switchTab('settings')">⚙️ Controle</button>
+            </div>
+
+            <div id="tab-models">
                 <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.4;">
                     Configure instantaneamente o modelo neural primário das operações do Bochecha.
                 </p>
@@ -659,6 +743,27 @@
                     <div style="text-align: center; color: var(--text-secondary); padding: 2rem 0;">
                         Sincronizando modelos neurais...
                     </div>
+                </div>
+            </div>
+
+            <div id="tab-settings" style="display: none; flex-direction: column; gap: 1.5rem;">
+                <!-- Clear History -->
+                <button class="btn-clear" onclick="clearHistory()">🗑️ Limpar Memória do Chat</button>
+                
+                <!-- Toggle Public/Private -->
+                <div class="setting-item">
+                    <label style="color: var(--text-primary);">
+                        <input type="checkbox" id="toggle-public" onchange="togglePublicMode(this)" style="accent-color: var(--neon-blue); width: 18px; height: 18px;">
+                        Modo Público (Responder em Grupos)
+                    </label>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary);">Desative para o bot ignorar grupos e ficar silencioso.</span>
+                </div>
+                
+                <!-- System Prompt Editor -->
+                <div class="setting-item">
+                    <label style="color: var(--neon-blue); font-weight: bold; margin-bottom: 0.5rem; display: block;">📜 Personalidade do Bochecha (SYSTEM.md)</label>
+                    <textarea id="system-prompt" style="width: 100%; height: 350px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid var(--border-neon); border-radius: 8px; padding: 10px; font-family: monospace; font-size: 0.85rem; resize: vertical;" placeholder="Carregando personalidade..."></textarea>
+                    <button class="btn-send" style="width: 100%; margin-top: 0.5rem; height: 40px; border-radius: 8px;" onclick="saveSystemPrompt()">Salvar Personalidade</button>
                 </div>
             </div>
         </div>
@@ -891,9 +996,10 @@
         // Adiciona bolha de mensagem no chat
         function appendMessage(role, content, timestamp) {
             const time = new Date(timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const isBot = role === 'assistant';
             
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${role === 'user' ? 'user' : 'assistant'}`;
+            const messageWrapper = document.createElement('div');
+            messageWrapper.className = `message-wrapper ${isBot ? 'bot' : 'user'}`;
             
             let mediaHtml = '';
 
@@ -930,15 +1036,18 @@
 
             const formattedContent = content.replace(/\n/g, '<br>');
 
-            messageDiv.innerHTML = `
-                ${mediaHtml}
-                ${formattedContent ? `<div class="message-bubble">${formattedContent}</div>` : ''}
-                <div class="message-meta">
-                    <span>${time}</span>
+            messageWrapper.innerHTML = `
+                ${isBot ? '<img class="chat-avatar" src="/avatar.png?v=1" alt="Bochecha">' : ''}
+                <div class="message ${isBot ? 'assistant' : 'user'}">
+                    ${mediaHtml}
+                    ${formattedContent ? `<div class="message-bubble">${formattedContent}</div>` : ''}
+                    <div class="message-meta">
+                        <span>${time}</span>
+                    </div>
                 </div>
             `;
             
-            chatContainer.appendChild(messageDiv);
+            chatContainer.appendChild(messageWrapper);
         }
 
         function scrollToBottom() {
@@ -1124,9 +1233,80 @@
         (async function init() {
             await fetchModels();
             await fetchHistory();
+            await fetchSettingsAndPrompt();
             updateConnectionStatus();
             setInterval(updateConnectionStatus, 5000);
         })();
+
+        // Novas Funções de Controle e Admin
+        function switchTab(tab) {
+            document.getElementById('tab-btn-models').classList.toggle('active', tab === 'models');
+            document.getElementById('tab-btn-settings').classList.toggle('active', tab === 'settings');
+            document.getElementById('tab-models').style.display = tab === 'models' ? 'block' : 'none';
+            document.getElementById('tab-settings').style.display = tab === 'settings' ? 'flex' : 'none';
+        }
+
+        async function clearHistory() {
+            if(!confirm("Deseja realmente apagar todo o histórico deste painel?")) return;
+            try {
+                const res = await fetch(`${API_URL}/api/history`, { method: 'DELETE' });
+                if(res.ok) {
+                    fetchHistory();
+                }
+            } catch (e) {
+                alert("Erro ao limpar histórico: " + e.message);
+            }
+        }
+
+        async function fetchSettingsAndPrompt() {
+            try {
+                const [setRes, promptRes] = await Promise.all([
+                    fetch(`${API_URL}/api/settings`),
+                    fetch(`${API_URL}/api/system-prompt`)
+                ]);
+                const settings = await setRes.json();
+                const promptData = await promptRes.json();
+                
+                document.getElementById('toggle-public').checked = settings.isPublic !== false;
+                document.getElementById('system-prompt').value = promptData.prompt || '';
+            } catch (e) {
+                console.error("Erro ao carregar configurações:", e);
+            }
+        }
+
+        async function togglePublicMode(checkbox) {
+            try {
+                await fetch(`${API_URL}/api/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ isPublic: checkbox.checked })
+                });
+            } catch (e) {
+                alert("Erro ao alterar modo público: " + e.message);
+                checkbox.checked = !checkbox.checked; // revert
+            }
+        }
+
+        async function saveSystemPrompt() {
+            const promptText = document.getElementById('system-prompt').value;
+            const btn = document.querySelector('#tab-settings .btn-send');
+            const originalText = btn.textContent;
+            btn.textContent = "Salvando...";
+            try {
+                const res = await fetch(`${API_URL}/api/system-prompt`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: promptText })
+                });
+                if(res.ok) {
+                    btn.textContent = "Salvo com Sucesso!";
+                    setTimeout(() => btn.textContent = originalText, 2000);
+                }
+            } catch (e) {
+                alert("Erro ao salvar personalidade: " + e.message);
+                btn.textContent = originalText;
+            }
+        }
     </script>
 </body>
 </html>
