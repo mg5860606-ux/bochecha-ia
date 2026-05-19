@@ -2059,14 +2059,28 @@ class VoiceSynthesizer {
         });
     }
 
-    static convertMp3ToMp4Aac(mp3Buffer) {
+    static convertMp3ToMp4Aac(mp3Buffer, voicePreset = "antonio") {
         return new Promise((resolve, reject) => {
             const ffmpegPath = require('ffmpeg-static');
+            
+            // Define filtros de FFmpeg baseado no voicePreset para zoeira
+            let filterString = '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]';
+            
+            if (voicePreset === "helio") {
+                filterString = '[0:a]asetrate=48000*1.55,atempo=1/1.55[out_voice];[out_voice][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]';
+            } else if (voicePreset === "grave") {
+                filterString = '[0:a]asetrate=48000*0.75,atempo=1/0.75[out_voice];[out_voice][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]';
+            } else if (voicePreset === "esquilo") {
+                filterString = '[0:a]asetrate=48000*1.75,atempo=1/1.75[out_voice];[out_voice][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]';
+            } else if (voicePreset === "robo") {
+                filterString = '[0:a]apulsator=hz=25[out_voice];[out_voice][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]';
+            }
+
             const ffmpeg = spawn(ffmpegPath, [
                 '-i', 'pipe:0',                                   // Entrada 0 (Voz MP3)
                 '-f', 'lavfi',                                    // Habilita filtro virtual
                 '-i', 'anoisesrc=c=pink:amp=0.003:r=48000',       // Entrada 1 (Procedural pink noise para room tone realista)
-                '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]', // Mixa as faixas e encerra quando a voz acabar
+                '-filter_complex', filterString,                  // Aplica o filtro de áudio
                 '-map', '[a]',                                    // Mapeia a saída mixada
                 '-c:a', 'aac',                                    // Codec AAC (compatibilidade 100% universal para iOS e Android!)
                 '-b:a', '48k',                                    // Bitrate de áudio de alta performance
@@ -2093,9 +2107,9 @@ class VoiceSynthesizer {
         });
     }
 
-    static async speak(sock, chatId, text, msgRef) {
+    static async speak(sock, chatId, text, msgRef, voicePreset = "antonio") {
         try {
-            Logger.info("VoiceSynthesizer", `Gerando voz humana premium para: "${text.substring(0, 40)}..."`);
+            Logger.info("VoiceSynthesizer", `Gerando voz humana premium (${voicePreset}) para: "${text.substring(0, 40)}..."`);
             
             // Trunca o texto para evitar áudios longos demais no chat
             const cleanText = text.substring(0, 500);
@@ -2103,8 +2117,17 @@ class VoiceSynthesizer {
             // Importa a biblioteca Edge TTS de forma segura
             const { UniversalEdgeTTS } = require('edge-tts-universal');
             
-            // pt-BR-AntonioNeural: Voz premium e ultra-realista masculina brasileira
-            const tts = new UniversalEdgeTTS(cleanText, 'pt-BR-AntonioNeural');
+            // Mapeia o preset para a voz correspondente do Microsoft Azure
+            let edgeVoice = 'pt-BR-AntonioNeural';
+            if (voicePreset === "francisca" || voicePreset === "mulher") {
+                edgeVoice = 'pt-BR-FranciscaNeural';
+            } else if (voicePreset === "valeska") {
+                edgeVoice = 'pt-BR-ValeskaNeural';
+            } else if (voicePreset === "duarte") {
+                edgeVoice = 'pt-BR-DuarteNeural';
+            }
+            
+            const tts = new UniversalEdgeTTS(cleanText, edgeVoice);
             const result = await tts.synthesize();
             
             // Converte Blob do áudio sintetizado para Buffer do NodeJS
@@ -2114,8 +2137,8 @@ class VoiceSynthesizer {
             const hasFFmpeg = await this.checkFFmpeg();
             if (hasFFmpeg) {
                 try {
-                    Logger.info("VoiceSynthesizer", "FFmpeg disponível. Convertendo MP3 para MP4/AAC para compatibilidade universal (iOS/Android)...");
-                    const mp4Buffer = await this.convertMp3ToMp4Aac(finalBuffer);
+                    Logger.info("VoiceSynthesizer", `FFmpeg disponível. Convertendo MP3 com filtro preset '${voicePreset}'...`);
+                    const mp4Buffer = await this.convertMp3ToMp4Aac(finalBuffer, voicePreset);
                     
                     if (sock) {
                         await sock.sendMessage(chatId, {
@@ -4572,6 +4595,41 @@ ${chatLogs}`;
                         const argsEd = { instrucao: gTexto };
                         const resEd = await registry.execute('editor_universal', argsEd, gCtx).catch(e => { Logger.error('Command.Editar', e); return null; });
                         if (resEd && typeof resEd === 'string' && resEd.trim()) await parsedMessage.reply(resEd);
+                        return;
+                    }
+
+                    case '/devaneios':
+                    case '/sonhos': {
+                        const argsDev = {};
+                        const resDev = await registry.execute('devaneios', argsDev, gCtx).catch(e => { Logger.error('Command.Devaneios', e); return null; });
+                        if (resDev && typeof resDev === 'string' && resDev.trim()) await parsedMessage.reply(resDev);
+                        return;
+                    }
+
+                    case '/localidade': {
+                        const argsLoc = { acao: 'registrar', localidade: gTexto };
+                        const resLoc = await registry.execute('radar_membros', argsLoc, gCtx).catch(e => { Logger.error('Command.Localidade', e); return null; });
+                        if (resLoc && typeof resLoc === 'string' && resLoc.trim()) await parsedMessage.reply(resLoc);
+                        return;
+                    }
+
+                    case '/radar': {
+                        const argsRad = { acao: 'radar' };
+                        const resRad = await registry.execute('radar_membros', argsRad, gCtx).catch(e => { Logger.error('Command.Radar', e); return null; });
+                        if (resRad && typeof resRad === 'string' && resRad.trim()) await parsedMessage.reply(resRad);
+                        return;
+                    }
+
+                    case '/bochecha_voz':
+                    case '/voz': {
+                        const subParts = gTexto.split(" ");
+                        const preset = subParts[0] ? subParts[0].toLowerCase() : "antonio";
+                        const textoVoz = subParts.slice(1).join(" ").trim();
+                        const argsVoz = { preset, texto: textoVoz };
+                        const resVoz = await registry.execute('bochecha_voz', argsVoz, gCtx).catch(e => { Logger.error('Command.Voz', e); return null; });
+                        if (resVoz && typeof resVoz === 'string' && resVoz.trim() && !resVoz.includes('enviado')) {
+                            await parsedMessage.reply(resVoz);
+                        }
                         return;
                     }
                 }

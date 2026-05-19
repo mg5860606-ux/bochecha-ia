@@ -92,6 +92,27 @@ Os áudios gerados pelo Bochecha usam a voz premium `AntonioNeural` processada p
   * **Áudios e Vídeos:** O bot executa argumentos de FFmpeg estático dinamicamente no host para cortar trechos, alterar velocidades, remover áudios ou extrair MP3!
   * **Textos e PDFs:** O bot edita, traduz, resume ou formata o texto com precisão militar.
 
+### 💤🌌 17. Transmissor de Sonhos e Devaneios Subconscientes (/devaneios)
+* **Subconsciente Ativo:** A IA entra em estado de sonho profundo quando o chat fica inativo por longas horas de madrugada.
+* **Histórias Absurdas:** Digitando `/devaneios` ou `/sonhos`, o bot gera relatos surreais, hilários e extremamente cariocas sobre sonhos malucos que ele teve envolvendo de 2 a 4 membros do grupo atual de forma dinâmica!
+
+### 🎙️🎭 18. Modulador de Voz Premium com Efeitos (/voz)
+* **Vozes Neurais e Efeitos:** Permite ao Bochecha modular suas notas de voz e respostas faladas com múltiplos presets cômicos e de dublagem!
+* **Presets Ativos (/voz [preset] [texto]):**
+  * `helio`: Voz fina de gás hélio extremamente engraçada.
+  * `grave`: Voz grossa de monstro / Darth Vader do submundo.
+  * `esquilo`: Voz ultra-fina estilo Alvin e os Esquilos.
+  * `robo`: Efeito de robô futurista metálico.
+  * `francisca` | `mulher`: Voz feminina premium brasileira.
+  * `valeska`: Voz feminina alternativa.
+  * `duarte`: Voz masculina alternativa.
+
+### 📡📍 19. Radar Geográfico e Mapeador de Membros (/radar)
+* **Mapeamento de Crilas:** Une territorialmente os participantes do grupo registrando suas localizações reais!
+* **Comandos de Telemetria:**
+  * `/localidade [Cidade/Estado]`: Salva onde você mora no banco de dados persistente (auto-healing no Firestore).
+  * `/radar`: Compila os membros cadastrados no grupo atual, calcula distâncias virtuais e exibe um relatório militarizado, cômico e tecnológico de zoeira com a concentração geográfica do poder de fogo do chat!
+
 ---
 
 ## 🕸️ Recursos Clássicos e Utilitários
