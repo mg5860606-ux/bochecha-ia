@@ -1117,7 +1117,7 @@ class KeyRotationEngine {
     /**
      * Executa a chamada no Claude da Anthropic com rotação de chaves.
      */
-    async executeClaudeWithRotation(history, prompt, systemInstruction) {
+    async executeClaudeWithRotation(history, prompt, tools, systemInstruction) {
         let attempts = 0;
         const totalKeys = apiKeyManager.listClaudeKeys().length;
         const maxKeyCycles = Math.max(totalKeys, 2);
@@ -1163,6 +1163,19 @@ class KeyRotationEngine {
                     }
                 }
 
+                // Converte as Tools de formato Gemini para formato Anthropic nativo
+                let anthropicTools = undefined;
+                if (tools && Array.isArray(tools) && tools.length > 0) {
+                    anthropicTools = tools.map(t => {
+                        const fn = t.function;
+                        return {
+                            name: fn.name,
+                            description: fn.description,
+                            input_schema: fn.parameters
+                        };
+                    });
+                }
+
                 const body = {
                     model: "claude-3-5-sonnet-latest",
                     max_tokens: 4096,
@@ -1171,6 +1184,10 @@ class KeyRotationEngine {
 
                 if (systemInstruction) {
                     body.system = systemInstruction;
+                }
+
+                if (anthropicTools) {
+                    body.tools = anthropicTools;
                 }
 
                 const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -1189,17 +1206,38 @@ class KeyRotationEngine {
                 }
 
                 const data = await response.json();
-                const textReply = data.content && data.content[0] && data.content[0].text;
-                if (!textReply) {
+                let textReply = "";
+                const toolCalls = [];
+
+                if (data.content && Array.isArray(data.content)) {
+                    for (const block of data.content) {
+                        if (block.type === "text") {
+                            textReply += block.text;
+                        } else if (block.type === "tool_use") {
+                            toolCalls.push({
+                                name: block.name,
+                                args: block.input
+                            });
+                        }
+                    }
+                }
+
+                if (!textReply && toolCalls.length === 0) {
                     throw new Error("Claude retornou uma resposta vazia.");
                 }
 
-                return {
+                const responseMock = {
                     response: {
-                        response: {
-                            text: () => textReply
+                        text: () => textReply,
+                        functionCalls: () => {
+                            if (toolCalls.length === 0) return undefined;
+                            return toolCalls;
                         }
-                    },
+                    }
+                };
+
+                return {
+                    response: responseMock,
                     modelName: "claude-3-5-sonnet-latest"
                 };
             } catch (e) {
@@ -5201,7 +5239,7 @@ ${chatLogs}`;
 
         if (isSimpleConversation) {
             Logger.info("BochechaEngine", `[Grupo/Chat: ${logGroupName}] Roteando conversa de texto simples para a IA.`);
-            const claudeRes = await keyRotator.executeClaudeWithRotation(history, input, sys);
+            const claudeRes = await keyRotator.executeClaudeWithRotation(history, input, tools, sys);
             chat = {
                 getHistory: () => {
                     const hist = [...history];
