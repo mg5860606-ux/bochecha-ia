@@ -1,8 +1,8 @@
 {
-  "isPublic": true,
+  "primaryModel": "openai/gpt-4o",
   "owners": [
     "556584770585",
     "176291932332072"
   ],
-  "primaryModel": "openai/gpt-4o"
+  "isPublic": true
 }

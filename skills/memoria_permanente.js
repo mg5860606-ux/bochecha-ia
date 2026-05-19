@@ -1,5 +1,24 @@
-const chalk = require('chalk');
-const { db, doc, getDoc, setDoc } = require('../firebase_connector');
+const fs = require('fs');
+const path = require('path');
+const settingsPath = path.join(__dirname, '..', '..', 'settings.json');
+let maxLTM = 50;
+try {
+  const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  if (settings.maxLTMPerUser) maxLTM = settings.maxLTMPerUser;
+} catch (e) {
+  // fallback to default
+}
+
+function isSimilar(a, b) {
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
+  const wordsA = new Set(norm(a).split(/\s+/));
+  const wordsB = new Set(norm(b).split(/\s+/));
+  let intersect = 0;
+  wordsA.forEach(w => { if (wordsB.has(w)) intersect++; });
+  const smaller = Math.min(wordsA.size, wordsB.size);
+  return smaller > 0 && intersect / smaller > 0.6; // >60% overlap considered similar
+}
+
 
 module.exports = {
     definition: {
@@ -33,29 +52,44 @@ module.exports = {
             const usuarioResolvido = (args.usuario || "desconhecido").toLowerCase().trim();
             const docRef = doc(db, "memories", usuarioResolvido);
 
-            if (acao === "gravar") {
-                if (!args.fato) return "Erro: É necessário passar o 'fato' para ser gravado.";
+            if (args.acao === "gravar") {
+  if (!args.fato) return "Erro: É necessário passar o 'fato' para ser gravado.";
 
-                console.log(chalk.cyan(`[🧠 MEMÓRIA INFINITA] Gravando fato sobre '${usuarioResolvido}' no Firestore: "${args.fato}"`));
+  console.log(chalk.cyan(`[🧠 MEMÓRIA INFINITA] Gravando fato sobre '${usuarioResolvido}' no Firestore: "${args.fato}"`));
 
-                const snap = await getDoc(docRef);
-                let lembrancas = [];
-                if (snap.exists()) {
-                    lembrancas = snap.data().lembrancas || [];
-                }
+  const snap = await getDoc(docRef);
+  let lembrancas = [];
+  if (snap.exists()) {
+    lembrancas = snap.data().lembrancas || [];
+  }
 
-                lembrancas.push({
-                    fato: args.fato,
-                    timestamp: Date.now()
-                });
+  // Check for duplicate or similar fact
+  const existsExact = lembrancas.some(l => l.fato.toLowerCase() === args.fato.toLowerCase());
+  const existsSimilar = lembrancas.some(l => isSimilar(l.fato, args.fato));
+  if (!existsExact && !existsSimilar) {
+    lembrancas.push({
+      fato: args.fato,
+      timestamp: Date.now()
+    });
+  } else {
+    Logger.warn("LTM", `Fato similar já existente para @${usuarioResolvido}, ignorado.`);
+  }
 
-                await setDoc(docRef, {
-                    lembrancas: lembrancas,
-                    ultima_atualizacao: Date.now()
-                });
+  // Enforce max limit
+  if (lembrancas.length > maxLTM) {
+    // Remove oldest entries (based on timestamp)
+    lembrancas.sort((a, b) => a.timestamp - b.timestamp);
+    const removed = lembrancas.splice(0, lembrancas.length - maxLTM);
+    Logger.info("LTM", `Pruned ${removed.length} oldest facts for @${usuarioResolvido} to respect maxLTM=${maxLTM}.`);
+  }
 
-                return `Sucesso: Fato gravado na memória permanente de '${usuarioResolvido}': "${args.fato}".`;
-            } else {
+  await setDoc(docRef, {
+    lembrancas: lembrancas,
+    ultima_atualizacao: Date.now()
+  });
+
+  return `Sucesso: Fato gravado na memória permanente de '${usuarioResolvido}': "${args.fato}".`;
+} else {
                 console.log(chalk.cyan(`[🧠 MEMÓRIA INFINITA] Recuperando lembranças de '${usuarioResolvido}' do Firestore...`));
 
                 const snap = await getDoc(docRef);

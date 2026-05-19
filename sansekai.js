@@ -790,7 +790,16 @@ Caso contrário, se não houver NADA digno de nota, responda unicamente: "NENHUM
                         // Mantém no máximo 50 fatos por usuário para poupar espaço/tokens
                         if (db.users[key].length > 50) db.users[key].shift();
 
-                        await storage.write(KNOWLEDGE_FILE, db);
+                        // Sincroniza fatos de LTM diretamente no Firestore (coleção ltm_facts)
+                    try {
+                        const { db: fbDb, doc, setDoc } = require('./firebase_connector');
+                        const ltmDocRef = doc(fbDb, "ltm_facts", key);
+                        await setDoc(ltmDocRef, { facts: db.users[key] });
+                        Logger.info("LTM", `Fatos de LTM sincronizados no Firestore para @${key}`);
+                    } catch (fireErr) {
+                        Logger.error("LTM.FIREBASE", fireErr);
+                    }
+                    await storage.write(KNOWLEDGE_FILE, db);
                     }
                 }
             } catch (e) {
@@ -1042,21 +1051,38 @@ function mapGeminiToolsToOpenRouter(geminiTools) {
 
 class KeyRotationEngine {
     constructor() {
-        this.availableModels = [
-            "anthropic/claude-3.7-sonnet",
-            "anthropic/claude-3.7-sonnet:thinking",
-            "openai/o3-mini",
-            "deepseek/deepseek-r1",
-            "anthropic/claude-3.5-sonnet",
-            "openai/gpt-4o",
-            "google/gemini-2.5-pro",
-            "google/gemini-2.5-pro:free"
+        // Modelos PAGOS: desativados — sem crédito nas chaves
+        this.paidModels = [];
+
+        // Modelos GRATUITOS: não precisam de crédito — SEMPRE tentáveis
+        this.freeModels = [
+            "google/gemini-2.5-flash-preview:free",
+            "google/gemma-3-27b-it:free",
+            "openai/gpt-oss-120b:free",
+            "google/gemma-4-31b-it:free",
+            "meta-llama/llama-4-scout:free",
+            "nvidia/nemotron-nano-12b-v2-vl:free",
+            "nvidia/nemotron-3-nano-30b-a3b:free",
+            "z-ai/glm-4.5-air:free",
+            "baidu/cobuddy:free"
         ];
+
+        // Usa apenas modelos gratuitos
+        this.availableModels = [...this.freeModels];
+
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
         
         // Rastreamento individual por chave
         this.keyStats = new Map();
+
+        // Modelos que retornaram 404 (endpoint inexistente) — skip global até reinício
+        this.deadModels = new Set();
+
+        // Circuit breaker global: impede loops quando TODAS as chaves estão mortas
+        this._globalFailCount = 0;
+        this._globalFailMax = 3; // Após 3 ciclos completos sem sucesso, desiste
+        this._lastSuccessTime = Date.now();
 
         // Estatísticas analíticas
         this.metrics = {
@@ -1243,30 +1269,29 @@ class KeyRotationEngine {
         }
 
         if (hasMedia) {
-            // Se possui mídia, filtramos estritamente para modelos multimodais de alta performance
+            // Multimodal: prioriza modelos gratuitos com suporte a visão
             const multimodalModels = [
-                "google/gemini-2.5-pro",
-                "google/gemini-2.5-pro:free",
-                "openai/gpt-4o",
-                "anthropic/claude-3.7-sonnet",
-                "anthropic/claude-3.5-sonnet"
+                "nvidia/nemotron-nano-12b-v2-vl:free",
+                "google/gemini-2.5-flash-preview:free",
+                "google/gemma-4-31b-it:free",
+                "openai/gpt-oss-120b:free"
             ];
-            list = list.filter(m => multimodalModels.includes(m));
+            const filtered = list.filter(m => multimodalModels.includes(m));
+            if (filtered.length > 0) {
+                list = filtered;
+            }
             list.sort((a, b) => {
                 const aIdx = multimodalModels.indexOf(a);
                 const bIdx = multimodalModels.indexOf(b);
-                return aIdx - bIdx;
+                return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
             });
         } else if (isCoding) {
-            // Se for programação/desenvolvimento
+            // Programação: prefere modelos de raciocínio gratuitos
             const codingModels = [
-                "anthropic/claude-3.7-sonnet:thinking",
-                "anthropic/claude-3.7-sonnet",
-                "openai/o3-mini",
-                "deepseek/deepseek-r1",
-                "anthropic/claude-3.5-sonnet",
-                "google/gemini-2.5-pro",
-                "google/gemini-2.5-pro:free"
+                "google/gemini-2.5-flash-preview:free",
+                "openai/gpt-oss-120b:free",
+                "google/gemma-3-27b-it:free",
+                "meta-llama/llama-4-scout:free"
             ];
             list.sort((a, b) => {
                 const aVal = codingModels.includes(a) ? codingModels.indexOf(a) : 99;
@@ -1274,14 +1299,12 @@ class KeyRotationEngine {
                 return aVal - bVal;
             });
         } else if (hasTools) {
-            // Se possui tools, Function Calling
+            // Function Calling: modelos gratuitos com melhor suporte a tools
             const eliteToolsModels = [
-                "anthropic/claude-3.7-sonnet",
-                "openai/o3-mini",
-                "anthropic/claude-3.5-sonnet",
-                "openai/gpt-4o",
-                "google/gemini-2.5-pro",
-                "google/gemini-2.5-pro:free"
+                "google/gemini-2.5-flash-preview:free",
+                "openai/gpt-oss-120b:free",
+                "meta-llama/llama-4-scout:free",
+                "google/gemma-4-31b-it:free"
             ];
             list.sort((a, b) => {
                 const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
@@ -1289,13 +1312,13 @@ class KeyRotationEngine {
                 return aVal - bVal;
             });
         } else {
-            // Conversação geral / fofocas / sarcasmo
+            // Conversação geral
             const talkModels = [
-                "anthropic/claude-3.7-sonnet",
-                "anthropic/claude-3.5-sonnet",
-                "openai/gpt-4o",
-                "google/gemini-2.5-pro",
-                "google/gemini-2.5-pro:free"
+                "google/gemini-2.5-flash-preview:free",
+                "openai/gpt-oss-120b:free",
+                "google/gemma-3-27b-it:free",
+                "meta-llama/llama-4-scout:free",
+                "z-ai/glm-4.5-air:free"
             ];
             list.sort((a, b) => {
                 const aVal = talkModels.includes(a) ? talkModels.indexOf(a) : 99;
@@ -1321,7 +1344,32 @@ class KeyRotationEngine {
     async executeWithRotation(history, prompt, tools, systemInstruction, isUserRequest = false) {
         let attempts = 0;
         const totalKeys = apiKeyManager.listKeys().length;
-        const maxKeyCycles = Math.max(totalKeys, 2);
+        const maxKeyCycles = Math.min(Math.max(totalKeys, 2), 5); // Máximo 5 ciclos para evitar loops excessivos
+
+        // Circuit breaker: se faz mais de 2 minutos sem sucesso, reduz tentativas
+        const timeSinceSuccess = Date.now() - this._lastSuccessTime;
+        if (timeSinceSuccess > 2 * 60 * 1000 && this._globalFailCount >= this._globalFailMax) {
+            Logger.error("KeyRotationEngine", `Circuit breaker ativo: ${this._globalFailCount} ciclos completos sem sucesso. Aguardando 30s antes de tentar novamente.`);
+            await new Promise(r => setTimeout(r, 30000));
+            this._globalFailCount = 0; // Reseta após espera
+            this.cooldowns.clear();   // Libera todos os cooldowns após longa espera
+            this.deadModels.clear();  // Dá nova chance aos modelos (podem ter voltado)
+        }
+
+        // === FASE DE EMERGÊNCIA: Tenta modelos gratuitos independentemente das chaves ===
+        // Se todas as chaves estão em cooldown de crédito (402), os modelos :free
+        // ainda funcionam — pois não consomem crédito. Neste caso, usamos qualquer chave.
+        const allKeys = apiKeyManager.listKeys();
+        const now = Date.now();
+        const allKeysInCooldown = allKeys.length > 0 && allKeys.every(k => (this.cooldowns.get(k) || 0) > now);
+        if (allKeysInCooldown) {
+            Logger.warn("KeyRotationEngine", "Todas as chaves em cooldown de crédito. Escalando direto para modelos GRATUITOS (:free).");
+            const freeResult = await this._tryFreeModelsOnly(history, prompt, tools, systemInstruction, allKeys[0]);
+            if (freeResult) return freeResult;
+            // Se os gratuitos também falharam, desiste
+            this._globalFailCount++;
+            throw new Error("O Bochecha esgotou todos os modelos gratuitos disponíveis. Verifique as APIs!");
+        }
 
         while (attempts < maxKeyCycles) {
             const activeKey = this._selectActiveKey();
@@ -1332,7 +1380,15 @@ class KeyRotationEngine {
             let lastError = null;
             const prioritizedModels = this._getPrioritizedModels(prompt, tools);
 
-            for (const modelName of prioritizedModels) {
+            // Filtra modelos que já sabemos que retornam 404 (endpoint morto)
+            const aliveModels = prioritizedModels.filter(m => !this.deadModels.has(m));
+            if (aliveModels.length === 0) {
+                Logger.warn("KeyRotationEngine", `Todos os modelos estão marcados como mortos (404). Limpando cache e tentando novamente.`);
+                this.deadModels.clear();
+            }
+            const modelsToTry = aliveModels.length > 0 ? aliveModels : prioritizedModels;
+
+            for (const modelName of modelsToTry) {
                 this.metrics.totalRequests++;
                 const startTime = Date.now();
 
@@ -1399,7 +1455,7 @@ class KeyRotationEngine {
                     }
 
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 6000); // Tolerância máxima de 6 segundos por tentativa de modelo
+                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos de timeout por tentativa
 
                     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                         method: "POST",
@@ -1415,7 +1471,9 @@ class KeyRotationEngine {
 
                     if (!response.ok) {
                         const errorText = await response.text();
-                        throw new Error(`OpenRouter API Error: status ${response.status} - ${errorText}`);
+                        const err = new Error(`OpenRouter API Error: status ${response.status} - ${errorText}`);
+                        err.httpStatus = response.status;
+                        throw err;
                     }
 
                     const data = await response.json();
@@ -1446,6 +1504,10 @@ class KeyRotationEngine {
                     
                     if (this.metrics.latencies.length > 50) this.metrics.latencies.shift();
 
+                    // Reseta circuit breaker em caso de sucesso
+                    this._globalFailCount = 0;
+                    this._lastSuccessTime = Date.now();
+
                     // Grava métricas ativamente
                     this.saveKeyMetrics().catch(() => {});
 
@@ -1475,7 +1537,8 @@ class KeyRotationEngine {
                     return { chat: chatMock, response: responseMock, modelName };
                 } catch (e) {
                     const msg = String(e.message || e);
-                    Logger.warn("KeyRotationEngine", `Falha temporária com ${modelName}: ${msg.substring(0, 80)}`);
+                    const httpStatus = e.httpStatus || 0;
+                    Logger.warn("KeyRotationEngine", `Falha temporária com ${modelName}: ${msg.substring(0, 120)}`);
                     lastError = e;
 
                     // Incrementa falhas individuais da chave
@@ -1488,22 +1551,55 @@ class KeyRotationEngine {
                     // Grava métricas ativamente
                     this.saveKeyMetrics().catch(() => {});
 
-                    // Se a culpa for do modelo/provedor que caiu, ele testa o PRÓXIMO modelo usando a mesma chave!
-                    if (msg.includes("Provider returned error") || msg.includes("upstream") || msg.includes("502")) {
+                    // ═══ ERRO 404: Modelo/endpoint não existe ═══
+                    // Isso é culpa do MODELO, não da CHAVE. Marca o modelo como morto e tenta o próximo.
+                    if (httpStatus === 404 || msg.includes("404") || msg.includes("No endpoints found")) {
+                        Logger.warn("KeyRotationEngine", `Modelo ${modelName} indisponível (404). Marcando como morto e pulando.`);
+                        this.deadModels.add(modelName);
+                        continue; // Próximo modelo, mesma chave
+                    }
+
+                    // ═══ ERRO 502/503/upstream: Provedor caiu ═══
+                    if (httpStatus === 502 || httpStatus === 503 || msg.includes("Provider returned error") || msg.includes("upstream") || msg.includes("502") || msg.includes("503")) {
                         Logger.warn("KeyRotationEngine", `Provedor do modelo ${modelName} caiu! Pulando para o próximo modelo (Fallback).`);
-                        continue;
+                        continue; // Próximo modelo, mesma chave
                     }
 
-                    // Se a chave esgotou os limites (429) ou está sem saldo/banida (401/402/403),
-                    // Pula a chave instantaneamente e aplica um cooldown nela!
-                    if (msg.includes("429") || msg.includes("401") || msg.includes("402") || msg.includes("403") || msg.includes("rate limit") || msg.includes("quota")) {
-                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} bloqueada/esgotada. Pulando de chave imediatamente.`);
+                    // ═══ ERRO 402: Sem crédito / saldo insuficiente ═══
+                    // 402 é SOMENTE sobre crédito — afeta apenas modelos PAGOS.
+                    // Modelos :free NÃO consomem crédito. Se o modelo atual é pago, pula
+                    // imediatamente para os modelos gratuitos sem mudar de chave.
+                    if (httpStatus === 402 || msg.includes("402") || msg.includes("requires more credits") || msg.includes("insufficient")) {
+                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} sem crédito (402). Pulando para modelos GRATUITOS nesta chave.`);
+                        this.cooldowns.set(activeKey, Date.now() + 10 * 60 * 1000); // 10 min cooldown para modelos pagos
+                        // Tenta os modelos gratuitos com a mesma chave (eles não precisam de crédito)
+                        const freeResult = await this._tryFreeModelsOnly(history, prompt, tools, systemInstruction, activeKey);
+                        if (freeResult) return freeResult;
+                        break; // Gratuitos também falharam — pula para próxima chave
+                    }
+
+                    // ═══ ERRO 429: Rate limit ═══
+                    if (httpStatus === 429 || msg.includes("429") || msg.includes("rate limit") || msg.includes("quota")) {
+                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} rate-limited (429). Cooldown de 5min.`);
                         this.cooldowns.set(activeKey, Date.now() + this.cooldownDuration);
-                        break;
+                        break; // Pula a chave inteira
                     }
 
-                    // Reduz o tempo de espera entre tentativas normais para 200ms
-                    await new Promise(r => setTimeout(r, 200));
+                    // ═══ ERRO 401/403: Chave inválida/banida ═══
+                    if (httpStatus === 401 || httpStatus === 403 || msg.includes("401") || msg.includes("403")) {
+                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} inválida/banida. Cooldown de 30min.`);
+                        this.cooldowns.set(activeKey, Date.now() + 30 * 60 * 1000); // 30 min cooldown para chave inválida
+                        break; // Pula a chave inteira
+                    }
+
+                    // ═══ Timeout / AbortError ═══
+                    if (msg.includes("abort") || msg.includes("timeout") || msg.includes("ETIMEDOUT")) {
+                        Logger.warn("KeyRotationEngine", `Timeout com ${modelName}. Tentando próximo modelo.`);
+                        continue; // Próximo modelo, mesma chave
+                    }
+
+                    // Erro genérico — tenta próximo modelo
+                    await new Promise(r => setTimeout(r, 300));
                 }
             }
 
@@ -1514,7 +1610,133 @@ class KeyRotationEngine {
             attempts++;
         }
 
+        // Incrementa circuit breaker global
+        this._globalFailCount++;
+
         throw new Error("O Bochecha esgotou todas as chaves e modelos ativos do OpenRouter sem conseguir obter resposta. Verifique as APIs!");
+    }
+
+    /**
+     * Tenta exclusivamente modelos gratuitos (:free) com uma chave específica.
+     * Estes modelos não consomem crédito — funcionam mesmo com chaves 402.
+     */
+    async _tryFreeModelsOnly(history, prompt, tools, systemInstruction, activeKey) {
+        const freeModels = this.freeModels.filter(m => !this.deadModels.has(m));
+        if (freeModels.length === 0) {
+            Logger.warn("KeyRotationEngine", "Todos os modelos gratuitos estão marcados como mortos. Limpando e retentando.");
+            // Limpa apenas os gratuitos do deadModels
+            for (const m of this.freeModels) this.deadModels.delete(m);
+            freeModels.push(...this.freeModels);
+        }
+
+        for (const modelName of freeModels) {
+            try {
+                Logger.info("KeyRotationEngine", `[FREE] Tentando modelo gratuito: ${modelName} | Token: ${activeKey.substring(0, 8)}...`);
+
+                const messages = [];
+                if (systemInstruction) messages.push({ role: "system", content: systemInstruction });
+                if (history && Array.isArray(history)) {
+                    for (const h of history) {
+                        const role = h.role === "model" ? "assistant" : "user";
+                        const content = (h.parts || []).map(p => p.text || "").join("\n").trim();
+                        if (content) messages.push({ role, content });
+                    }
+                }
+
+                let finalContent;
+                if (typeof prompt === 'string') {
+                    finalContent = prompt;
+                } else if (Array.isArray(prompt)) {
+                    const parts = [];
+                    for (const item of prompt) {
+                        if (item.text) parts.push({ type: "text", text: item.text });
+                        // Modelos gratuitos geralmente não suportam imagem — apenas texto
+                    }
+                    finalContent = parts.length === 1 && parts[0].type === 'text' ? parts[0].text : parts.map(p => p.text || '').join(' ');
+                } else {
+                    finalContent = String(prompt);
+                }
+                messages.push({ role: "user", content: finalContent });
+
+                const body = { model: modelName, messages, temperature: 0.7 };
+                const openRouterTools = mapGeminiToolsToOpenRouter(tools);
+                if (openRouterTools && openRouterTools.length > 0) {
+                    body.tools = openRouterTools;
+                    body.tool_choice = "auto";
+                }
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 45000); // Gratuitos podem ser lentos
+
+                const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${activeKey}`,
+                        "HTTP-Referer": "https://github.com/mg5860606-ux/bochecha-ia",
+                        "X-Title": "Bochecha-IA",
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(body),
+                    signal: controller.signal
+                }).finally(() => clearTimeout(timeoutId));
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    const err = new Error(`OpenRouter API Error: status ${response.status} - ${errorText}`);
+                    err.httpStatus = response.status;
+                    throw err;
+                }
+
+                const data = await response.json();
+                const choice = data.choices && data.choices[0];
+                if (!choice) throw new Error("Resposta sem choices.");
+
+                const message = choice.message;
+                const textReply = message.content || "";
+                const toolCalls = message.tool_calls;
+
+                this._globalFailCount = 0;
+                this._lastSuccessTime = Date.now();
+                this.metrics.successRequests++;
+                this.metrics.modelHits[modelName] = (this.metrics.modelHits[modelName] || 0) + 1;
+
+                Logger.info("KeyRotationEngine", `[FREE] Sucesso com modelo gratuito: ${modelName}`);
+
+                const responseMock = {
+                    response: {
+                        text: () => textReply,
+                        functionCalls: () => {
+                            if (!toolCalls || toolCalls.length === 0) return undefined;
+                            return toolCalls.map(tc => ({
+                                name: tc.function.name,
+                                args: JSON.parse(tc.function.arguments || '{}')
+                            }));
+                        }
+                    }
+                };
+                const chatMock = {
+                    getHistory: () => {
+                        const hist = [...history];
+                        hist.push({ role: "user", parts: [{ text: typeof prompt === 'string' ? prompt : JSON.stringify(prompt) }] });
+                        hist.push({ role: "model", parts: [{ text: textReply }] });
+                        return hist;
+                    }
+                };
+                return { chat: chatMock, response: responseMock, modelName };
+
+            } catch (e) {
+                const httpStatus = e.httpStatus || 0;
+                const msg = String(e.message || e);
+                Logger.warn("KeyRotationEngine", `[FREE] Falha em ${modelName}: ${msg.substring(0, 100)}`);
+                if (httpStatus === 404 || msg.includes("404") || msg.includes("No endpoints")) {
+                    this.deadModels.add(modelName);
+                }
+                this.metrics.failedRequests++;
+            }
+        }
+
+        Logger.error("KeyRotationEngine", "Todos os modelos gratuitos falharam para esta chave.");
+        return null; // Indica falha — caller vai pular para próxima chave
     }
 
     /**
