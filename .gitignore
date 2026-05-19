@@ -11,3 +11,5 @@ key_backup.json
 scratch/
 *.json
 !package.json
+*.bak
+test_all_models.js
