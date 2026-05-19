@@ -124,26 +124,13 @@ async function startBot() {
 				console.log(chalk.green('Hospedagem/Servidor detectado. Escolhendo [1] - QR Code automaticamente...'));
 				globalUseQRCode = true;
 			} else {
-				// Interface interativa com timeout de 8 segundos fechando o readline corretamente
+				// Interface interativa sem timeout (espera a decisão física do usuário local indefinidamente)
 				const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 				
 				const opcao = await new Promise((resolve) => {
-					let resolved = false;
-					const timer = setTimeout(() => {
-						if (!resolved) {
-							resolved = true;
-							rl.close();
-							resolve('1'); // Padrão QR Code
-						}
-					}, 8000);
-
-					rl.question(chalk.yellow('Digite 1 ou 2 (Padrão 1 em 8s): '), (answer) => {
-						if (!resolved) {
-							resolved = true;
-							clearTimeout(timer);
-							rl.close();
-							resolve(answer);
-						}
+					rl.question(chalk.yellow('Digite 1 ou 2 (1: QR Code | 2: Pareamento por Número): '), (answer) => {
+						rl.close();
+						resolve(answer);
 					});
 				});
 				
