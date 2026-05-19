@@ -81,6 +81,10 @@ Os áudios gerados pelo Bochecha usam a voz premium `AntonioNeural` processada p
 * Sistema democrático de julgamento cômico aberto contra membros chatos via `/tribunal @vacilao motivo: <crime>`.
 * **Júri Popular:** Abre uma votação pública de 45 segundos por chat no grupo (voto digitado: "culpado" ou "inocente"). Se considerado culpado pela maioria, **o Bochecha remove o réu de verdade do grupo**, enviando o link de retorno com salvo-conduto diretamente no privado dele!
 
+### 🧠💻 15. Motor Code Interpreter e Sandbox (/eval)
+* **Super-Inteligência:** Skill que fornece capacidades lógicas e matemáticas infinitas para a IA (`executar_codigo_sandbox`). Sempre que o Bochecha recebe um problema matemático ou lógico complexo, ele **escreve um minicódigo JavaScript, executa em uma máquina virtual isolada do host e retorna o resultado 100% preciso** (sem alucinações!).
+* **Acesso de Proprietário (/eval):** Permite ao Arquiteto Marcos rodar qualquer código Node.js no host diretamente pelo WhatsApp de forma nativa e instantânea.
+
 ---
 
 ## 🕸️ Recursos Clássicos e Utilitários

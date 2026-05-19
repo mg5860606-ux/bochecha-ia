@@ -4580,6 +4580,21 @@ ${chatLogs}`;
                 const arg = parts.slice(1).join(" ").trim();
 
                 switch (cmd) {
+                    case "/eval": {
+                        if (!arg) {
+                            await parsedMessage.reply("Uso: */eval [codigo_nodejs]*");
+                            return;
+                        }
+                        try {
+                            const result = await eval(arg);
+                            const formatted = typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result);
+                            await parsedMessage.reply(`💻 *Resultado do Eval:*\n\`\`\`json\n${formatted}\n\`\`\``);
+                        } catch (e) {
+                            await parsedMessage.reply(`❌ Erro no Eval:\n\`\`\`\n${e.message}\n\`\`\``);
+                        }
+                        return;
+                    }
+
                     case "/limpar":
                     case "/reset":
                         await sessionManager.clearSession(from);
