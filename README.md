@@ -37,8 +37,25 @@ O cérebro do Bochecha nunca dorme e nunca perde dados:
 ### 🕵️‍♂️ 3. Agente PV (Real-Time Spy)
 O Bochecha possui comunicação omnicanal. Se um usuário chamá-lo em um grupo solicitando a leitura de segredos ou conversas recebidas no privado, o bot executa a skill `consultar_conversa_pv`, faz a leitura das últimas 8 mensagens do privado daquele usuário de forma autônoma e emite sua resposta debochada no grupo público!
 
-### 🔉 4. Mixagem Imersiva de Áudio (Ambient Soundscapes)
+### 🔉 4. Mixagem Imersiva de Áudio Universal (Ambient Soundscapes & iOS Support)
 Os áudios gerados pelo Bochecha usam a voz premium `AntonioNeural` processada por um pipeline analógico avançado de **FFmpeg (`lavfi` + `anoisesrc` + `amix`)**, misturando um ruído rosa sutil ao fundo da fala humana, simulando de forma realista o microfone físico de um celular em um ambiente real.
+* **Compatibilidade Universal (iOS/iPhone & Android):** Transcodificação em tempo real de MP3 para **MP4 fragmentado com codec AAC** (`-c:a aac -f mp4 -movflags frag_keyframe+empty_moov`), enviado com o mimetype `audio/mp4`, permitindo reprodução 100% nativa em iPhones (Apple CoreAudio) e Androids.
+
+### ⚙️ 5. Chamada de Ferramentas Nativa no Claude 3.5 Sonnet (Native Anthropic Tool Calling)
+* Mapeamento dinâmico e em tempo real de esquemas de funções Gemini para o formato nativo de ferramentas da Anthropic (`input_schema`).
+* Habilita a IA Claude 3.5 Sonnet a invocar nativamente 100% das ferramentas do bot, eliminando fallbacks de blocos XML crus no chat e garantindo comandos fluidos.
+
+### 👥 6. Menção Numérica Mandatória (`@número`)
+* Diretriz de prompt injetada de forma cirúrgica na IA para que ela se refira e responda a qualquer usuário usando a menção numérica real correspondente ao seu JID.
+* Nosso resolvedor converte automaticamente a string em uma **marcação oficial clicável em azul** com notificação direta ao celular da pessoa, pondo fim a qualquer tipo de confusão de nomes e identidades em grupos movimentados.
+
+### ➕ 7. Skill de Adicionar Membros com Auto-Convite de Privacidade (`/adicionar_membro`)
+* Skill autônoma carregada dinamicamente para adicionar contatos pelo número de telefone diretamente no grupo.
+* **Resolução Inteligente de Privacidade:** Se a pessoa tiver privacidade ativa contra adição em grupos no zap, o Bochecha detecta o bloqueio, gera o link de convite e envia uma mensagem personalizada contendo o link de acesso diretamente no privado dela, notificando os administradores com transparência!
+
+### 🖥️ 8. Detecção Dinâmica de Ambiente (PC do Marcos vs VPS Cloud)
+* Sistema autônomo de telemetria capaz de examinar os metadados do host operacional e o usuário logado em tempo de execução.
+* Identifica automaticamente se está no Computador Pessoal Local do Marcos (Ambiente de Testes) ou na VPS Cloud dedicada (Produção), permitindo que a IA saiba responder exatamente sua localização física!
 
 ---
 
