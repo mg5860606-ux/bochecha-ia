@@ -35,6 +35,28 @@ module.exports = {
 
             const speed = (Date.now() - (message.messageTimestamp * 1000)) / 1000;
 
+            // Painel Exclusivo de Desenvolvedor / Dono
+            let ownerPanel = "";
+            if (isOwner) {
+                ownerPanel = `
+┇ |
+┇ | 💻 *𝐏𝐀𝐈𝐍𝐄𝐋 𝐃𝐎 𝐃𝐄𝐒𝐄𝐍𝐕𝐎𝐋𝐕𝐄𝐃𝐎𝐑 (𝐃𝐎𝐍𝐎)*
+┇ |⚙️⋆͜͡҈➳ ${prefix}eval (Executa código JavaScript nativo)
+┇ |⚙️⋆͜͡҈➳ ${prefix}run / ${prefix}terminal (Executa comando no terminal)
+┇ |⚙️⋆͜͡҈➳ ${prefix}controle_pc (Hardware, RAM, CPU & processos)
+┇ |⚙️⋆͜͡҈➳ ${prefix}afins (Afinidade emocional de todos no grupo)
+┇ |⚙️⋆͜͡҈➳ ${prefix}telemetria (Diagnóstico de latência e API)
+┇ |⚙️⋆͜͡҈➳ ${prefix}addkey / ${prefix}removekey (Rotacionador de chaves)
+┇ |⚙️⋆͜͡҈➳ ${prefix}limparkeys (Limpa chaves com falha)
+┇ |⚙️⋆͜͡҈➳ ${prefix}reload (Recarrega todas as habilidades/skills)
+┇ |⚙️⋆͜͡҈➳ ${prefix}reiniciar (Reinicia a máquina do Bochecha)
+┇ |⚙️⋆͜͡҈➳ ${prefix}dream / ${prefix}refletir (Força reflexão da IA)
+┇ |⚙️⋆͜͡҈➳ ${prefix}github (Explorador de Repositórios GitHub)
+┇ |⚙️⋆͜͡҈➳ ${prefix}buscaria / ${prefix}superia (Caçador de repositórios IA)
+┇ |⚙️⋆͜͡҈➳ ${prefix}release (Gerador de Changelog automático)
+┇ |⚙️⋆͜͡҈➳ ${prefix}issue (Manipulador de issues e tarefas dev)`;
+            }
+
             const menuText = `╭⊱ ───── ⋆⋅ ♰ ⋅⋆ ───── ⊰˖°🥀ִ ࣪𖤐
 ├─ ⊹ 𖤐 𝐈𝐍𝐅𝐎𝐒 𝐃𝐎 𝐁𝐎𝐓 / 𝐔𝐒𝐄𝐑
 ╎🥀˖ ▸ 𝗨𝘀𝘂́𝗮𝗿𝗶𝗼: @${sender.split('@')[0]}
@@ -49,15 +71,47 @@ module.exports = {
 ▹▫◃
 ┎┶┅┅┅━═⋅═━━━━═⋅═━┅┅┅┅☾⋆
 ┖╮
-╭┤ˑ࣪    ִ .̇  ۫  ̣ ֽ֗🛸 𝐌𝐄𝐍𝐔 - 𝐆𝐄𝐑𝐀𝐋 🛸·๋  ִ֗  ᐧ ֶּ֓ ˑ࣪ 
+╭┤ˑ࣪    ִ .̇  ۫  ̣ ֽ֗🛸 𝐌𝐄𝐍𝐔 𝐃𝐎 𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀-𝐈𝐀 🛸·๋  ִ֗  ᐧ ֶּ֓ ˑ࣪ 
 ┇├┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
 ┇ | 
+┇ | 👑 *𝐒𝐔𝐏𝐄𝐑-𝐇𝐀𝐁𝐈𝐋𝐈𝐃𝐀𝐃𝐄𝐒 𝐄𝐋𝐈𝐓𝐄 𝟐𝟎𝟐𝟔*
+┇ |🔥⋆͜͡҈➳ ${prefix}editar (Editor Universal de Fotos, Vídeos, Áudios & PDFs)
+┇ |🔥⋆͜͡҈➳ ${prefix}voz <preset> <texto> (Modulador de Voz cômico/dublagem)
+┇ |🔥⋆͜͡҈➳ ${prefix}devaneios (Sonhos subconscientes surreais do grupo)
+┇ |🔥⋆͜͡҈➳ ${prefix}localidade / ${prefix}radar (Radar geográfico ativo)
+┇ |🔥⋆͜͡҈➳ ${prefix}bochecha_modo (Muda personalidade do bot)
+┇ |🔥⋆͜͡҈➳ ${prefix}detector_ko (Laudo polígrafo de mentiras - quoted)
+┇ |🔥⋆͜͡҈➳ ${prefix}analise_grupo (Laudo psicológico/social do chat)
+┇ |🔥⋆͜͡҈➳ ${prefix}casar / ${prefix}divorciar (Casamento & economia litigiosa)
+┇ |🔥⋆͜͡҈➳ ${prefix}tribunal @vacilao (Júri popular e kick democrático)
+┇ |🔥⋆͜͡҈➳ ${prefix}executar_codigo (Interpretador JavaScript VM isolada)
+${ownerPanel}
+┇ |
 ┇ | ♰ *𝐈𝐍𝐅𝐎𝐒 & 𝐒𝐓𝐀𝐓𝐔𝐒*
 ┇ |♱˖ ▸ ${prefix}ping (Testa latência)
 ┇ |♱˖ ▸ ${prefix}status (Status do sistema)
 ┇ |♱˖ ▸ ${prefix}infogp (Informações do grupo)
 ┇ |♱˖ ▸ ${prefix}ranking (Exibe ranking de XP)
+┇ |♱˖ ▸ ${prefix}perfil (Sua carteira, level, XPs e humor com IA)
 ┇ |♱˖ ▸ ${prefix}total_comandos (Total de comandos)
+┇ |
+┇ | ♰ *𝐈𝐍𝐓𝐄𝐋𝐈𝐆𝐄̂𝐍𝐂𝐈𝐀 𝐀𝐑𝐓𝐈𝐅𝐈𝐂𝐈𝐀𝐋*
+┇ |✨⋆͜͡҈➳ ${prefix}gpt (Falar com a IA)
+┇ |✨⋆͜͡҈➳ ${prefix}gerar (Gera imagem por IA)
+┇ |✨⋆͜͡҈➳ ${prefix}efeitos (Efeitos na imagem por IA)
+┇ |
+┇ | ♰ *𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐑𝐒 & 𝐌𝐈́𝐃𝐈𝐀*
+┇ |🎥⋆͜͡҈➳ ${prefix}baixar / ${prefix}play (Baixa de YouTube, Reels, TikTok e Pinterest)
+┇ |🎥⋆͜͡҈➳ ${prefix}yt (Busca de vídeos e links do YouTube)
+┇ |🎥⋆͜͡҈➳ ${prefix}falar (Sintetizador de texto para voz realista)
+┇ |🎥⋆͜͡҈➳ ${prefix}revelar (Revela qualquer mensagem de visualização única)
+┇ |🎥⋆͜͡҈➳ ${prefix}resumir / ${prefix}fofoca (Resumo de IA das conversas recentes)
+┇ |
+┇ | ♰ *𝐅𝐈𝐆𝐔𝐑𝐈𝐍𝐇𝐀𝐒*
+┇ |🎭⋆͜͡҈➳ ${prefix}s (Cria figurinha de imagem)
+┇ |🎭⋆͜͡҈➳ ${prefix}fstiker (Efeitos e artes de stickers)
+┇ |🎭⋆͜͡҈➳ ${prefix}attp (Figurinha de texto animada)
+┇ |🎭⋆͜͡҈➳ ${prefix}rename (Renomeia figurinha)
 ┇ |
 ┇ | ♰ *𝐏𝐄𝐒𝑄𝐔𝐈𝐒𝐀𝐒 & 𝐃𝐀𝐃𝐎𝐒*
 ┇ |🎲⋆͜͡҈➳ ${prefix}clima (Consulta o clima)
@@ -69,35 +123,9 @@ module.exports = {
 ┇ |🎲⋆͜͡҈➳ ${prefix}cep (Consulta de CEP)
 ┇ |🎲⋆͜͡҈➳ ${prefix}ip (Consulta de IP)
 ┇ |
-┇ | 👑 *𝐒𝐔𝐏𝐄𝐑-𝐇𝐀𝐁𝐈𝐋𝐈𝐃𝐀𝐃𝐄𝐒 𝐄𝐋𝐈𝐓𝐄 𝟐𝟎𝟐𝟔*
-┇ |🔥⋆͜͡҈➳ ${prefix}controle_pc (Hardware & Telemetria - Dono)
-┇ |🔥⋆͜͡҈➳ ${prefix}eval (Interpretador de Código Nativo - Dono)
-┇ |🔥⋆͜͡҈➳ ${prefix}editar (Editor Universal de Fotos, Vídeos, Áudios & PDFs)
-┇ |🔥⋆͜͡҈➳ ${prefix}voz <preset> <texto> (Modulador de Voz cômico/dublagem)
-┇ |🔥⋆͜͡҈➳ ${prefix}devaneios (Sonhos subconscientes surreais do grupo)
-┇ |🔥⋆͜͡҈➳ ${prefix}localidade / ${prefix}radar (Radar geográfico ativo)
-┇ |🔥⋆͜͡҈➳ ${prefix}bochecha_modo (Muda personalidade do bot)
-┇ |🔥⋆͜͡҈➳ ${prefix}detector_ko (Laudo polígrafo de mentiras - quoted)
-┇ |🔥⋆͜͡҈➳ ${prefix}analise_grupo (Laudo psicológico/social do chat)
-┇ |🔥⋆͜͡҈➳ ${prefix}casar / ${prefix}divorciar (Casamento & economia litigiosa)
-┇ |🔥⋆͜͡҈➳ ${prefix}tribunal @vacilao (Júri popular e kick democrático)
-┇ |
-┇ | ♰ *𝐈𝐍𝐓𝐄𝐋𝐈𝐆𝐄̂𝐍𝐂𝐈𝐀 𝐀𝐑𝐓𝐈𝐅𝐈𝐂𝐈𝐀𝐋*
-┇ |✨⋆͜͡҈➳ ${prefix}gpt (Falar com a IA)
-┇ |✨⋆͜͡҈➳ ${prefix}gerar (Gera imagem por IA)
-┇ |✨⋆͜͡҈➳ ${prefix}efeitos (Efeitos na imagem)
-┇ |✨⋆͜͡҈➳ ${prefix}revelar (Revelar mensagem oculta)
-┇ |✨⋆͜͡҈➳ ${prefix}falar (Texto para áudio premium)
-┇ |✨⋆͜͡҈➳ ${prefix}resumir (Resumo inteligente de fofocas)
-┇ |
-┇ | ♰ *𝐅𝐈𝐆𝐔𝐑𝐈𝐍𝐇𝐀𝐒*
-┇ |🎭⋆͜͡҈➳ ${prefix}s (Cria figurinha de imagem)
-┇ |🎭⋆͜͡҈➳ ${prefix}fstiker (Efeitos e artes de stickers)
-┇ |🎭⋆͜͡҈➳ ${prefix}attp (Figurinha de texto animada)
-┇ |🎭⋆͜͡҈➳ ${prefix}rename (Renomeia figurinha)
-┇ |
 ┇ | ♰ *𝐀𝐃𝐌𝐈𝐍𝐈𝐒𝐓𝐑𝐀𝐂̧𝐀̃𝐎*
 ┇ |🛡️⋆͜͡҈➳ ${prefix}ban (Remove membro)
+┇ |🛡️⋆͜͡҈➳ ${prefix}adicionar (Adiciona membro ao grupo)
 ┇ |🛡️⋆͜͡҈➳ ${prefix}promover (Dá admin)
 ┇ |🛡️⋆͜͡҈➳ ${prefix}rebaixar (Tira admin)
 ┇ |🛡️⋆͜͡҈➳ ${prefix}warn (Adverte membro)
@@ -190,7 +218,7 @@ module.exports = {
 ┇ |🗣️⋆͜͡҈➳ Lembretes: "Me lembra em 10 min de..."
 ┇ |🗣️⋆͜͡҈➳ Status: "Posta isso no seu status"
 ┇ |
-┇╰┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
+┇ ╰┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
   _${NomeDoBot} Power by ${DonoName}_
  ╰╼╼╼╼╼╍⋅⊹⋅⋅⦁ ⚡ ⦁⋅⋅⊹⋅╍╾╾╾╾☾⋆`;
 
