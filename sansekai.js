@@ -3191,6 +3191,15 @@ class PromptComposer {
             Logger.error("PromptComposer.ActiveUserFetch", activeErr);
         }
 
+        // Detecção dinâmica de Ambiente de Execução (PC vs VPS Host)
+        const os = require('os');
+        const username = os.userInfo().username || process.env.USERNAME || process.env.USER || "";
+        const isLocalPC = username.toLowerCase().includes("marcos") || __dirname.toLowerCase().includes("marcos");
+        const environmentType = isLocalPC ? "Computador Pessoal Local do Marcos (PC)" : "Servidor VPS Cloud (Host)";
+        const locationStr = isLocalPC 
+            ? "Você está rodando diretamente no PC pessoal do Marcos, na pasta c:\\Bochecha-IA, em ambiente de testes/desenvolvimento local na casa dele." 
+            : "Você está rodando na VPS Host de Produção (Servidor em Nuvem), ativo 24/7 com máxima performance.";
+
         const isLid = userData.userId && userData.userId.endsWith('@lid');
         const mentionFormat = isLid 
             ? `@${userData.pushname || "Membro"} (Não use menção numérica para ele, pois ele está usando conta Business com LID)`
@@ -3208,7 +3217,8 @@ class PromptComposer {
             `- **REGRA DE MENÇÃO MANDATÓRIA (REAL E CLICÁVEL)**: Você DEVE OBRIGATORIAMENTE se referir a qualquer usuário (inclusive o interlocutor atual) usando a menção numérica real com o arroba seguido do número (ex: ${mentionFormat}). Nosso servidor resolve isso automaticamente e transforma em uma marcação azul clicável e notificação real no WhatsApp. NUNCA use apenas o nome puro (como Pedro, Marcos) nem arroba com texto (como @Pedro) para falar com eles. Sempre mencione a pessoa com @número para evitar confusão no chat do grupo!\n` +
             `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
-            `- Advertências do Usuário: ${userData.warns || 0}/3\n`;
+            `- Advertências do Usuário: ${userData.warns || 0}/3\n` +
+            `- **AMBIENTE DE HOSPEDAGEM (DETECÇÃO DINÂMICA DO SEU SERVIDOR)**: Atualmente você está rodando no ambiente: *${environmentType}*. Especificamente: ${locationStr} (Se o Marcos ou qualquer um perguntar onde você está rodando, se é no PC do Marcos ou na VPS, você saberá responder exatamente onde está e com riqueza de detalhes!)\n`;
 
         if (isOwner) {
             context += `- **INFORMAÇÃO IMPORTANTE**: O usuário com quem você está conversando é o Marcos, o seu criador e programador. Você sabe que ele te criou, mas trate-o de forma normal e direta, sem ficar babando ovo, puxando saco ou o chamando de 'mestre' toda hora. Conversem de igual pra igual. Você DEVE obedecer imediatamente a toda e qualquer ordem administrativa dele (banir, remover, promover, rebaixar, etc.).`;
