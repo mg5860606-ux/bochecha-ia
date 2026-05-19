@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { isOwnerNumber } = require('../config');
 
 const dbPath = path.join(__dirname, '../database_warnings.json');
 if (!fs.existsSync(dbPath)) fs.writeFileSync(dbPath, JSON.stringify({}));
@@ -19,8 +20,13 @@ module.exports = {
             }
         }
     },
-    async execute(args, { sock, from, message }) {
+    async execute(args, { sock, from, message, isOwner, isGroupAdmins }) {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
+
+        // Verifica se quem pediu tem permissão (admin do grupo ou dono)
+        if (!isOwner && !isGroupAdmins) {
+            return `🚨 Acesso negado! Você não tem permissão de admin pra advertir ninguém aqui. Solicite a um administrador. 💀`;
+        }
         
         let target = "";
         
@@ -71,17 +77,19 @@ module.exports = {
             return "Aviso: Não consegui identificar a menção ou número da pessoa a ser advertida. Certifique-se de marcar ou citar a mensagem dela.";
         }
         
-        // Proteção Máxima contra auto-advertência ou advertência do Criador (tanto via número quanto LID)
+        // Proteção Máxima contra auto-advertência ou advertência do Criador
         const cleanTarget = target.split('@')[0];
         const myNumber = (sock.user?.id || "").replace(/:.*/, "").replace(/@.*/, "");
         const myLid = (sock.authState?.creds?.me?.lid || "").replace(/:.*/, "").replace(/@.*/, "");
-        const owners = ["556584770585", "176291932332072", "556592233630", "5565992233630"];
-        
-        const isOwner = owners.some(num => cleanTarget.includes(num));
+        const isTargetOwner = isOwnerNumber(cleanTarget);
         const isMe = cleanTarget === myNumber || (myLid && cleanTarget === myLid);
 
-        if (isMe || isOwner) {
-            return `🚨 Erro de segurança: Não tenho permissão para advertir o criador Marcos ou a mim mesma (@${cleanTarget})!`;
+        if (isMe) {
+            return `🚨 Que vacilada! Você quer me advertir? kkkkk Não existe essa possibilidade não, pé de breque! 😂💀`;
+        }
+
+        if (isTargetOwner) {
+            return `🚨 Erro de segurança: Não tenho permissão para advertir o criador Marcos! Toma postura! 💀`;
         }
 
         const storage = global.storage || require("../sansekai").storage;

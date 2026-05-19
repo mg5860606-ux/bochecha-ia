@@ -1,3 +1,5 @@
+const { isOwnerNumber } = require('../config');
+
 module.exports = {
     definition: {
         function: {
@@ -14,9 +16,13 @@ module.exports = {
             }
         }
     },
-    async execute(args, { sock, from, message }) {
+    async execute(args, { sock, from, message, isOwner, isGroupAdmins }) {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
 
+        // Verifica se quem pediu tem permissão (admin ou dono)
+        if (!isOwner && !isGroupAdmins) {
+            return `🚨 Acesso negado! Você não tem permissão de admin pra promover ninguém. Solicite a um administrador. 💀`;
+        }
         const resolveTarget = async (inputJid) => {
             if (!inputJid) return "";
             const cleanInput = inputJid.replace(/[^0-9]/g, '');

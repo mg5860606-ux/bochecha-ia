@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { BOT_CONFIG, OWNER_NUMBERS, isOwnerNumber } = require('../config');
 
 module.exports = {
     definition: {
@@ -11,13 +12,13 @@ module.exports = {
     },
     async execute(args, { sock, from, message }) {
         try {
-            const prefix = "/";
-            const NomeDoBot = "𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀";
-            const DonoName = "𝐌𝐀𝐑𝐂𝐎𝐒 亗";
-            const owners = ["551420370091", "20723854790881", "556584770585"];
+            const prefix = BOT_CONFIG.prefix;
+            const NomeDoBot = BOT_CONFIG.name;
+            const DonoName = BOT_CONFIG.owner;
+            const owners = OWNER_NUMBERS;
 
             const sender = message.key.participant || message.key.remoteJid;
-            const isOwner = owners.some(num => sender.includes(num));
+            const isOwner = isOwnerNumber(sender);
 
             let isGroupAdmins = false;
             if (from.endsWith('@g.us')) {
@@ -223,7 +224,7 @@ ${ownerPanel}
  ╰╼╼╼╼╼╍⋅⊹⋅⋅⦁ ⚡ ⦁⋅⋅⊹⋅╍╾╾╾╾☾⋆`;
 
             await sock.sendMessage(from, {
-                video: { url: "https://files.catbox.moe/mcnawn.mp4" },
+                video: { url: BOT_CONFIG.menuVideoUrl },
                 caption: menuText,
                 gifPlayback: true,
                 mentions: [sender]

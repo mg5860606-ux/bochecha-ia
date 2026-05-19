@@ -1,3 +1,5 @@
+const { isOwnerNumber } = require('../config');
+
 module.exports = {
     definition: {
         function: {
@@ -14,8 +16,13 @@ module.exports = {
             }
         }
     },
-    async execute(args, { sock, from, message }) {
+    async execute(args, { sock, from, message, isOwner, isGroupAdmins }) {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
+
+        // Verifica se quem pediu tem permissão (admin ou dono)
+        if (!isOwner && !isGroupAdmins) {
+            return `🚨 Acesso negado! Você não tem permissão de admin pra rebaixar ninguém. Solicite a um administrador. 💀`;
+        }
 
         const resolveTarget = async (inputJid) => {
             if (!inputJid) return "";
@@ -81,13 +88,12 @@ module.exports = {
         const cleanTarget = target.split('@')[0];
         const myNumber = (sock.user?.id || "").replace(/:.*/, "").replace(/@.*/, "");
         const myLid = (sock.authState?.creds?.me?.lid || "").replace(/:.*/, "").replace(/@.*/, "");
-        const owners = ["551420370091", "20723854790881"];
-        
-        const isOwner = owners.some(num => cleanTarget.includes(num));
+        const ownerNumbers = null; // Centralizado em config.js
+        const isTargetOwner = isOwnerNumber(cleanTarget);
         const isMe = cleanTarget === myNumber || (myLid && cleanTarget === myLid);
 
-        if (isMe || isOwner) {
-            return `🚨 Erro de segurança: Não tenho permissão para rebaixar o criador Marcos ou a mim mesma (@${cleanTarget})!`;
+        if (isTargetOwner) {
+            return `🚨 Erro de segurança: Não tenho permissão para rebaixar o criador Marcos (@${cleanTarget})! 💀`;
         }
         
         try {

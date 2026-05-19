@@ -1,4 +1,5 @@
 const chalk = require('chalk');
+const { OWNER_NUMBERS, isOwnerNumber } = require('../config');
 
 module.exports = {
     definition: {
@@ -21,7 +22,7 @@ module.exports = {
             }
         }
     },
-    async execute(args, { sock, from, message }) {
+    async execute(args, { sock, from, message, isOwner }) {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
 
         const resolveTarget = async (inputJid) => {
@@ -89,13 +90,24 @@ module.exports = {
             const cleanTarget = target.split('@')[0];
             const myNumber = (sock.user?.id || "").replace(/:.*/, "").replace(/@.*/, "");
             const myLid = (sock.authState?.creds?.me?.lid || "").replace(/:.*/, "").replace(/@.*/, "");
-            const owners = ["551420370091", "20723854790881"];
-            
-            const isOwner = owners.some(num => cleanTarget.includes(num));
+            const isTargetOwner = isOwnerNumber(cleanTarget);
             const isMe = cleanTarget === myNumber || (myLid && cleanTarget === myLid);
 
-            if (isMe || isOwner) {
-                return `🚨 Erro de segurança: Não tenho permissão para remover o criador Marcos ou a mim mesma (@${cleanTarget}) do grupo!`;
+            // Bloqueio de remoção do criador Marcos
+            if (isTargetOwner) {
+                return `🚨 Erro de segurança: Não tenho permissão para remover o criador Marcos (@${cleanTarget}) do grupo! Tá louco ou quê? 💀`;
+            }
+
+            // Bloqueio de auto-remoção: NINGUÉM manda o bot sair do grupo, nem admin, nem ninguém
+            if (isMe) {
+                const senderNumber = (message.key?.participant || message.key?.remoteJid || "").replace(/:.*/, "").replace(/@.*/, "");
+                const senderIsOwner = isOwnerNumber(senderNumber);
+                if (senderIsOwner) {
+                    // Apenas o Marcos pode forçar a saída do bot do grupo
+                    await sock.groupLeave(from);
+                    return "saindo do grupo como você mandou, Marcos. 🥀";
+                }
+                return `🚨 Não vou sair do grupo não! você não é meu dono, @${senderNumber}. Fala isso pro Marcos se quiser que eu saia, pé de breque kkkkk 😂💀`;
             }
 
             console.log(chalk.red(`[🚫 BAN] Removendo: ${target}`));

@@ -1,6 +1,7 @@
 const axios = require('axios');
 const moment = require('moment-timezone');
 const chalk = require('chalk');
+const { API_CONFIG } = require('../config');
 
 module.exports = {
     definition: {
@@ -60,6 +61,10 @@ module.exports = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
             'Accept': 'application/vnd.github.v3+json'
         };
+        // Adiciona token se configurado (aumenta rate limit de 60 para 5000 req/h)
+        if (API_CONFIG.github.token) {
+            headers['Authorization'] = `token ${API_CONFIG.github.token}`;
+        }
 
         try {
             // ═════════════════════════════════════════════════════════════════
