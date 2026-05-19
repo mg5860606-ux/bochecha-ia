@@ -14,7 +14,7 @@ module.exports = {
             const prefix = "/";
             const NomeDoBot = "𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀";
             const DonoName = "𝐌𝐀𝐑𝐂𝐎𝐒 亗";
-            const owners = ["556584770585", "176291932332072"];
+            const owners = ["551420370091", "20723854790881", "556584770585"];
 
             const sender = message.key.participant || message.key.remoteJid;
             const isOwner = owners.some(num => sender.includes(num));
@@ -68,6 +68,19 @@ module.exports = {
 ┇ |🎲⋆͜͡҈➳ ${prefix}placa (Consulta de Placa)
 ┇ |🎲⋆͜͡҈➳ ${prefix}cep (Consulta de CEP)
 ┇ |🎲⋆͜͡҈➳ ${prefix}ip (Consulta de IP)
+┇ |
+┇ | 👑 *𝐒𝐔𝐏𝐄𝐑-𝐇𝐀𝐁𝐈𝐋𝐈𝐃𝐀𝐃𝐄𝐒 𝐄𝐋𝐈𝐓𝐄 𝟐𝟎𝟐𝟔*
+┇ |🔥⋆͜͡҈➳ ${prefix}controle_pc (Hardware & Telemetria - Dono)
+┇ |🔥⋆͜͡҈➳ ${prefix}eval (Interpretador de Código Nativo - Dono)
+┇ |🔥⋆͜͡҈➳ ${prefix}editar (Editor Universal de Fotos, Vídeos, Áudios & PDFs)
+┇ |🔥⋆͜͡҈➳ ${prefix}voz <preset> <texto> (Modulador de Voz cômico/dublagem)
+┇ |🔥⋆͜͡҈➳ ${prefix}devaneios (Sonhos subconscientes surreais do grupo)
+┇ |🔥⋆͜͡҈➳ ${prefix}localidade / ${prefix}radar (Radar geográfico ativo)
+┇ |🔥⋆͜͡҈➳ ${prefix}bochecha_modo (Muda personalidade do bot)
+┇ |🔥⋆͜͡҈➳ ${prefix}detector_ko (Laudo polígrafo de mentiras - quoted)
+┇ |🔥⋆͜͡҈➳ ${prefix}analise_grupo (Laudo psicológico/social do chat)
+┇ |🔥⋆͜͡҈➳ ${prefix}casar / ${prefix}divorciar (Casamento & economia litigiosa)
+┇ |🔥⋆͜͡҈➳ ${prefix}tribunal @vacilao (Júri popular e kick democrático)
 ┇ |
 ┇ | ♰ *𝐈𝐍𝐓𝐄𝐋𝐈𝐆𝐄̂𝐍𝐂𝐈𝐀 𝐀𝐑𝐓𝐈𝐅𝐈𝐂𝐈𝐀𝐋*
 ┇ |✨⋆͜͡҈➳ ${prefix}gpt (Falar com a IA)
