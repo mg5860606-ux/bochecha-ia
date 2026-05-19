@@ -148,7 +148,7 @@ async function startBot() {
 			creds: state.creds,
 			keys: makeCacheableSignalKeyStore(state.keys, logger),
 		},
-		browser: ['Bochecha-IA', 'Chrome', '110.0.0.0'],
+		browser: ['Bochecha-IA', 'Safari', '537.36'],
 		syncFullHistory: false,
 		markOnlineOnConnect: true,
 		generateHighQualityLinkPreview: true,
@@ -237,20 +237,28 @@ async function startBot() {
 			const lastStatus = lastDisconnect?.error?.output?.statusCode ?? lastDisconnect?.error?.status;
 			console.log(chalk.yellow(`[🔌 Conexão Fechada] Status: ${lastStatus} (Tentativa consecutiva: ${consecutiveFailures})`));
 			
-			// Se o usuário ainda não conectou (não registrado), qualquer fechamento de conexão exige reiniciar
-			// a pasta de sessão para evitar o loop de status 428. Exceto se for um status temporário (como 515 restartRequired
-			// ou 408 timeout/lost), onde devemos manter os arquivos para prosseguir com o login em andamento!
 			const isRegistered = sock.authState?.creds?.registered;
 			const isTemporary = lastStatus === 515 || lastStatus === 408 || lastStatus === 503;
 			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401 || (!isRegistered && !isTemporary);
 			const shouldReconnect = !isLoggedOut;
 
 			if (shouldReconnect) {
-				const delay = Math.min(3000 * consecutiveFailures, 15000);
-				console.log(chalk.gray(`Falha de conexão temporária. Mantendo a sessão intacta. Tentando reconectar em ${delay/1000}s...`));
-				setTimeout(() => startBot(), delay);
+				// 408 em loop: após 5 falhas, limpa sessão e força novo QR Code
+				if (lastStatus === 408 && consecutiveFailures >= 5) {
+					console.log(chalk.red(`[🔌] Muitos timeouts 408 consecutivos. Limpando sessão e forçando novo QR Code...`));
+					consecutiveFailures = 0;
+					setTimeout(() => {
+						try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
+						startBot();
+					}, 5000);
+				} else {
+					// Delay exponencial: máx 60s para dar tempo ao WhatsApp de liberar
+					const delay = Math.min(3000 * consecutiveFailures, 60000);
+					console.log(chalk.gray(`Falha de conexão temporária. Mantendo a sessão intacta. Tentando reconectar em ${delay/1000}s...`));
+					setTimeout(() => startBot(), delay);
+				}
 			} else {
-				consecutiveFailures = 0; // reseta
+				consecutiveFailures = 0;
 				console.log(chalk.red(`Sessão desconectada ou desvinculada no celular (Status ${lastStatus}). Limpando credenciais antigas...`));
 				setTimeout(() => {
 					try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}

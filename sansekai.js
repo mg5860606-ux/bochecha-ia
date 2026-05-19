@@ -333,6 +333,9 @@ class StorageManager {
                 }
             }
 
+            // Captura o horário de modificação do arquivo local antes de comparar com o Firestore
+            const localMtime = existsLocal ? fs.statSync(filePath).mtimeMs : Date.now();
+
             // Sincronização em Background com o Cloud Firestore
             const baseName = path.basename(filePath);
             const { db, doc, getDoc, setDoc } = require('./firebase_connector');
@@ -344,7 +347,7 @@ class StorageManager {
                     const cloudData = cloudDoc.data;
                     
                     // Se o dado da nuvem for mais recente, atualiza o cache local
-                    if (cloudDoc.lastUpdated && (!localData._lastLocalUpdate || cloudDoc.lastUpdated > localData._lastLocalUpdate)) {
+                    if (cloudDoc.lastUpdated && cloudDoc.lastUpdated > localMtime) {
                         console.log(chalk.green(`[🔥 FIREBASE] Sincronizado '${baseName}' do Firestore!`));
                         this.cache.set(filePath, cloudData);
                         fs.writeFileSync(filePath, JSON.stringify(cloudData, null, 2));
@@ -354,7 +357,7 @@ class StorageManager {
                     console.log(chalk.yellow(`[🔥 FIREBASE] Backup inicial de '${baseName}' enviado ao Firestore.`));
                     await setDoc(docRef, {
                         data: localData,
-                        lastUpdated: Date.now()
+                        lastUpdated: localMtime
                     });
                 }
             }).catch(err => {
@@ -388,21 +391,18 @@ class StorageManager {
                 fs.copyFileSync(filePath, `${filePath}.bak`);
             }
             
-            // Adiciona timestamp local para controle de versionamento
-            const dataToSave = { ...data };
-            const lastUpdate = Date.now();
-            dataToSave._lastLocalUpdate = lastUpdate;
-
-            fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2));
-            this.cache.set(filePath, dataToSave);
+            // Grava o JSON limpo direto no disco (sem poluir com _lastLocalUpdate e mantendo arrays como arrays)
+            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+            this.cache.set(filePath, data);
 
             // Escrita assíncrona não-bloqueante no Firestore
             const baseName = path.basename(filePath);
             const { db, doc, setDoc } = require('./firebase_connector');
             const docRef = doc(db, "database_json", baseName);
+            const lastUpdate = Date.now();
 
             setDoc(docRef, {
-                data: dataToSave,
+                data: data,
                 lastUpdated: lastUpdate
             }).then(() => {
                 // Sucesso silencioso
@@ -1056,15 +1056,7 @@ class KeyRotationEngine {
 
         // Modelos GRATUITOS: não precisam de crédito — SEMPRE tentáveis
         this.freeModels = [
-            "google/gemini-2.5-flash-preview:free",
-            "google/gemma-3-27b-it:free",
-            "openai/gpt-oss-120b:free",
-            "google/gemma-4-31b-it:free",
-            "meta-llama/llama-4-scout:free",
-            "nvidia/nemotron-nano-12b-v2-vl:free",
-            "nvidia/nemotron-3-nano-30b-a3b:free",
-            "z-ai/glm-4.5-air:free",
-            "baidu/cobuddy:free"
+            "openrouter/free"
         ];
 
         // Usa apenas modelos gratuitos
@@ -2958,13 +2950,15 @@ class SecuritySystem {
  * automaticamente de acordo com as regras de Modo Noturno programadas.
  */
 class SchedulerSystem {
+    static intervalRef = null;
     /**
      * Inicia o loop cron de verificação do Modo Noturno.
      */
     static start(sock) {
+        if (SchedulerSystem.intervalRef) clearInterval(SchedulerSystem.intervalRef);
         Logger.info("Scheduler", "Loop de Modo Noturno iniciado com sucesso.");
         
-        setInterval(async () => {
+        SchedulerSystem.intervalRef = setInterval(async () => {
             if (!fs.existsSync(NOTURNO_FILE)) return;
             try {
                 const db = JSON.parse(fs.readFileSync(NOTURNO_FILE, 'utf8'));
@@ -3349,7 +3343,8 @@ ${chatLogs}`;
 
         // Sincroniza mapeamentos de LIDs no início e a cada 5 minutos
         setTimeout(() => BochechaEngine.syncLidMappings(), 5000);
-        setInterval(() => BochechaEngine.syncLidMappings(), 300000);
+        if (this.lidSyncInterval) clearInterval(this.lidSyncInterval);
+        this.lidSyncInterval = setInterval(() => BochechaEngine.syncLidMappings(), 300000);
 
         Logger.info("Engine.Binder", "Vinculando escutas de eventos WhatsApp ao Socket...");
 
@@ -4912,7 +4907,9 @@ ${chatLogs}`;
         const sys = await composer.build(chatId, isOwner, { pushname, level, xp, warns, userId: sender });
         const rawHistory = await sessionManager.getHistory(chatId);
         
-        const history = rawHistory.map(m => ({
+        // Garante que rawHistory é sempre um array (Firebase pode retornar objeto ou null)
+        const safeHistory = Array.isArray(rawHistory) ? rawHistory : [];
+        const history = safeHistory.map(m => ({
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }]
         }));
