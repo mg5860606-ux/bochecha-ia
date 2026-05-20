@@ -30,9 +30,9 @@ Alimentado pelos modelos de linguagem de maior prestígio do planeta (*Claude 3.
 ## ⚡ Recursos de Elite SOTA & Novidades (v5.5)
 
 ### 👑 1. Sistema Imperial de VIPs (Tratamento Real)
-O Bochecha obedece fielmente às ordens de relacionamento de seu criador. 
-* **Tratamento Real**: A namorada do Marcos (**Yandra**) possui registro prioritário VIP no banco de dados (`database_vips.json`). Ela é tratada pelo Bochecha como uma rainha absoluta em todas as interações.
-* **Revelação de Autoria**: Se questionado sobre o motivo de estar falando de maneira tão formal e especial, o Bochecha revela a verdade imediatamente marcando o criador: `"@551420370091 me deu essas ordens"`.
+O Bochecha obedece fielmente às ordens de tratamento especial de seu criador. 
+* **Tratamento Real**: Marcos (que está atualmente solteiro/sem namorada) pode definir registros prioritários VIP no banco de dados (`database_vips.json`). Qualquer pessoa adicionada nessa lista é tratada pelo Bochecha como realeza absoluta em todas as interações.
+* **Revelação de Autoria**: Se questionado sobre o motivo de estar falando de maneira tão formal e especial com um VIP, o Bochecha revela a verdade imediatamente marcando o criador: `"@551420370091 me deu essas ordens"`.
 
 ### 🔞 2. Bochecha Adult-System & Conteúdos NSFW
 * **Busca e Download de Vídeos Adultos**: Sempre que você ou os administradores do grupo solicitarem um vídeo adulto (ex: *"bochecha quero um porno de hentai"* ou *"bochecha quero um video porno aleatorio"*), a skill `/baixar_adulto` entra em ação.
@@ -50,7 +50,13 @@ O Bochecha agora interage com o chat como se fosse um usuário real, de forma na
 * **Figurinhas de Memes**: Quando a IA decide expressar sua reação através de figurinhas em vez de texto, ela envia a tag `[FIGURINHA_REACAO]`. O bot intercepta a chamada, escolhe de forma aleatória um meme brasileiro clássico de alta qualidade (Gretchen, Nazaré confusa, Chapolin, Latrell rindo, etc.), faz o download, converte em WebP usando o `wa-sticker-formatter` e salva em um cache local (`lib/stickers/`) para envios futuros instantâneos.
 * **Puxar Assuntos**: Instruído nativamente a diversificar assuntos e puxar tópicos inusitados de forma ativa quando a conversa esfriar.
 
-### ⚡ 5. Resposta Rápida Sem Prefixo
+### 📤 5. Comando de Encaminhamento Inteligente (Mídia e Mensagens)
+* **Encaminhamento Multiuso**: Marcos e os Administradores de grupos podem responder a qualquer tipo de mídia (fotos, vídeos, áudios, figurinhas) ou texto e comandar o bot para enviar a outra conversa:
+  * Exemplo: `"bochecha manda esse vídeo no pv do Fernando"`, `"bochecha manda no pv de Yandra"`, `"bochecha manda pro grupo Teste"`.
+* **Identificação Transparente**: O Bochecha envia uma pequena introdução marcando quem enviou a mensagem (ex: `Olá! O Criador Marcos (@...) pediu para te entregar isso:` ou `Olá! O Admin [Nome] (@...) pediu para te entregar isso:`) e na sequência envia a mídia/mensagem original.
+* **Resolução e Confirmação de Conflitos**: Se o bot encontrar múltiplos contatos ou grupos com o mesmo nome na agenda ou nos rankings de mensagens, ele responde exibindo uma lista de opções para você escolher digitando o número correspondente (ex: digitar `1`, `2`).
+
+### ⚡ 6. Resposta Rápida Sem Prefixo
 * **Interceção Econômica**: Se algum membro digitar apenas `"bot"` ou o prefixo puro (ex: `/`), o Bochecha responde instantaneamente com: `"opa tudo bem ? Oque manda ?"` sem consumir tokens das chaves de API, agilizando o atendimento.
 
 ---

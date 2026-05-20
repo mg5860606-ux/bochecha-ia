@@ -7,7 +7,7 @@ module.exports = {
     definition: {
         function: {
             name: "definir_vip",
-            description: "Permite ao Marcos definir um tratamento especial para um número específico. Ex: 'trate ela como rainha, ela é minha namorada'. O bot vai lembrar e aplicar o tratamento sempre que essa pessoa interagir. Use SOMENTE quando o Marcos (isOwner) der uma ordem explícita de tratamento para alguém.",
+            description: "Permite ao Marcos definir um tratamento especial para um número específico. Ex: 'trate ela com o máximo de respeito e prioridade'. O bot vai lembrar e aplicar o tratamento sempre que essa pessoa interagir. Use SOMENTE quando o Marcos (isOwner) der uma ordem explícita de tratamento para alguém.",
             parameters: {
                 type: "object",
                 properties: {
@@ -17,11 +17,11 @@ module.exports = {
                     },
                     nome: {
                         type: "string",
-                        description: "Nome ou apelido da pessoa (ex: Yandra, amor, minha namorada)"
+                        description: "Nome ou apelido da pessoa (ex: Maria, VIP, amiga)"
                     },
                     tratamento: {
                         type: "string",
-                        description: "A instrução de tratamento em texto livre (ex: 'trate ela como uma rainha, ela é minha namorada')"
+                        description: "A instrução de tratamento em texto livre (ex: 'trate ela com prioridade máxima e chame de rainha')"
                     },
                     acao: {
                         type: "string",

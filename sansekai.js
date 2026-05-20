@@ -113,8 +113,7 @@ const RANKING_FILE = path.join(SKILLS_DIR, "database_ranking.json");
 const KNOWLEDGE_FILE = path.join(LEARNINGS_DIR, "knowledge_base.json");
 const EMOTIONAL_FILE = path.join(LEARNINGS_DIR, "emotional_engine.json");
 
-// Donos padrão (Hardcoded para contingência absoluta)
-const DEFAULT_OWNERS = ["551420370091", "20723854790881"];
+const DEFAULT_OWNERS = config.OWNER_NUMBERS || ["551420370026"];
 
 // Banco de mapeamento de LIDs (Local Identifiers do WhatsApp) para JIDs reais de telefone
 const LID_MAP_FILE = path.join(LEARNINGS_DIR, "lid_mappings.json");
@@ -149,7 +148,25 @@ function normalizeJid(jid) {
         return lidMappings[cleanJid];
     }
 
-    // 2. Se for LID, tenta resolver pelo store
+    // 2. Se for LID, tenta resolver pelo signalRepository do Baileys
+    if (cleanJid.endsWith('@lid') && BochechaEngine.sockRef) {
+        try {
+            const sock = BochechaEngine.sockRef;
+            if (sock.signalRepository && sock.signalRepository.lidMapping) {
+                const pn = sock.signalRepository.lidMapping.getPNForLID(cleanJid);
+                if (pn) {
+                    const resolved = pn.endsWith('@s.whatsapp.net') ? pn : pn + '@s.whatsapp.net';
+                    lidMappings[cleanJid] = resolved;
+                    saveLidMappings();
+                    return resolved;
+                }
+            }
+        } catch (e) {
+            // Silencioso
+        }
+    }
+
+    // 3. Se for LID, tenta resolver pelo store
     if (cleanJid.endsWith('@lid') && BochechaEngine.storeRef) {
         try {
             const contacts = BochechaEngine.storeRef.contacts || {};
@@ -166,6 +183,147 @@ function normalizeJid(jid) {
     }
 
     return cleanJid;
+}
+
+/**
+ * Busca inteligente de contatos ou grupos correspondentes por nome/apelido ou número direto.
+ * @param {any} sock Instância Baileys.
+ * @param {string} name Nome ou número a pesquisar.
+ * @param {string} fromChatId ID do chat de origem para contexto.
+ * @param {string} type Tipo de busca ('pv' ou 'grupo').
+ * @returns {Promise<Array<{jid: string, name: string, context: string}>>} Retorna lista de candidatos encontrados.
+ */
+async function findCandidates(sock, name, fromChatId, type) {
+    if (!name) return [];
+    const cleanName = name.toLowerCase().trim();
+    const candidatesMap = new Map();
+
+    const addCandidate = (jid, displayName, context) => {
+        if (!jid) return;
+        if (!candidatesMap.has(jid)) {
+            candidatesMap.set(jid, { jid, name: displayName, context });
+        }
+    };
+
+    // 1. Se já for um JID válido ou número puro com/sem DDI
+    if (cleanName.endsWith('@s.whatsapp.net') || cleanName.endsWith('@lid') || cleanName.endsWith('@g.us')) {
+        return [{ jid: cleanName, name: cleanName, context: 'JID Direto' }];
+    }
+    const numbersOnly = cleanName.replace(/[^0-9]/g, '');
+    if (numbersOnly.length >= 8 && /^\d+$/.test(cleanName.replace('+', '').replace('-', ''))) {
+        const jid = numbersOnly + '@s.whatsapp.net';
+        return [{ jid, name: jid, context: 'Número Direto' }];
+    }
+
+    // 2. Se for busca de grupo
+    if (type === 'grupo') {
+        try {
+            const groups = await sock.groupFetchAllParticipating().catch(() => ({}));
+            for (const jid in groups) {
+                const subject = groups[jid].subject || "";
+                if (subject.toLowerCase().includes(cleanName)) {
+                    addCandidate(jid, subject, 'Grupos Participantes');
+                }
+            }
+        } catch (e) {
+            Logger.error("findCandidates.groups", e);
+        }
+        return Array.from(candidatesMap.values());
+    }
+
+    // 3. Se for busca de PV (Contato)
+    // 3.1. Pesquisa nos participantes do grupo atual (caso a mensagem venha de um grupo)
+    if (fromChatId && fromChatId.endsWith('@g.us')) {
+        try {
+            const metadata = BochechaEngine.storeRef?.chats?.get(fromChatId) || await sock.groupMetadata(fromChatId).catch(() => null);
+            if (metadata && metadata.participants) {
+                for (const participant of metadata.participants) {
+                    const pjid = participant.id;
+                    const contact = BochechaEngine.storeRef?.contacts?.[pjid];
+                    const cName = contact?.name || contact?.notify || contact?.verifiedName || '';
+                    if (cName && cName.toLowerCase().includes(cleanName)) {
+                        addCandidate(pjid, cName, `Grupo Atual (${metadata.subject || 'Este Grupo'})`);
+                    }
+                }
+            }
+        } catch (e) {
+            Logger.error("findCandidates.groupParticipants", e);
+        }
+    }
+
+    // 3.2. Pesquisa em database_ranking.json
+    try {
+        if (fs.existsSync(RANKING_FILE)) {
+            const rankingDb = JSON.parse(fs.readFileSync(RANKING_FILE, 'utf8'));
+            for (const gid in rankingDb) {
+                const users = rankingDb[gid];
+                if (typeof users === 'object') {
+                    let groupContext = 'Ranking';
+                    try {
+                        const groups = await sock.groupFetchAllParticipating().catch(() => ({}));
+                        if (groups[gid]) {
+                            groupContext = `Ranking no Grupo: ${groups[gid].subject || 'Desconhecido'}`;
+                        }
+                    } catch {}
+
+                    for (const uid in users) {
+                        const user = users[uid];
+                        if (user && user.name && user.name.toLowerCase().includes(cleanName)) {
+                            addCandidate(uid, user.name, groupContext);
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        Logger.error("findCandidates.ranking", e);
+    }
+
+    // 3.3. Pesquisa em chat_activity.json
+    try {
+        const activityFile = path.join(LEARNINGS_DIR, 'chat_activity.json');
+        if (fs.existsSync(activityFile)) {
+            const activityDb = JSON.parse(fs.readFileSync(activityFile, 'utf8'));
+            for (const gid in activityDb) {
+                const messages = activityDb[gid];
+                if (Array.isArray(messages)) {
+                    let groupContext = 'Atividade';
+                    try {
+                        const groups = await sock.groupFetchAllParticipating().catch(() => ({}));
+                        if (groups[gid]) {
+                            groupContext = `Mensagens no Grupo: ${groups[gid].subject || 'Desconhecido'}`;
+                        }
+                    } catch {}
+
+                    for (const msg of messages) {
+                        if (msg && msg.pushname && msg.pushname.toLowerCase().includes(cleanName) && msg.user) {
+                            addCandidate(msg.user, msg.pushname, groupContext);
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        Logger.error("findCandidates.activity", e);
+    }
+
+    // 3.4. Pesquisa nos contatos do Store global
+    if (BochechaEngine.storeRef && BochechaEngine.storeRef.contacts) {
+        const contacts = BochechaEngine.storeRef.contacts;
+        for (const id in contacts) {
+            const contact = contacts[id];
+            if (contact) {
+                const nameFields = [contact.name, contact.notify, contact.verifiedName];
+                for (const field of nameFields) {
+                    if (field && field.toLowerCase().includes(cleanName)) {
+                        addCandidate(id, field, 'Contatos Salvos');
+                    }
+                }
+            }
+        }
+    }
+
+    return Array.from(candidatesMap.values());
 }
 
 // Cache na RAM para Anti-Delete (Mensagens originais)
@@ -3389,6 +3547,24 @@ class BochechaEngine {
                 }
             }
 
+            // 3. Mapeia proativamente os donos configurados via Baileys signalRepository
+            if (BochechaEngine.sockRef.signalRepository && BochechaEngine.sockRef.signalRepository.lidMapping) {
+                const owners = config.OWNER_NUMBERS || [];
+                for (const ownerNum of owners) {
+                    try {
+                        const cleanNum = ownerNum.replace(/[^0-9]/g, '');
+                        const lid = BochechaEngine.sockRef.signalRepository.lidMapping.getLIDForPN(cleanNum);
+                        if (lid) {
+                            const resolvedLid = lid.endsWith('@lid') ? lid : lid + '@lid';
+                            const resolvedJid = cleanNum + "@s.whatsapp.net";
+                            if (lidMappings[resolvedLid] !== resolvedJid) {
+                                lidMappings[resolvedLid] = resolvedJid;
+                            }
+                        }
+                    } catch (err) {}
+                }
+            }
+
             saveLidMappings();
         } catch (e) {
             Logger.error("BochechaEngine.syncLidMappings", e);
@@ -3654,6 +3830,44 @@ ${chatLogs}`;
             const rawSender = normalizeJid(rawSenderUnnorm);
             const sender = rawSender.split('@')[0];
 
+            // 🛡️ VERIFICADOR DE ESCOLHA DE ENCAMINHAMENTO PENDENTE
+            const pendingKey = `${from}-${rawSender}`;
+            if (global.pendingForwards && global.pendingForwards.has(pendingKey) && body) {
+                const pending = global.pendingForwards.get(pendingKey);
+                const selectedIndex = parseInt(body.trim(), 10) - 1;
+                
+                if (!isNaN(selectedIndex) && selectedIndex >= 0 && selectedIndex < pending.candidates.length) {
+                    const chosen = pending.candidates[selectedIndex];
+                    global.pendingForwards.delete(pendingKey);
+                    
+                    await parsedMessage.reply(`🚀 Confirmado! Encaminhando para *${chosen.name}*...`);
+                    
+                    try {
+                        let introText = "";
+                        if (pending.targetType === 'pv') {
+                            introText = `Olá! O ${pending.senderTitle} (@${pending.sender}) pediu para te entregar isso:`;
+                        } else {
+                            introText = `Olá grupo! O ${pending.senderTitle} (@${pending.sender}) pediu para enviar isso aqui:`;
+                        }
+
+                        // Envia introdução
+                        await sock.sendMessage(chosen.jid, { text: introText, mentions: [pending.rawSender] });
+
+                        // Encaminha original
+                        await sock.copyNForward(chosen.jid, pending.originalQuoted, true);
+
+                        await parsedMessage.reply(`✅ *Enviado com sucesso!* A mensagem/mídia foi entregue no ${pending.targetType === 'pv' ? 'PV de' : 'grupo'} *${chosen.name}*.`);
+                    } catch (forwardErr) {
+                        Logger.error("BochechaEngine.ForwardChoice", forwardErr);
+                        await parsedMessage.reply(`❌ *Falha no envio:* Ocorreu um erro ao tentar encaminhar a mensagem. Detalhes: ${forwardErr.message}`);
+                    }
+                    return;
+                } else {
+                    // Cancela silenciosamente se digitar qualquer outra coisa
+                    global.pendingForwards.delete(pendingKey);
+                }
+            }
+
             // ⚖️ SISTEMA DE COLETA DE VOTOS DO TRIBUNAL DO BOCHECHA
             if (isGroup && global.activeTribunals && global.activeTribunals.has(from) && !parsedMessage.key.fromMe) {
                 const tribunal = global.activeTribunals.get(from);
@@ -3842,6 +4056,110 @@ ${chatLogs}`;
 
             const settings = await storage.getSettings();
             const isOwner = DEFAULT_OWNERS.includes(sender) || settings.owners.includes(sender) || parsedMessage.key.fromMe;
+
+            // Determinar se o remetente é admin do grupo (se a mensagem veio de um grupo)
+            let isAdmin = false;
+            if (isGroup && sock) {
+                try {
+                    const metadata = BochechaEngine.storeRef?.chats?.get(from) || await sock.groupMetadata(from).catch(() => null);
+                    const participants = metadata?.participants || [];
+                    const senderPart = participants.find(p => p.id.split('@')[0] === rawSender.split('@')[0]);
+                    isAdmin = senderPart?.admin === 'admin' || senderPart?.admin === 'superadmin';
+                } catch (err) {
+                    Logger.error("isAdminCheck", err);
+                }
+            }
+            
+            const hasForwardAccess = isOwner || isAdmin;
+
+            // ═══════════════════════════════════════════════════════
+            // COMANDO DE ENCAMINHAMENTO AUTÔNOMO (DONOS E ADMINS)
+            // ═══════════════════════════════════════════════════════
+            if (hasForwardAccess && body) {
+                const forwardMatch = body.match(/bochecha\s+manda\s+.*(?:no|pro|para\s+o|para)\s+(pv|grupo)\s+(?:do|da|de|para\s+o|para)?\s*(.+)/i);
+                if (forwardMatch) {
+                    const targetType = forwardMatch[1].toLowerCase().trim(); // 'pv' ou 'grupo'
+                    const targetName = forwardMatch[2].trim();
+                    const stanzaId = audioContextInfo.stanzaId;
+
+                    if (!stanzaId) {
+                        await parsedMessage.reply("⚠️ *Bochecha detectou o comando:* Mas você precisa *responder/marcar* a mensagem, foto, vídeo ou figurinha que deseja enviar!");
+                        return;
+                    }
+
+                    // Notifica o remetente de que a busca foi iniciada
+                    await parsedMessage.reply(`🔍 Buscando o ${targetType === 'pv' ? 'contato' : 'grupo'} *"${targetName}"* no meu cérebro...`);
+
+                    const candidates = await findCandidates(sock, targetName, from, targetType);
+
+                    if (candidates.length === 0) {
+                        await parsedMessage.reply(`❌ *Não localizado:* Não consegui encontrar nenhum ${targetType === 'pv' ? 'contato' : 'grupo'} com o nome *"${targetName}"* no histórico recente.`);
+                        return;
+                    }
+
+                    // Reconstruir ou carregar a mensagem original
+                    let originalQuoted = await BochechaEngine.storeRef?.loadMessage(from, stanzaId);
+                    if (!originalQuoted) {
+                        originalQuoted = {
+                            key: {
+                                remoteJid: from,
+                                fromMe: quotedSender === normalizeJid(sock.user.id),
+                                id: stanzaId,
+                                participant: quotedSender
+                            },
+                            message: quotedMessage
+                        };
+                    }
+
+                    const senderTitle = isOwner ? "Criador *Marcos*" : `Admin *${pushname}*`;
+
+                    if (candidates.length === 1) {
+                        const chosen = candidates[0];
+                        try {
+                            let introText = "";
+                            if (targetType === 'pv') {
+                                introText = `Olá! O ${senderTitle} (@${sender.split('@')[0]}) pediu para te entregar isso:`;
+                            } else {
+                                introText = `Olá grupo! O ${senderTitle} (@${sender.split('@')[0]}) pediu para enviar isso aqui:`;
+                            }
+
+                            // Envia introdução com menção ao remetente
+                            await sock.sendMessage(chosen.jid, { text: introText, mentions: [rawSender] });
+
+                            // Encaminha a mensagem/mídia/figurinha/áudio original
+                            await sock.copyNForward(chosen.jid, originalQuoted, true);
+
+                            // Confirmação para o remetente
+                            await parsedMessage.reply(`✅ *Enviado com sucesso!* A mensagem/mídia foi entregue no ${targetType === 'pv' ? 'PV de' : 'grupo'} *${chosen.name}*.`);
+                        } catch (forwardErr) {
+                            Logger.error("BochechaEngine.ForwardCommand", forwardErr);
+                            await parsedMessage.reply(`❌ *Falha no envio:* Ocorreu um erro ao tentar encaminhar a mensagem. Detalhes: ${forwardErr.message}`);
+                        }
+                        return;
+                    } else {
+                        // Salva o estado de escolha pendente para o remetente
+                        global.pendingForwards = global.pendingForwards || new Map();
+                        global.pendingForwards.set(`${from}-${rawSender}`, {
+                            candidates,
+                            originalQuoted,
+                            targetType,
+                            senderTitle,
+                            rawSender,
+                            sender
+                        });
+
+                        // Constrói uma mensagem interativa bonita
+                        let listText = `⚠️ *Múltiplos contatos com nome "${targetName}" encontrados:*\n`;
+                        listText += `Responda a esta mensagem digitando o número correspondente para escolher o destino:\n\n`;
+                        candidates.forEach((c, idx) => {
+                            listText += `*[${idx + 1}]* ${c.name}\n   └─ 📁 Contexto: _${c.context}_\n\n`;
+                        });
+                        listText += `Digite apenas o número de sua escolha! Para cancelar, digite qualquer outra coisa.`;
+                        await parsedMessage.reply(listText);
+                        return;
+                    }
+                }
+            }
 
             // Salva todas as mensagens normais no histórico para cognição social de grupo ("fofoca")
             if (!parsedMessage.key.fromMe && (body || hasMedia)) {

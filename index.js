@@ -37,6 +37,8 @@ const {
 	useMultiFileAuthState,
 	makeCacheableSignalKeyStore,
 	proto,
+	generateWAMessageFromContent,
+	getContentType,
 } = require("@whiskeysockets/baileys");
 const fs = require('fs');
 const path = require('path');
@@ -75,12 +77,28 @@ const question = (text) => {
 const logger = Pino({ level: "silent" });
 
 const msgCache = new Map();
+const contacts = {};
 const store = {
+	contacts,
 	bind(ev) {
 		ev.on("messages.upsert", ({ messages }) => {
 			for (const msg of messages) {
 				if (msg.key?.remoteJid && msg.key?.id) {
 					msgCache.set(`${msg.key.remoteJid}:${msg.key.id}`, msg);
+				}
+			}
+		});
+		ev.on("contacts.upsert", (newContacts) => {
+			for (const contact of newContacts) {
+				if (contact.id) {
+					contacts[contact.id] = { ...(contacts[contact.id] || {}), ...contact };
+				}
+			}
+		});
+		ev.on("contacts.update", (updates) => {
+			for (const update of updates) {
+				if (update.id) {
+					contacts[update.id] = { ...(contacts[update.id] || {}), ...update };
 				}
 			}
 		});
