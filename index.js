@@ -463,10 +463,19 @@ console.clear();
 console.log(chalk.cyan(banner));
 const sansekai = require("./sansekai.js"); // Pré-carrega as skills agora, depois de limpar a tela
 
-// Inicializa o Painel Web na porta 3030
+// Inicializa o Painel Web em ambas as portas (3030 e a porta da Bronxys Host)
 try {
 	const { startPanelServer } = require("./lib/panelServer.js");
+	const config = require("./config.js");
+	
+	// Inicia na porta padrão local (3030)
 	startPanelServer(3030, sansekai, () => globalSock);
+	
+	// Inicia na porta configurada (ex: 4061 da Bronxys Host)
+	const customPort = (config && config.BOT_CONFIG && config.BOT_CONFIG.panelPort) || 4061;
+	if (customPort !== 3030) {
+		startPanelServer(customPort, sansekai, () => globalSock);
+	}
 } catch (panelErr) {
 	console.error("Erro ao iniciar painel web:", panelErr);
 }
