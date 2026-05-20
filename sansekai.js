@@ -2115,8 +2115,8 @@ global.keyRotator = keyRotator;
  */
 class DialogSession {
     constructor() {
-        this.maxMessages = 30; // Limite de gatilho para sumarização
-        this.targetHistoryLength = 10; // Quanto manter intacto após sumarizar
+        this.maxMessages = 10; // Limite de gatilho para sumarização (salva no máximo 10 mensagens)
+        this.targetHistoryLength = 4; // Quanto manter intacto após sumarizar (mantém as últimas 4 mensagens + resumo)
         this.summaries = new Map();
         this.compressing = new Set(); // Evita compressões concorrentes para o mesmo chat
     }
@@ -2144,6 +2144,21 @@ class DialogSession {
             history = values;
             await this.saveHistory(chatId, history);
         }
+
+        // --- EXPIRAÇÃO POR INATIVIDADE (MÁXIMO 15 MINUTOS) ---
+        if (history.length > 0) {
+            const lastMsg = history[history.length - 1];
+            if (lastMsg && lastMsg.timestamp) {
+                const diffMs = Date.now() - lastMsg.timestamp;
+                const maxInactiveTime = 15 * 60 * 1000; // 15 minutos de inatividade
+                if (diffMs > maxInactiveTime) {
+                    Logger.warn("DialogSession", `Histórico de ${chatId} expirou por inatividade de 15 min. Limpando...`);
+                    await this.clearSession(chatId);
+                    return [];
+                }
+            }
+        }
+
         return history;
     }
 
@@ -2193,7 +2208,7 @@ class DialogSession {
         this.compressing.add(chatId);
 
         const compressCount = history.length - this.targetHistoryLength;
-        if (compressCount <= 5) {
+        if (compressCount <= 3) {
             this.compressing.delete(chatId);
             return;
         }
@@ -2234,7 +2249,8 @@ class DialogSession {
                     isSummaryMetadata: true,
                     summary: newSummary,
                     role: 'user',
-                    content: `[SISTEMA - RESUMO DAS INTERAÇÕES ANTERIORES]: ${newSummary}`
+                    content: `[SISTEMA - RESUMO DAS INTERAÇÕES ANTERIORES]: ${newSummary}`,
+                    timestamp: Date.now()
                 },
                 ...remainingHistory
             ];
@@ -2278,7 +2294,7 @@ class DialogSession {
             existingSummaryMeta = history.shift();
         }
 
-        history.push({ role, content });
+        history.push({ role, content, timestamp: Date.now() });
 
         if (existingSummaryMeta) {
             history.unshift(existingSummaryMeta);
