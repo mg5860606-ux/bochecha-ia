@@ -4202,7 +4202,9 @@ ${chatLogs}`;
                         let listText = `⚠️ *Múltiplos contatos com nome "${targetName}" encontrados:*\n`;
                         listText += `Responda a esta mensagem digitando o número correspondente para escolher o destino:\n\n`;
                         candidates.forEach((c, idx) => {
-                            listText += `*[${idx + 1}]* ${c.name}\n   └─ 📁 Contexto: _${c.context}_\n\n`;
+                            const isPerson = c.jid.endsWith('@s.whatsapp.net') || c.jid.endsWith('@lid');
+                            const mentionStr = isPerson ? `@${c.jid.split('@')[0]}` : `*${c.name}*`;
+                            listText += `*[${idx + 1}]* ${mentionStr} (${c.name})\n   └─ 📁 Contexto: _${c.context}_\n\n`;
                         });
                         listText += `Digite apenas o número de sua escolha! Para cancelar, digite qualquer outra coisa.`;
                         await parsedMessage.reply(listText);

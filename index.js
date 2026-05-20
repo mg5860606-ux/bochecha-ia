@@ -183,9 +183,29 @@ async function startBot() {
 
 	globalSock = sock;
 
-	// Interceptar sendMessage para rastrear IDs
+	// Interceptar sendMessage para rastrear IDs e injetar menções clicáveis automaticamente
 	const _origSend = sock.sendMessage.bind(sock);
 	sock.sendMessage = async (jid, message, options) => {
+		if (message && typeof message === 'object') {
+			let textContent = message.text || message.caption || "";
+			if (textContent && typeof textContent === 'string' && textContent.includes('@')) {
+				const matches = textContent.match(/@(\d{8,16})/g);
+				if (matches && matches.length > 0) {
+					if (!message.mentions) {
+						message.mentions = [];
+					}
+					for (const match of matches) {
+						const num = match.replace('@', '');
+						const suffix = num.length >= 15 ? '@lid' : '@s.whatsapp.net';
+						const mentionJid = num + suffix;
+						if (!message.mentions.includes(mentionJid)) {
+							message.mentions.push(mentionJid);
+						}
+					}
+				}
+			}
+		}
+
 		const res = await _origSend(jid, message, options);
 		if (res?.key?.id) {
 			sentMessageIds.add(res.key.id);

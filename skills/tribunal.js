@@ -1,4 +1,5 @@
 const path = require('path');
+const config = require('../config.js');
 
 module.exports = {
     definition: {
@@ -23,35 +24,36 @@ module.exports = {
     },
     async execute(args, { sock, from, sender, pushname, message }) {
         if (!from.endsWith('@g.us')) return "❌ O tribunal de júri popular só tem validade jurídica dentro de grupos público-profanos!";
-
+ 
         // Inicializa estrutura global de tribunais ativos se não existir
         if (!global.activeTribunals) global.activeTribunals = new Map();
-
+ 
         if (global.activeTribunals.has(from)) {
             return "⚠️ Já existe um julgamento em andamento neste grupo! Aguarde a sentença antes de abrir outro processo.";
         }
-
+ 
         // Determina o réu (alvo)
         let target = args.alvo || message.message?.extendedTextMessage?.contextInfo?.participant;
         if (!target && message.message?.extendedTextMessage?.contextInfo?.mentionedJid) {
             target = message.message.extendedTextMessage.contextInfo.mentionedJid[0];
         }
-
+ 
         if (!target) {
             return "❌ Você precisa marcar (@número) ou responder à mensagem do vacilão que deseja julgar!";
         }
-
+ 
         const reason = (args.motivo || args.texto || "respirar muito perto dos administradores").trim();
         const cleanSender = sender.split('@')[0];
         const cleanTarget = target.split('@')[0];
-
+ 
         // 1. Impedir de se julgar
         if (target === sender) {
             return "❌ Você não pode abrir um tribunal contra si mesmo, masoquista do caralho!";
         }
-
+ 
         // 2. Proteção do Criador Supremo (Marcos)
-        if (cleanTarget === "551420370091" || cleanTarget.includes("551420370091")) {
+        const owners = config.OWNER_NUMBERS || ["551420370026"];
+        if (owners.includes(cleanTarget)) {
             return "🚨 *IMPEACHMENT NEGADO!* 🚨\n\nVocê tentou julgar o programador supremo Marcos! O tribunal considerou isso um crime de lesa-majestade, a petição foi anulada e você foi considerado um completo pé de breque! Contemple sua insignificância! 💀🥀";
         }
 
