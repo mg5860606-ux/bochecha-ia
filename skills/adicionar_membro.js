@@ -17,8 +17,21 @@ module.exports = {
             }
         }
     },
-    async execute(args, { sock, from }) {
+    async execute(args, { sock, from, message, isOwner }) {
         if (!from.endsWith('@g.us')) return "❌ Este comando só funciona em grupos.";
+
+        const sender = message.key.participant || message.key.remoteJid;
+        let isGroupAdmins = false;
+        try {
+            const groupMetadata = await sock.groupMetadata(from);
+            const participants = groupMetadata.participants;
+            const admins = participants.filter(p => p.admin !== null).map(p => p.id);
+            isGroupAdmins = admins.includes(sender);
+        } catch (e) {}
+
+        if (!isGroupAdmins && !isOwner) {
+            return "❌ Apenas administradores do grupo ou o Arquiteto podem usar este comando.";
+        }
 
         if (!args.mencao) {
             return "❌ Por favor, forneça o número da pessoa a ser adicionada.";

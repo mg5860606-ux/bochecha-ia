@@ -4684,12 +4684,20 @@ ${chatLogs}`;
             if (body.startsWith("/")) {
                 const parts = body.split(" ");
                 const cmd = parts[0].toLowerCase();
+                const arg = parts.slice(1).join(" ").trim();
 
                 switch (cmd) {
+                    // ═══════════════════════════════
+                    // COMANDOS PÚBLICOS E GERAIS
+                    // ═══════════════════════════════
+
                     case "/ias":
                         try {
                             const ctx = { sock, from, message: parsedMessage, isOwner };
-                            await registry.execute("gerenciar_ias", { isCommand: true, command: cmd }, ctx);
+                            const res = await registry.execute("gerenciar_ias", { acao: "listar" }, ctx);
+                            if (res && typeof res === 'string' && res.trim()) {
+                                await parsedMessage.reply(res);
+                            }
                         } catch (err) {
                             Logger.error("Command.Ias", err);
                         }
@@ -4699,9 +4707,12 @@ ${chatLogs}`;
                         try {
                             const ctx = { sock, from, message: parsedMessage, isOwner };
                             const rawArg = parts.slice(1).join(" ").trim();
-                            await registry.execute("gerenciar_ias", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            const res = await registry.execute("gerenciar_ias", { acao: "definir", modelo: rawArg }, ctx);
+                            if (res && typeof res === 'string' && res.trim()) {
+                                await parsedMessage.reply(res);
+                            }
                         } catch (err) {
-                            Logger.error("Command.SetIa", err);
+                            Logger.error("Command.Setia", err);
                         }
                         return;
 
@@ -4709,9 +4720,12 @@ ${chatLogs}`;
                         try {
                             const ctx = { sock, from, message: parsedMessage, isOwner };
                             const rawArg = parts.slice(1).join(" ").trim();
-                            await registry.execute("git_manager", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            const res = await registry.execute("git_manager", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            if (res && typeof res === 'string' && res.trim()) {
+                                await parsedMessage.reply(res);
+                            }
                         } catch (err) {
-                            Logger.error("Command.Git", err);
+                            Logger.error("Command.GitManager", err);
                         }
                         return;
 
@@ -4719,9 +4733,12 @@ ${chatLogs}`;
                         try {
                             const ctx = { sock, from, message: parsedMessage, isOwner };
                             const rawArg = parts.slice(1).join(" ").trim();
-                            await registry.execute("web_reader", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            const res = await registry.execute("web_reader", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            if (res && typeof res === 'string' && res.trim()) {
+                                await parsedMessage.reply(res);
+                            }
                         } catch (err) {
-                            Logger.error("Command.Read", err);
+                            Logger.error("Command.WebReader", err);
                         }
                         return;
 
@@ -4757,9 +4774,11 @@ ${chatLogs}`;
 
                     case "/fofoca":
                     case "/resumir":
+                    case "/resumo":
                         try {
                             const ctx = { sock, from, chatId: from, message: parsedMessage, isOwner };
-                            await registry.execute("resumir_fofoca", {}, ctx);
+                            const res = await registry.execute("resumir_fofoca", {}, ctx);
+                            if (res) await parsedMessage.reply(res);
                         } catch (err) {
                             Logger.error("Command.ResumirFofoca", err);
                         }
@@ -4787,31 +4806,61 @@ ${chatLogs}`;
 
                     case "/perfil":
                         try {
-                            const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
-                            const rawArg = parts.slice(1).join(" ").trim();
-                            await registry.execute("analista_psicologico", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            const mentioned = parsedMessage.message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0;
+                            const hasQuoted = !!parsedMessage.message?.extendedTextMessage?.contextInfo?.participant;
+                            const hasArg = parts.slice(1).join(" ").trim().length > 0;
+
+                            if (mentioned || hasQuoted || hasArg) {
+                                const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
+                                const rawArg = parts.slice(1).join(" ").trim();
+                                await registry.execute("analista_psicologico", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            } else {
+                                const myCoins = await storage.addCoins(from, rawSender, 0);
+                                const rankingDb = fs.existsSync(RANKING_FILE) ? JSON.parse(fs.readFileSync(RANKING_FILE, 'utf8')) : {};
+                                const userRank = rankingDb[from]?.[rawSender] || { xp: 0, level: 1 };
+                                const emoDb = await storage.read(EMOTIONAL_FILE, { users: {} });
+                                const userEmo = emoDb.users[sender] || { affinity: 50, mood: 80 };
+
+                                let title = "👤 MEMBRO NEUTRO";
+                                if (userEmo.affinity >= 90) title = "🏆 CRIA DE ELITE / LEAL";
+                                else if (userEmo.affinity >= 70) title = "🛡️ ALIADO DAS SOMBRAS";
+                                else if (userEmo.affinity >= 40) title = "👤 PARCEIRO DO CHAT";
+                                else if (userEmo.affinity >= 15) title = "⚠️ PÉ DE BREQUE";
+                                else title = "💀 EXPULSO DA PACIÊNCIA";
+
+                                const nextLvlXp = userRank.level * 50;
+                                const curLvlXp = userRank.xp % nextLvlXp;
+                                const pct = Math.min(Math.floor((curLvlXp / nextLvlXp) * 100), 100);
+                                const fill = Math.min(Math.floor(pct / 10), 10);
+                                const xpBar = "▓".repeat(fill) + "░".repeat(10 - fill);
+
+                                const card = `╔═══════════════════════════════╗\n` +
+                                             `   👤 *DADOS DO USUÁRIO - PERFIL* 👤\n` +
+                                             `╚═══════════════════════════════╝\n\n` +
+                                             `👤 *Membro:* @${sender}\n` +
+                                             `👑 *Status:* ${title}\n` +
+                                             `🪙 *Carteira:* *${myCoins} Bochecha-Coins*\n\n` +
+                                             `⚡ *Nível Atual:* ${userRank.level}\n` +
+                                             `📊 *Experiência:* ${userRank.xp} XPs\n` +
+                                             `📶 *Progresso:* [${xpBar}] ${pct}%\n\n` +
+                                             `🎭 *Humor Bochecha:* ${userEmo.mood}%\n` +
+                                             `🥀 *Afinidade Bochecha:* ${userEmo.affinity}%\n` +
+                                             `*───────────────────────────────*`;
+                                await parsedMessage.reply(card, { mentions: [rawSender] });
+                            }
                         } catch (err) {
                             Logger.error("Command.Perfil", err);
                         }
                         return;
 
                     case "/mentira":
-                        try {
-                            const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
-                            const rawArg = parts.slice(1).join(" ").trim();
-                            await registry.execute("analista_psicologico", { isCommand: true, command: cmd, arg: rawArg }, ctx);
-                        } catch (err) {
-                            Logger.error("Command.Mentira", err);
-                        }
-                        return;
-
                     case "/clima":
                         try {
                             const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
                             const rawArg = parts.slice(1).join(" ").trim();
                             await registry.execute("analista_psicologico", { isCommand: true, command: cmd, arg: rawArg }, ctx);
                         } catch (err) {
-                            Logger.error("Command.Clima", err);
+                            Logger.error("Command.AnalistaPsicologico", err);
                         }
                         return;
 
@@ -4896,8 +4945,6 @@ ${chatLogs}`;
                         }
                         return;
 
-                    // ── ALIASES: comandos com nome diferente da skill ──
-
                     case "/calcular":
                     case "/calc":
                     case "/math": {
@@ -4911,11 +4958,40 @@ ${chatLogs}`;
                     case "/sorteio":
                     case "/sortear":
                     case "/sort": {
-                        const ctxS = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
-                        const argsS = { texto: parts.slice(1).join(" ").trim() };
-                        const resS = await registry.execute("sorteio", argsS, ctxS).catch(e => { Logger.error("Command.Sorteio", e); return null; });
-                        if (resS && typeof resS === 'string' && resS.trim() && resS !== 'Membro sorteado!') await parsedMessage.reply(resS);
-                        return;
+                        if (isGroup && !parts.slice(1).join(" ").trim()) {
+                            try {
+                                const metadata = await sock.groupMetadata(from);
+                                const participants = metadata.participants.map(p => p.id);
+                                
+                                const eligible = participants.filter(p => !p.includes(myNumber));
+                                const chosenJid = eligible.length > 0 
+                                    ? eligible[Math.floor(Math.random() * eligible.length)]
+                                    : participants[Math.floor(Math.random() * participants.length)];
+                                
+                                const cleanChosen = chosenJid.split('@')[0];
+                                const reason = arg ? `*${arg}*` : "ser o cara mais brabo do grupo";
+                                
+                                const commentOptions = [
+                                    `papo reto, o @${cleanChosen} foi escolhido para: ${reason}! Sem K.O, aceita que dói menos! 💀🥀`,
+                                    `a roleta do submundo girou e parou no @${cleanChosen}! O veredito é: ${reason}! 🛸🪐`,
+                                    `não adianta correr, @${cleanChosen}! Tu foi o sorteado para: ${reason}! Segura essa bucha! 💀`,
+                                    `os astros se alinharam e apontaram pro @${cleanChosen}! Parabéns (ou meus pêsames) por: ${reason}! 🥀⚡`
+                                ];
+                                
+                                const msg = `🎰 *SORTEIO DO SUBMUNDO* 🎰\n\n👉 ` + commentOptions[Math.floor(Math.random() * commentOptions.length)];
+                                await sock.sendMessage(from, { text: msg, mentions: [chosenJid] });
+                            } catch (err) {
+                                Logger.error("Command.Sorteio", err);
+                                await parsedMessage.reply("❌ Não consegui girar a roleta do sorteio agora!");
+                            }
+                            return;
+                        } else {
+                            const ctxS = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                            const argsS = { texto: parts.slice(1).join(" ").trim() };
+                            const resS = await registry.execute("sorteio", argsS, ctxS).catch(e => { Logger.error("Command.Sorteio", e); return null; });
+                            if (resS && typeof resS === 'string' && resS.trim() && resS !== 'Membro sorteado!') await parsedMessage.reply(resS);
+                            return;
+                        }
                     }
 
                     case "/tradutor":
@@ -5094,71 +5170,22 @@ ${chatLogs}`;
                         return;
                     }
 
-                    case "/perfil":
-                        try {
-                            const myCoins = await storage.addCoins(from, rawSender, 0);
-                            
-                            const rankingDb = fs.existsSync(RANKING_FILE) ? JSON.parse(fs.readFileSync(RANKING_FILE, 'utf8')) : {};
-                            const userRank = rankingDb[from]?.[rawSender] || { xp: 0, level: 1 };
-                            
-                            const emoDb = await storage.read(EMOTIONAL_FILE, { users: {} });
-                            const userEmo = emoDb.users[sender] || { affinity: 50, mood: 80 };
-                            
-                            let title = "👤 MEMBRO NEUTRO";
-                            if (userEmo.affinity >= 90) title = "🏆 CRIA DE ELITE / LEAL";
-                            else if (userEmo.affinity >= 70) title = "🛡️ ALIADO DAS SOMBRAS";
-                            else if (userEmo.affinity >= 40) title = "👤 PARCEIRO DO CHAT";
-                            else if (userEmo.affinity >= 15) title = "⚠️ PÉ DE BREQUE";
-                            else title = "💀 EXPULSO DA PACIÊNCIA";
-                            
-                            const nextLvlXp = userRank.level * 50;
-                            const curLvlXp = userRank.xp % nextLvlXp;
-                            const pct = Math.min(Math.floor((curLvlXp / nextLvlXp) * 100), 100);
-                            const fill = Math.min(Math.floor(pct / 10), 10);
-                            const xpBar = "▓".repeat(fill) + "░".repeat(10 - fill);
-                            
-                            const card = `╔═══════════════════════════════╗\n` +
-                                         `   👤 *DADOS DO USUÁRIO - PERFIL* 👤\n` +
-                                         `╚═══════════════════════════════╝\n\n` +
-                                         `👤 *Membro:* @${sender}\n` +
-                                         `👑 *Status:* ${title}\n` +
-                                         `🪙 *Carteira:* *${myCoins} Bochecha-Coins*\n\n` +
-                                         `⚡ *Nível Atual:* ${userRank.level}\n` +
-                                         `📊 *Experiência:* ${userRank.xp} XPs\n` +
-                                         `📶 *Progresso:* [${xpBar}] ${pct}%\n\n` +
-                                         `🎭 *Humor Bochecha:* ${userEmo.mood}%\n` +
-                                         `🥀 *Afinidade Bochecha:* ${userEmo.affinity}%\n` +
-                                         `*───────────────────────────────*`;
-                                         
-                            await parsedMessage.reply(card, { mentions: [rawSender] });
-                        } catch (err) {
-                            Logger.error("Command.Perfil", err);
-                        }
-                        return;
-                }
-            }
+                    // ═══════════════════════════════
+                    // COMANDOS DE JOGOS (SEM IA)
+                    // ═══════════════════════════════
 
-            // ═══════════════════════════════
-            // COMANDOS DE JOGOS (sem IA)
-            // ═══════════════════════════════
-            if (body.startsWith('/')) {
-                const gParts = body.split(' ');
-                const gCmd = gParts[0].toLowerCase();
-                const gTexto = gParts.slice(1).join(' ').trim();
-                const gCtx = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
-
-                switch (gCmd) {
-                    case '/velha':
-                    case '/tictactoe': {
-                        const argsV = { texto: gTexto, alvo: gTexto };
-                        const resV = await registry.execute('jogo_da_velha', argsV, gCtx).catch(e => { Logger.error('Command.Velha', e); return null; });
+                    case "/velha":
+                    case "/tictactoe": {
+                        const ctxG = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsV = { texto: arg, alvo: arg };
+                        const resV = await registry.execute('jogo_da_velha', argsV, ctxG).catch(e => { Logger.error('Command.Velha', e); return null; });
                         if (resV && typeof resV === 'string' && resV.trim() && !['Jogo iniciado!'].includes(resV)) await parsedMessage.reply(resV);
                         return;
                     }
 
-                    case '/forca':
-                    case '/hangman': {
-                        // Inicia forca autônoma: bot escolhe palavra sem precisar de IA
+                    case "/forca":
+                    case "/hangman": {
+                        const ctxG = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
                         const palavras = [
                             {p:'javascript',d:'Linguagem de programação web'},
                             {p:'whatsapp',d:'Aplicativo de mensagens'},
@@ -5183,86 +5210,85 @@ ${chatLogs}`;
                         ];
                         const escolha = palavras[Math.floor(Math.random() * palavras.length)];
                         const argsF = { acao: 'iniciar', palavra_secreta: escolha.p, dica: escolha.d };
-                        const resF = await registry.execute('jogo_forca', argsF, gCtx).catch(e => { Logger.error('Command.Forca', e); return null; });
+                        const resF = await registry.execute('jogo_forca', argsF, ctxG).catch(e => { Logger.error('Command.Forca', e); return null; });
                         if (resF && typeof resF === 'string' && resF.length > 10 && !resF.includes('iniciado')) await parsedMessage.reply(resF);
                         return;
                     }
 
-                    case '/jokenpo':
-                    case '/pedrapapeltesoura': {
-                        const argsJ = { texto: gTexto, alvo: gTexto };
-                        const resJ = await registry.execute('jokenpo', argsJ, gCtx).catch(e => { Logger.error('Command.Jokenpo', e); return null; });
+                    case "/jokenpo":
+                    case "/pedrapapeltesoura": {
+                        const ctxG = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsJ = { texto: arg, alvo: arg };
+                        const resJ = await registry.execute('jokenpo', argsJ, ctxG).catch(e => { Logger.error('Command.Jokenpo', e); return null; });
                         if (resJ && typeof resJ === 'string' && resJ.trim()) await parsedMessage.reply(resJ);
                         return;
                     }
 
-                    case '/quiz': {
-                        const argsQ = { texto: gTexto };
-                        const resQ = await registry.execute('quiz', argsQ, gCtx).catch(e => { Logger.error('Command.Quiz', e); return null; });
+                    case "/quiz": {
+                        const ctxG = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsQ = { texto: arg };
+                        const resQ = await registry.execute('quiz', argsQ, ctxG).catch(e => { Logger.error('Command.Quiz', e); return null; });
                         if (resQ && typeof resQ === 'string' && resQ.trim()) await parsedMessage.reply(resQ);
                         return;
                     }
 
-                    case '/editar': {
-                        const argsEd = { instrucao: gTexto };
-                        const resEd = await registry.execute('editor_universal', argsEd, gCtx).catch(e => { Logger.error('Command.Editar', e); return null; });
+                    case "/editar": {
+                        const ctxG = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsEd = { instrucao: arg };
+                        const resEd = await registry.execute('editor_universal', argsEd, ctxG).catch(e => { Logger.error('Command.Editar', e); return null; });
                         if (resEd && typeof resEd === 'string' && resEd.trim()) await parsedMessage.reply(resEd);
                         return;
                     }
 
-                    case '/devaneios':
-                    case '/sonhos': {
+                    case "/devaneios":
+                    case "/sonhos": {
+                        const ctxG = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
                         const argsDev = {};
-                        const resDev = await registry.execute('devaneios', argsDev, gCtx).catch(e => { Logger.error('Command.Devaneios', e); return null; });
+                        const resDev = await registry.execute('devaneios', argsDev, ctxG).catch(e => { Logger.error('Command.Devaneios', e); return null; });
                         if (resDev && typeof resDev === 'string' && resDev.trim()) await parsedMessage.reply(resDev);
                         return;
                     }
 
-                    case '/localidade': {
-                        const argsLoc = { acao: 'registrar', localidade: gTexto };
-                        const resLoc = await registry.execute('radar_membros', argsLoc, gCtx).catch(e => { Logger.error('Command.Localidade', e); return null; });
+                    case "/localidade": {
+                        const ctxG = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const argsLoc = { acao: 'registrar', localidade: arg };
+                        const resLoc = await registry.execute('radar_membros', argsLoc, ctxG).catch(e => { Logger.error('Command.Localidade', e); return null; });
                         if (resLoc && typeof resLoc === 'string' && resLoc.trim()) await parsedMessage.reply(resLoc);
                         return;
                     }
 
-                    case '/radar': {
+                    case "/radar": {
+                        const ctxG = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
                         const argsRad = { acao: 'radar' };
-                        const resRad = await registry.execute('radar_membros', argsRad, gCtx).catch(e => { Logger.error('Command.Radar', e); return null; });
+                        const resRad = await registry.execute('radar_membros', argsRad, ctxG).catch(e => { Logger.error('Command.Radar', e); return null; });
                         if (resRad && typeof resRad === 'string' && resRad.trim()) await parsedMessage.reply(resRad);
                         return;
                     }
 
-                    case '/bochecha_voz':
-                    case '/voz': {
-                        const subParts = gTexto.split(" ");
+                    case "/bochecha_voz":
+                    case "/voz": {
+                        const ctxG = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
+                        const subParts = arg.split(" ");
                         const preset = subParts[0] ? subParts[0].toLowerCase() : "antonio";
                         const textoVoz = subParts.slice(1).join(" ").trim();
                         const argsVoz = { preset, texto: textoVoz };
-                        const resVoz = await registry.execute('bochecha_voz', argsVoz, gCtx).catch(e => { Logger.error('Command.Voz', e); return null; });
+                        const resVoz = await registry.execute('bochecha_voz', argsVoz, ctxG).catch(e => { Logger.error('Command.Voz', e); return null; });
                         if (resVoz && typeof resVoz === 'string' && resVoz.trim() && !resVoz.includes('enviado')) {
                             await parsedMessage.reply(resVoz);
                         }
                         return;
                     }
-                }
-            }
 
-            // ═══════════════════════════════
-            // COMANDOS DE ADMINISTRAÇÃO E PROPRIEDADE
-            // ═══════════════════════════════
+                    // ═══════════════════════════════
+                    // COMANDOS DE ADMINISTRAÇÃO E PROPRIEDADE
+                    // ═══════════════════════════════
 
-            if (isOwner && body.startsWith("/")) {
-                const parts = body.split(" ");
-                const cmd = parts[0].toLowerCase();
-                const arg = parts.slice(1).join(" ").trim();
-
-                switch (cmd) {
                     case "/buscar_arquivo":
                     case "/enviar_arquivo":
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         try {
                             const ctx = { sock, from, message: parsedMessage, isOwner };
-                            const rawArg = parts.slice(1).join(" ").trim();
-                            const res = await registry.execute("pc_file_manager", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            const res = await registry.execute("pc_file_manager", { isCommand: true, command: cmd, arg: arg }, ctx);
                             if (res && typeof res === 'string' && res.trim()) {
                                 await parsedMessage.reply(res);
                             }
@@ -5274,6 +5300,7 @@ ${chatLogs}`;
 
                     case "/webcam":
                     case "/vigiar":
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         try {
                             const ctx = { sock, from, message: parsedMessage, isOwner };
                             const res = await registry.execute("pc_webcam", {}, ctx);
@@ -5287,15 +5314,15 @@ ${chatLogs}`;
                         return;
 
                     case "/download":
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         try {
                             const ctx = { sock, from, message: parsedMessage, isOwner };
-                            const rawArg = parts.slice(1).join(" ").trim();
-                            if (!rawArg) {
+                            if (!arg) {
                                 await parsedMessage.reply("⚠️ Uso: */download <link_direto>*");
                                 return;
                             }
                             await sock.sendMessage(from, { text: "📥 *Iniciando download remoto do arquivo...*" });
-                            const res = await registry.execute("download_from_internet", { url: rawArg }, ctx);
+                            const res = await registry.execute("download_from_internet", { url: arg }, ctx);
                             await parsedMessage.reply(res);
                         } catch (err) {
                             Logger.error("Command.Download", err);
@@ -5304,6 +5331,7 @@ ${chatLogs}`;
                         return;
 
                     case "/speedtest":
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         try {
                             const ctx = { sock, from, message: parsedMessage, isOwner };
                             const res = await registry.execute("pc_speedtest", {}, ctx);
@@ -5317,6 +5345,7 @@ ${chatLogs}`;
                         return;
 
                     case "/eval": {
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         if (!arg) {
                             await parsedMessage.reply("Uso: */eval [codigo_nodejs]*");
                             return;
@@ -5333,11 +5362,13 @@ ${chatLogs}`;
 
                     case "/limpar":
                     case "/reset":
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         await sessionManager.clearSession(from);
                         await parsedMessage.reply("🧹 *Histórico e subconsciente da sessão limpos com sucesso!* A IA acordou do delírio.");
                         return;
 
                     case "/addkey":
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         if (arg) {
                             const ok = await keyRotator.addKey(arg);
                             await parsedMessage.reply(ok ? "✅ Token Gemini cadastrado ativamente!" : "⚠️ Token repetido ou inválido.");
@@ -5348,6 +5379,7 @@ ${chatLogs}`;
 
                     case "/reiniciar":
                     case "/restart":
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         await parsedMessage.reply("🔄 *Reiniciando o Bochecha-IA...* Aguarde alguns instantes para a reconexão.");
                         setTimeout(() => {
                             process.exit(0);
@@ -5355,6 +5387,7 @@ ${chatLogs}`;
                         return;
 
                     case "/removekey":
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         if (arg) {
                             apiKeyManager.markFailure(arg, true);
                             await parsedMessage.reply(`🗑️ Token ${arg.substring(0, 8)}... deletado.`);
@@ -5365,166 +5398,195 @@ ${chatLogs}`;
 
                     case "/status":
                     case "/stats":
-                        const stats = keyRotator.getDiagnostics();
-                        const ram = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
-                        const uptime = moment.duration(Date.now() - this.started).humanize();
-                        
-                        let report = `📊 *DIAGNÓSTICOS BOCHECHA-IA V3.5* 📊\n\n` +
-                            `🛸 *Uptime:* ${uptime}\n` +
-                            `🧠 *Memória Heap:* ${ram} MB\n` +
-                            `🔑 *Tokens Ativos:* ${stats.activeKeys}/${stats.totalKeys}\n` +
-                            `❄️ *Cooldowns:* ${stats.inCooldown}\n` +
-                            `⚡ *Latência Média:* ${stats.avgLatency}\n` +
-                            `📈 *Taxa de Sucesso:* ${stats.successRate}\n` +
-                            `📬 *Requisições:* ${stats.requests}\n\n` +
-                            `🤖 *Hits por Modelo:*`;
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
+                        try {
+                            const stats = keyRotator.getDiagnostics();
+                            const ram = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
+                            const uptime = moment.duration(Date.now() - this.started).humanize();
+                            
+                            let report = `📊 *DIAGNÓSTICOS BOCHECHA-IA V3.5* 📊\n\n` +
+                                `🛸 *Uptime:* ${uptime}\n` +
+                                `🧠 *Memória Heap:* ${ram} MB\n` +
+                                `🔑 *Tokens Ativos:* ${stats.activeKeys}/${stats.totalKeys}\n` +
+                                `❄️ *Cooldowns:* ${stats.inCooldown}\n` +
+                                `⚡ *Latência Média:* ${stats.avgLatency}\n` +
+                                `📈 *Taxa de Sucesso:* ${stats.successRate}\n` +
+                                `📬 *Requisições:* ${stats.requests}\n\n` +
+                                `🤖 *Hits por Modelo:*`;
 
-                        for (const m in stats.modelDistribution) {
-                            report += `\n  - ${m}: ${stats.modelDistribution[m]}`;
+                            for (const m in stats.modelDistribution) {
+                                report += `\n  - ${m}: ${stats.modelDistribution[m]}`;
+                            }
+                            await parsedMessage.reply(report);
+                        } catch (err) {
+                            Logger.error("Command.Status", err);
                         }
-                        await parsedMessage.reply(report);
                         return;
 
                     case "/dream":
                     case "/refletir":
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         await parsedMessage.reply("🔮 *Acessando subconsciente neural...* Iniciando auto-reflexão profunda das interações recentes.");
                         await this.triggerReflection(true);
                         return;
 
                     case "/afins":
-                        const emotionalDb = await storage.read(EMOTIONAL_FILE, { users: {} });
-                        let reportAff = "🎭 *AFINIDADES E SENTIMENTOS ATIVOS* 🎭\n";
-                        for (const u in emotionalDb.users) {
-                            const data = emotionalDb.users[u];
-                            reportAff += `\n👤 @${u}: Afinidade: *${data.affinity}%* | Humor: *${data.mood}%*`;
-                        }
-                        if (Object.keys(emotionalDb.users).length === 0) reportAff += "\n*Nenhum registro emocional ativado ainda.*";
-                        await parsedMessage.reply(reportAff, { mentions: Object.keys(emotionalDb.users).map(u => u + "@s.whatsapp.net") });
-                        return;
-
-                    case "/sortear":
-                    case "/sorteio":
-                        if (!isGroup) {
-                            await parsedMessage.reply("❌ Este comando só pode ser utilizado em grupos do submundo!");
-                            return;
-                        }
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         try {
-                            const metadata = await sock.groupMetadata(from);
-                            const participants = metadata.participants.map(p => p.id);
-                            
-                            const eligible = participants.filter(p => !p.includes(myNumber));
-                            const chosenJid = eligible.length > 0 
-                                ? eligible[Math.floor(Math.random() * eligible.length)]
-                                : participants[Math.floor(Math.random() * participants.length)];
-                            
-                            const cleanChosen = chosenJid.split('@')[0];
-                            const reason = arg ? `*${arg}*` : "ser o cara mais brabo do grupo";
-                            
-                            const commentOptions = [
-                                `papo reto, o @${cleanChosen} foi escolhido para: ${reason}! Sem K.O, aceita que dói menos! 💀🥀`,
-                                `a roleta do submundo girou e parou no @${cleanChosen}! O veredito é: ${reason}! 🛸🪐`,
-                                `não adianta correr, @${cleanChosen}! Tu foi o sorteado para: ${reason}! Segura essa bucha! 💀`,
-                                `os astros se alinharam e apontaram pro @${cleanChosen}! Parabéns (ou meus pêsames) por: ${reason}! 🥀⚡`
-                            ];
-                            
-                            const msg = `🎰 *SORTEIO DO SUBMUNDO* 🎰\n\n👉 ` + commentOptions[Math.floor(Math.random() * commentOptions.length)];
-                            await sock.sendMessage(from, { text: msg, mentions: [chosenJid] });
+                            const emotionalDb = await storage.read(EMOTIONAL_FILE, { users: {} });
+                            let reportAff = "🎭 *AFINIDADES E SENTIMENTOS ATIVOS* 🎭\n";
+                            for (const u in emotionalDb.users) {
+                                const data = emotionalDb.users[u];
+                                reportAff += `\n👤 @${u}: Afinidade: *${data.affinity}%* | Humor: *${data.mood}%*`;
+                            }
+                            if (Object.keys(emotionalDb.users).length === 0) reportAff += "\n*Nenhum registro emocional ativado ainda.*";
+                            await parsedMessage.reply(reportAff, { mentions: Object.keys(emotionalDb.users).map(u => u + "@s.whatsapp.net") });
                         } catch (err) {
-                            Logger.error("Command.Sorteio", err);
-                            await parsedMessage.reply("❌ Não consegui girar a roleta do sorteio agora!");
+                            Logger.error("Command.Afins", err);
                         }
                         return;
 
                     case "/telemetria":
-                        const diagT = keyRotator.getDiagnostics();
-                        const statsT = `🛸 *TELEMETRIA E CONSCIÊNCIA NEURAL* 🛸\n\n` +
-                            `🔑 *Chaves Gemini:* ${diagT.activeKeys}/${diagT.totalKeys} Ativas\n` +
-                            `⚡ *Latência Média:* ${diagT.avgLatency}\n` +
-                            `📈 *Taxa de Sucesso:* ${diagT.successRate}\n` +
-                            `📬 *Requisições Totais:* ${diagT.requests}\n` +
-                            `🧠 *Tempo Ocioso:* ${Math.round((Date.now() - this.lastMessageTime) / 60000)} minutos\n` +
-                            `🔮 *Consciência:* ${this.hasDreamedThisSilence ? "Refletiu recentemente" : "Aguardando silêncio"}`;
-                        await parsedMessage.reply(statsT);
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
+                        try {
+                            const diagT = keyRotator.getDiagnostics();
+                            const statsT = `🛸 *TELEMETRIA E CONSCIÊNCIA NEURAL* 🛸\n\n` +
+                                `🔑 *Chaves Gemini:* ${diagT.activeKeys}/${diagT.totalKeys} Ativas\n` +
+                                `⚡ *Latência Média:* ${diagT.avgLatency}\n` +
+                                `📈 *Taxa de Sucesso:* ${diagT.successRate}\n` +
+                                `📬 *Requisições Totais:* ${diagT.requests}\n` +
+                                `🧠 *Tempo Ocioso:* ${Math.round((Date.now() - this.lastMessageTime) / 60000)} minutos\n` +
+                                `🔮 *Consciência:* ${this.hasDreamedThisSilence ? "Refletiu recentemente" : "Aguardando silêncio"}`;
+                            await parsedMessage.reply(statsT);
+                        } catch (err) {
+                            Logger.error("Command.Telemetria", err);
+                        }
                         return;
 
                     case "/reload":
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         await registry.loadAll();
                         await parsedMessage.reply(`🔄 *HOT-RELOAD CONCLUÍDO!* ${Object.keys(registry.skills).length} skills ativas sincronizadas em tempo real.`);
                         return;
 
                     case "/warn":
-                        if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-                            const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
-                            const w = await storage.addWarning(from, target);
-                            await sock.sendMessage(from, {
-                                text: `⚠️ *ADVERTÊNCIA* ⚠️\n\nO dono aplicou aviso administrativo a @${target.split('@')[0]}.\n\nTotal de advertências: *${w}/3*`,
-                                mentions: [target]
-                            });
-                            if (w >= 3) {
-                                await moderation.executeBan(sock, from, target, "Excesso de advertências.");
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
+                        try {
+                            if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+                                const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
+                                const w = await storage.addWarning(from, target);
+                                await sock.sendMessage(from, {
+                                    text: `⚠️ *ADVERTÊNCIA* ⚠️\n\nO dono aplicou aviso administrativo a @${target.split('@')[0]}.\n\nTotal de advertências: *${w}/3*`,
+                                    mentions: [target]
+                                });
+                                if (w >= 3) {
+                                    await moderation.executeBan(sock, from, target, "Excesso de advertências.");
+                                }
+                            } else {
+                                await parsedMessage.reply("Marque o usuário para aplicar o aviso.");
                             }
-                        } else {
-                            await parsedMessage.reply("Marque o usuário para aplicar o aviso.");
+                        } catch (err) {
+                            Logger.error("Command.Warn", err);
                         }
                         return;
 
                     case "/unwarn":
-                        if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-                            const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
-                            await storage.resetWarnings(from, target);
-                            await parsedMessage.reply(`✅ Avisos do usuário @${target.split('@')[0]} zerados!`, { mentions: [target] });
-                        } else {
-                            await parsedMessage.reply("Marque o usuário.");
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
+                        try {
+                            if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+                                const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
+                                await storage.resetWarnings(from, target);
+                                await parsedMessage.reply(`✅ Avisos do usuário @${target.split('@')[0]} zerados!`, { mentions: [target] });
+                            } else {
+                                await parsedMessage.reply("Marque o usuário.");
+                            }
+                        } catch (err) {
+                            Logger.error("Command.Unwarn", err);
                         }
                         return;
 
                     case "/ban":
-                        if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-                            const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
-                            await moderation.executeBan(sock, from, target, arg || "Expulsão manual por comando do Arquiteto.");
-                        } else {
-                            await parsedMessage.reply("Mencione o usuário a ser removido.");
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
+                        try {
+                            if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
+                                const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
+                                await moderation.executeBan(sock, from, target, arg || "Expulsão manual por comando do Arquiteto.");
+                            } else {
+                                await parsedMessage.reply("Mencione o usuário a ser removido.");
+                            }
+                        } catch (err) {
+                            Logger.error("Command.Ban", err);
                         }
                         return;
 
                     case "/addnota":
-                        if (arg) {
-                            await storage.addChatNote(from, arg);
-                            await parsedMessage.reply("📝 Nota mental guardada com sucesso no cérebro persistente.");
-                        } else {
-                            await parsedMessage.reply("Uso: */addnota SUA NOTA*");
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
+                        try {
+                            if (arg) {
+                                await storage.addChatNote(from, arg);
+                                await parsedMessage.reply("📝 Nota mental guardada com sucesso no cérebro persistente.");
+                            } else {
+                                await parsedMessage.reply("Uso: */addnota SUA NOTA*");
+                            }
+                        } catch (err) {
+                            Logger.error("Command.AddNota", err);
                         }
                         return;
 
                     case "/clearnotas":
-                        await storage.clearChatNotes(from);
-                        await parsedMessage.reply("🧹 Notas deste chat apagadas.");
+                        if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
+                        try {
+                            await storage.clearChatNotes(from);
+                            await parsedMessage.reply("🧹 Notas deste chat apagadas.");
+                        } catch (err) {
+                            Logger.error("Command.ClearNotas", err);
+                        }
                         return;
-
-                    case "/fofoca":
-                    case "/resumo": {
-                        const ctx = { 
-                            chatId: from, 
-                            sock, 
-                            from, 
-                            message: parsedMessage, 
-                            isOwner, 
-                            isGroup, 
-                            sender: rawSender, 
-                            pushname 
-                        };
-                        const res = await registry.execute("resumir_fofoca", {}, ctx);
-                        if (res) await parsedMessage.reply(res);
-                        return;
-                    }
 
                     default: {
                         const skillName = cmd.substring(1).toLowerCase();
-                        // Se houver uma skill com exatamente esse nome na pasta skills, executa de forma direta!
                         if (registry.skills && registry.skills[skillName]) {
+                            const ADMIN_SKILLS = new Set([
+                                "adicionar_membro",
+                                "remover_membro",
+                                "promover_membro",
+                                "rebaixar_membro",
+                                "mutar_grupo",
+                                "desmutar_grupo",
+                                "configurar_grupo",
+                                "gerenciar_grupo",
+                                "advertir_membro",
+                                "remover_advertencia",
+                                "modo_noturno",
+                                "configurar_noturno",
+                                "configurar_bv",
+                                "configurar_menu",
+                                "configurar_seguranca",
+                                "definir_vip",
+                                "apagar_mensagem",
+                                "apagar_especial",
+                                "bochecha_modo",
+                                "modo_bochecha"
+                            ]);
+
+                            if (ADMIN_SKILLS.has(skillName)) {
+                                if (!isOwner && !isAdmin) {
+                                    await parsedMessage.reply("❌ Acesso negado! Este comando/função administrativa é exclusivo para Administradores do grupo e o Arquiteto.");
+                                    return;
+                                }
+                            }
+
                             try {
                                 const ctx = { 
-                                    sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from 
+                                    sock, 
+                                    from, 
+                                    message: parsedMessage, 
+                                    isOwner, 
+                                    isGroup, 
+                                    sender: rawSender, 
+                                    pushname, 
+                                    chatId: from,
+                                    isGroupAdmins: isAdmin
                                 };
                                 const argsDynamic = {};
                                 if (parts.length > 1) {
@@ -5532,9 +5594,7 @@ ${chatLogs}`;
                                     argsDynamic.alvo = parts.slice(1).join(" ").trim();
                                 }
                                 const res = await registry.execute(skillName, argsDynamic, ctx);
-                                
-                                // Algumas skills retornam confirmações curtas que eram pro Gemini ler.
-                                // Se for string, a gente imprime direto no WhatsApp pra confirmar a ação.
+
                                 if (typeof res === 'string' && res.trim().length > 0 && !res.includes("Zoeira enviada")) {
                                     await parsedMessage.reply(res);
                                 }
@@ -5547,8 +5607,7 @@ ${chatLogs}`;
                     }
                 }
             }
-
-            // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
             // INTERCEPTOR DE JOGOS — processa jogadas ANTES da IA
             // ═══════════════════════════════════════════════════════
             if (!parsedMessage.key.fromMe && !body.startsWith('/')) {

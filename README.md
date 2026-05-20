@@ -114,6 +114,26 @@ Toda a segurança dos grupos foi unificada e integrada ao `StorageManager` centr
 
 ---
 
+## 👥 Colaboradores & Autores
+
+Abaixo está o time responsável pelo desenvolvimento, engenharia de prompts e design do ecossistema Bochecha-IA:
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <a href="https://github.com/mg5860606-ux">
+          <img src="https://avatars.githubusercontent.com/u/129759239?v=4" width="100px;" alt="Marcos Avatar"/><br />
+          <sub><b>Marcos (mg5860606-ux)</b></sub>
+        </a><br />
+        👑 <b>Desenvolvedor Líder, Arquiteto & Dono</b>
+      </td>
+    </tr>
+  </table>
+</div>
+
+---
+
 <div align="center">
   <i>"A evolução não é uma opção, é um protocolo."</i><br>
   <b>Criado, projetado e assinado com maestria pelo Desenvolvedor Marcos.</b>

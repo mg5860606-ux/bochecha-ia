@@ -13,7 +13,18 @@
     "bot-ia",
     "groq"
   ],
-  "author": "Marcos",
+  "author": {
+    "name": "Marcos",
+    "email": "mg5860606@gmail.com",
+    "url": "https://github.com/mg5860606-ux"
+  },
+  "contributors": [
+    {
+      "name": "Marcos",
+      "email": "mg5860606@gmail.com",
+      "url": "https://github.com/mg5860606-ux"
+    }
+  ],
   "license": "MIT",
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
@@ -39,10 +50,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/marcos-dev/bochecha-ia.git"
+    "url": "git+https://github.com/mg5860606-ux/bochecha-ia.git"
   },
   "bugs": {
-    "url": "https://github.com/marcos-dev/bochecha-ia/issues"
+    "url": "https://github.com/mg5860606-ux/bochecha-ia/issues"
   },
-  "homepage": "https://github.com/marcos-dev/bochecha-ia#readme"
+  "homepage": "https://github.com/mg5860606-ux/bochecha-ia#readme"
 }
