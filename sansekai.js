@@ -1297,16 +1297,22 @@ function mapGeminiToolsToOpenRouter(geminiTools) {
 
 class KeyRotationEngine {
     constructor() {
-        // Modelos PAGOS: desativados — sem crédito nas chaves
-        this.paidModels = [];
+        // Modelos PAGOS: priorizados pelo dono Marcos
+        this.paidModels = [
+            "z-ai/glm-5.1",
+            "openrouter/owl-alpha"
+        ];
 
-        // Modelos GRATUITOS: não precisam de crédito — SEMPRE tentáveis
+        // Modelos GRATUITOS: não precisam de crédito — excelentes fallbacks
         this.freeModels = [
+            "poolside/laguna-m.1:free",
+            "openai/gpt-oss-120b:free",
+            "deepseek/deepseek-v4-flash:free",
             "openrouter/free"
         ];
 
-        // Usa apenas modelos gratuitos
-        this.availableModels = [...this.freeModels];
+        // Combina modelos pagos (prioridade) e gratuitos para máxima robustez
+        this.availableModels = [...this.paidModels, ...this.freeModels];
 
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
@@ -1547,10 +1553,10 @@ class KeyRotationEngine {
         if (hasMedia) {
             // Multimodal: prioriza modelos gratuitos com suporte a visão
             const multimodalModels = [
-                "nvidia/nemotron-nano-12b-v2-vl:free",
-                "google/gemini-2.5-flash-preview:free",
-                "google/gemma-4-31b-it:free",
-                "openai/gpt-oss-120b:free"
+                "openai/gpt-oss-120b:free",
+                "poolside/laguna-m.1:free",
+                "deepseek/deepseek-v4-flash:free",
+                "z-ai/glm-5.1"
             ];
             const filtered = list.filter(m => multimodalModels.includes(m));
             if (filtered.length > 0) {
@@ -1564,10 +1570,10 @@ class KeyRotationEngine {
         } else if (isCoding) {
             // Programação: prefere modelos de raciocínio gratuitos
             const codingModels = [
-                "google/gemini-2.5-flash-preview:free",
                 "openai/gpt-oss-120b:free",
-                "google/gemma-3-27b-it:free",
-                "meta-llama/llama-4-scout:free"
+                "poolside/laguna-m.1:free",
+                "z-ai/glm-5.1",
+                "deepseek/deepseek-v4-flash:free"
             ];
             list.sort((a, b) => {
                 const aVal = codingModels.includes(a) ? codingModels.indexOf(a) : 99;
@@ -1577,10 +1583,10 @@ class KeyRotationEngine {
         } else if (hasTools) {
             // Function Calling: modelos gratuitos com melhor suporte a tools
             const eliteToolsModels = [
-                "google/gemini-2.5-flash-preview:free",
                 "openai/gpt-oss-120b:free",
-                "meta-llama/llama-4-scout:free",
-                "google/gemma-4-31b-it:free"
+                "poolside/laguna-m.1:free",
+                "z-ai/glm-5.1",
+                "deepseek/deepseek-v4-flash:free"
             ];
             list.sort((a, b) => {
                 const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
@@ -1590,11 +1596,11 @@ class KeyRotationEngine {
         } else {
             // Conversação geral
             const talkModels = [
-                "google/gemini-2.5-flash-preview:free",
+                "z-ai/glm-5.1",
+                "poolside/laguna-m.1:free",
                 "openai/gpt-oss-120b:free",
-                "google/gemma-3-27b-it:free",
-                "meta-llama/llama-4-scout:free",
-                "z-ai/glm-4.5-air:free"
+                "deepseek/deepseek-v4-flash:free",
+                "openrouter/owl-alpha"
             ];
             list.sort((a, b) => {
                 const aVal = talkModels.includes(a) ? talkModels.indexOf(a) : 99;
@@ -2112,6 +2118,7 @@ class DialogSession {
         this.maxMessages = 30; // Limite de gatilho para sumarização
         this.targetHistoryLength = 10; // Quanto manter intacto após sumarizar
         this.summaries = new Map();
+        this.compressing = new Set(); // Evita compressões concorrentes para o mesmo chat
     }
 
     /**
@@ -2182,8 +2189,14 @@ class DialogSession {
      * @param {any[]} history Histórico atual.
      */
     async _autoCompress(chatId, history) {
+        if (this.compressing.has(chatId)) return;
+        this.compressing.add(chatId);
+
         const compressCount = history.length - this.targetHistoryLength;
-        if (compressCount <= 5) return;
+        if (compressCount <= 5) {
+            this.compressing.delete(chatId);
+            return;
+        }
 
         const toCompress = history.slice(0, compressCount);
         const toKeep = history.slice(compressCount);
@@ -2229,6 +2242,28 @@ class DialogSession {
             await this.saveHistory(chatId, newHistory);
         } catch (e) {
             Logger.error(`DialogSession.compress(${chatId})`, e);
+            
+            // FALLBACK FIFO SE A SUMARIZAÇÃO FALHAR:
+            // Removemos as mensagens antigas localmente para manter o histórico sob controle e evitar loops infinitos.
+            try {
+                const latestHistory = await this.getHistory(chatId);
+                let existingSummaryMeta = null;
+                if (latestHistory.length > 0 && latestHistory[0].isSummaryMetadata) {
+                    existingSummaryMeta = latestHistory.shift();
+                }
+                
+                const remainingHistory = latestHistory.slice(compressCount);
+                if (existingSummaryMeta) {
+                    remainingHistory.unshift(existingSummaryMeta);
+                }
+                
+                await this.saveHistory(chatId, remainingHistory);
+                Logger.warn("DialogSession", `Fallback FIFO aplicado para ${chatId}. Histórico reduzido localmente devido a falhas na API.`);
+            } catch (err) {
+                Logger.error("DialogSession.compressFallback", err);
+            }
+        } finally {
+            this.compressing.delete(chatId);
         }
     }
 
