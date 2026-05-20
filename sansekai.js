@@ -3485,7 +3485,7 @@ class PromptComposer {
 
         const isLid = userData.userId && userData.userId.endsWith('@lid');
         const mentionFormat = isLid 
-            ? `@${userData.pushname || "Membro"} (Não use menção numérica para ele, pois ele está usando conta Business com LID)`
+            ? `@${userData.pushname || "Membro"}`
             : `@${userData.userId ? userData.userId.split('@')[0] : ''}`;
 
         let context = `\n\n` +
@@ -3494,10 +3494,10 @@ class PromptComposer {
             `- Nome do Canal/Grupo Atual: "${groupName}" (Você está respondendo neste canal específico. Nunca misture informações ou pessoas com outros grupos!)\n` +
             `- Dono/Criador deste Grupo: ${groupOwner.split('@')[0]} (Apenas para conhecimento interno do seu cérebro de elite, saiba quem fundou/gerencia o grupo!)\n` +
             `- ID Único do Chat: ${chatId}\n` +
-            `- Usuário Falando com Você: ${userData.pushname || "Membro"} (número: ${userData.userId ? userData.userId.split('@')[0] : 'desconhecido'})\n` +
-            `- **IDENTIDADE DO INTERLOCUTOR ATUAL (REGRA ABSOLUTA)**: A pessoa que está enviando a mensagem AGORA é "${userData.pushname || "Membro"}". Você está falando EXCLUSIVAMENTE com ela nesta resposta. O histórico do chat contém mensagens anteriores de outras pessoas do grupo. NUNCA chame a pessoa atual pelo nome de outra pessoa do histórico! Fale com ela usando a menção numérica real correspondente: ${mentionFormat}.\n` +
-            `- **ENTENDIMENTO DO GRUPO E HISTÓRICO**: Cada mensagem do histórico de usuários contém um cabeçalho identificando quem a enviou (ex: \`[👤 USUÁRIO: "Nome" | ...]\`). Use isso para entender quem é quem no grupo. Ao responder, lembre-se que você está respondendo apenas à pessoa atual do interlocutor.\n` +
-            `- **REGRA DE MENÇÃO MANDATÓRIA (REAL E CLICÁVEL)**: Você DEVE OBRIGATORIAMENTE se referir a qualquer usuário (inclusive o interlocutor atual) usando a menção numérica real com o arroba seguido do número (ex: ${mentionFormat}). Nosso servidor resolve isso automaticamente e transforma em uma marcação azul clicável e notificação real no WhatsApp. NUNCA use apenas o nome puro (como Pedro, Marcos) nem arroba com texto (como @Pedro) para falar com eles. Sempre mencione a pessoa com @número para evitar confusão no chat do grupo!\n` +
+            `- Usuário Falando com Você: ${userData.pushname || "Membro"} (número/JID: ${userData.userId ? userData.userId.split('@')[0] : 'desconhecido'})\n` +
+            `- **IDENTIDADE DO INTERLOCUTOR ATUAL (REGRA ABSOLUTA)**: A pessoa que está enviando a mensagem AGORA é "${userData.pushname || "Membro"}" (identificador/telefone: ${userData.userId ? '@' + userData.userId.split('@')[0] : 'desconhecido'}). Você está falando EXCLUSIVAMENTE com ela nesta resposta. O histórico do chat contém mensagens anteriores de outras pessoas do grupo e mensagens citadas/respondidas. NUNCA, SOB HIPÓTESE ALGUMA, confunda a pessoa atual com o remetente de uma mensagem citada ou com outras pessoas do histórico! Fale com o interlocutor atual usando a menção numérica real correspondente: ${mentionFormat}.\n` +
+            `- **ENTENDIMENTO DO GRUPO E HISTÓRICO**: Cada mensagem do histórico de usuários contém um cabeçalho identificando quem a enviou (ex: \`[👤 USUÁRIO: "Nome" | ...]\`). Use isso para entender quem é quem no grupo. Ao responder, lembre-se de que você está respondendo apenas à pessoa atual (o interlocutor atual) e não a outras pessoas que aparecem citadas no histórico.\n` +
+            `- **REGRA DE MENÇÃO MANDATÓRIA (REAL E CLICÁVEL)**: Você DEVE OBRIGATORIAMENTE se referir a qualquer usuário (inclusive o interlocutor atual) usando a menção numérica real com o arroba seguido do número (ex: ${mentionFormat}). Nosso servidor resolve isso automaticamente e transforma em uma marcação azul clicável e notificação real no WhatsApp. NUNCA use apenas o nome puro (como Pedro, Marcos) nem arroba com texto (como @Pedro) para falar com eles. Sempre mencione a pessoa com @número para evitar confusão no chat do grupo! Se a pessoa for LID, use ${mentionFormat}.\n` +
             `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
             `- Advertências do Usuário: ${userData.warns || 0}/3\n` +
@@ -4087,7 +4087,7 @@ ${chatLogs}`;
             const isQuotedMention = quotedText ? (quotedText.toLowerCase().includes("bochecha") || (myNumber && quotedText.includes(myNumber)) || (myLid !== "SEMLID" && quotedText.includes(myLid))) : false;
             
             // Ativação geral por menção ou palavra-chave
-            const isMentioned = startsWithBochecha || isTag || isTextTag || isReply || isQuotedMention || lowBody.includes("bochecha");
+            const isMentioned = startsWithBochecha || isTag || isTextTag || isReply || isQuotedMention;
 
             // 🎙️ TRANSCRIÇÃO AUTOMÁTICA E INJEÇÃO DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
             const audioMsg = parsedMessage.message?.audioMessage || parsedMessage.message[msgType]?.audioMessage;
@@ -5561,7 +5561,7 @@ ${chatLogs}`;
             // quotedText já foi extraído de forma robusta e universal no início do handler para verificação de menções e contexto
 
             if (isGroup) {
-                if (isMentioned || lowBody.includes('bochecha')) {
+                if (isMentioned) {
                     act = true;
                     
                     clean = cleanBotMentions(clean);
@@ -5574,7 +5574,7 @@ ${chatLogs}`;
                     }
                 } else if (hasMedia) {
                     // Visão Autônoma com menção explícita
-                    const hasCaptionMention = lowBody.includes("bochecha") || isMentioned;
+                    const hasCaptionMention = isMentioned;
                     if (hasCaptionMention) {
                         act = true;
                         const caption = parsedMessage.message[msgType]?.caption || "";
@@ -5823,19 +5823,13 @@ ${chatLogs}`;
 
                                         // Se encontrou o JID real, substitui o nome pelo número no texto da mensagem se for telefone, ou mantém como texto e coloca nas menções se for LID!
                                         if (foundJid) {
-                                            if (foundJid.endsWith('@lid')) {
-                                                resolvedMentions.push(foundJid);
-                                                Logger.success("MentionResolver", `Resolvida menção de LID [${mentionMatch}] -> Mantido texto original (${foundJid})`);
-                                            } else {
-                                                const num = foundJid.split('@')[0];
-                                                cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
-                                                resolvedMentions.push(foundJid);
-                                                Logger.success("MentionResolver", `Resolvida menção de Telefone [${mentionMatch}] -> [@${num}] (${foundJid})`);
-                                            }
-                                        } else {
-                                            // Se não encontrou JID válido para o nome, removemos o "@" para evitar links quebrados!
-                                            cleanedReply = cleanedReply.replace(mentionMatch, rawName);
-                                            Logger.warn("MentionResolver", `Menção textual não resolvida [${mentionMatch}] -> Removido '@'`);
+                                             const num = foundJid.split('@')[0];
+                                             cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
+                                             resolvedMentions.push(foundJid);
+                                             Logger.success("MentionResolver", `Resolvida menção de ${foundJid.endsWith('@lid') ? 'LID' : 'Telefone'} [${mentionMatch}] -> [@${num}] (${foundJid})`);
+                                         } else {
+                                             // Se não encontrou JID válido para o nome, removemos o "@" para evitar links quebrados!
+                                             cleanedReply = cleanedReply.replace(mentionMatch, rawName);
                                         }
                                     }
                                 }
@@ -5850,22 +5844,24 @@ ${chatLogs}`;
                             const participants = metadata?.participants || [];
                             
                             cleanedReply = cleanedReply.replace(/@(\d+)/g, (match, digits) => {
-                                const clean = digits.trim();
-                                const foundPart = participants.find(p => p.id.split('@')[0] === clean);
-                                const isOwnerNum = DEFAULT_OWNERS.includes(clean);
-                                
-                                if (foundPart || isOwnerNum) {
-                                    const matchedJid = foundPart ? foundPart.id : clean + '@s.whatsapp.net';
-                                    if (!resolvedMentions.includes(matchedJid)) {
-                                        resolvedMentions.push(matchedJid);
-                                    }
-                                    return `@${clean}`;
-                                } else {
-                                    // Se o número mencionado pela IA não está no grupo e não é o dono, removemos o "@"!
-                                    Logger.warn("MentionResolver", `Menção numérica inválida/fora do grupo [@${clean}] -> Removido '@'`);
-                                    return clean;
-                                }
-                            });
+                                 const clean = digits.trim();
+                                 const isAlreadyResolved = resolvedMentions.some(jid => jid.split('@')[0] === clean);
+                                 const foundPart = participants.find(p => p.id.split('@')[0] === clean);
+                                 const isOwnerNum = DEFAULT_OWNERS.includes(clean);
+                                 
+                                 if (isAlreadyResolved || foundPart || isOwnerNum) {
+                                     const matchedJid = isAlreadyResolved 
+                                         ? resolvedMentions.find(jid => jid.split('@')[0] === clean)
+                                         : (foundPart ? foundPart.id : clean + '@s.whatsapp.net');
+                                     if (!resolvedMentions.includes(matchedJid)) {
+                                         resolvedMentions.push(matchedJid);
+                                     }
+                                     return `@${clean}`;
+                                 } else {
+                                     // Se o número mencionado pela IA não está no grupo e não é o dono, removemos o "@"!
+                                     return clean;
+                                 }
+                             });
                         } catch (err) {
                             Logger.error("MentionResolver.NumericValidation", err);
                         }
