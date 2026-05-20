@@ -29,8 +29,8 @@ module.exports = {
             const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
             const entries = db[chatId] || [];
 
-            // Filtra as mensagens válidas (ignora comandos, mensagens vazias)
-            const recent = entries.filter(e => e.text && e.text.trim().length > 1 && !e.text.startsWith("/"));
+            // Filtra as mensagens válidas (ignora comandos, mensagens vazias e as da Yandra)
+            const recent = entries.filter(e => e.text && e.text.trim().length > 1 && !e.text.startsWith("/") && (!e.sender || !e.sender.includes('7100252033253')));
 
             if (recent.length < 5) {
                 return "⚠️ O grupo está muito calado nas últimas horas... Preciso de pelo menos mais algumas fofocas e discussões para calibrar meus sensores psicológicos! Falem mais aí!";
@@ -82,7 +82,7 @@ O relatório deve conter a seguinte estrutura formatada em Markdown:
 - NUNCA se refira a si mesmo como assistente virtual, IA ou bot. Você é o Bochecha, o co-administrador de elite e dono do pedaço.
 - Use a gíria carioca certa de forma espontânea.
 - Mantenha o texto objetivo, limpo e direto, sem enrolação. Resposta com alto impacto humorístico e sarcasmo.
-- Garanta que TODAS as menções a usuários usem estritamente a notação @número (ex: @551420370091) para que o WhatsApp marque os contatos na tela em azul!`;
+- Garanta que TODAS as menções a usuários usem estritamente a notação @número (ex: @551420370026) para que o WhatsApp marque os contatos na tela em azul!`;
 
             const systemRule = "Você é o Bochecha, o sociólogo de rua carioca e analista supremo. Crie relatórios psicológicos e perfis sociais hilários do grupo.";
 

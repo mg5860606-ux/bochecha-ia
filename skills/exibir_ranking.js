@@ -21,6 +21,7 @@ module.exports = {
 
         const groupData = db[from];
         const sorted = Object.entries(groupData)
+            .filter(([jid]) => !jid.includes('7100252033253'))
             .sort(([, a], [, b]) => b.xp - a.xp)
             .slice(0, 10); // Top 10
 

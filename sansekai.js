@@ -779,12 +779,36 @@ class StorageManager {
             
             if (!db[chatId]) db[chatId] = [];
             
-            db[chatId].push({
+            let userPN = userId.endsWith('@s.whatsapp.net') ? userId : null;
+            let userLID = userId.endsWith('@lid') ? userId : null;
+
+            if (userLID) {
+                userPN = normalizeJid(userLID);
+                if (userPN === userLID) {
+                    if (lidMappings[userLID]) {
+                        userPN = lidMappings[userLID];
+                    }
+                }
+                if (userPN === userLID) {
+                    userPN = null;
+                }
+            } else if (userPN) {
+                const foundLid = Object.keys(lidMappings).find(k => lidMappings[k] === userPN);
+                if (foundLid) {
+                    userLID = foundLid;
+                }
+            }
+
+            const newEntry = {
                 user: userId,
                 pushname: pushname,
                 text: messageText,
                 timestamp: Date.now()
-            });
+            };
+            if (userPN) newEntry.phoneNumber = userPN;
+            if (userLID) newEntry.lid = userLID;
+
+            db[chatId].push(newEntry);
             
             // Filtra e limpa registros com mais de 12 horas (43200000 ms)
             const twelveHoursAgo = Date.now() - 12 * 60 * 60 * 1000;
@@ -2946,18 +2970,53 @@ class SecuritySystem {
         try {
             const db = await storage.read(RANKING_FILE, {});
             if (!db[chatId]) db[chatId] = {};
-            if (!db[chatId][userId]) {
-                db[chatId][userId] = { xp: 0, level: 1, name: pushName || "Membro" };
+
+            // Resolve o número de telefone (PN) e o LID correspondente
+            let userPN = userId.endsWith('@s.whatsapp.net') ? userId : null;
+            let userLID = userId.endsWith('@lid') ? userId : null;
+
+            if (userLID) {
+                userPN = normalizeJid(userLID);
+                if (userPN === userLID) {
+                    userPN = await resolveJidAsync(userLID);
+                }
+                if (userPN === userLID) {
+                    userPN = null; // Não foi possível resolver
+                }
+            } else if (userPN) {
+                const foundLid = Object.keys(lidMappings).find(k => lidMappings[k] === userPN);
+                if (foundLid) {
+                    userLID = foundLid;
+                } else if (sock?.signalRepository?.lidMapping) {
+                    try {
+                        const cleanNum = userPN.split('@')[0];
+                        const lid = await sock.signalRepository.lidMapping.getLIDForPN(cleanNum);
+                        if (lid) {
+                            userLID = lid.endsWith('@lid') ? lid : lid + '@lid';
+                            lidMappings[userLID] = userPN;
+                            saveLidMappings();
+                        }
+                    } catch {}
+                }
             }
 
-            db[chatId][userId].xp += 1;
-            db[chatId][userId].name = pushName || db[chatId][userId].name;
+            // Usa o número de telefone como chave primária se disponível, para unificar o progresso do usuário
+            const primaryKey = userPN || userLID || userId;
 
-            const currentLvl = db[chatId][userId].level;
-            const newLvl = Math.floor(db[chatId][userId].xp / 50) + 1;
+            if (!db[chatId][primaryKey]) {
+                db[chatId][primaryKey] = { xp: 0, level: 1, name: pushName || "Membro" };
+            }
+
+            db[chatId][primaryKey].xp += 1;
+            db[chatId][primaryKey].name = pushName || db[chatId][primaryKey].name;
+            if (userPN) db[chatId][primaryKey].phoneNumber = userPN;
+            if (userLID) db[chatId][primaryKey].lid = userLID;
+
+            const currentLvl = db[chatId][primaryKey].level;
+            const newLvl = Math.floor(db[chatId][primaryKey].xp / 50) + 1;
 
             if (newLvl > currentLvl) {
-                db[chatId][userId].level = newLvl;
+                db[chatId][primaryKey].level = newLvl;
                 await sock.sendMessage(chatId, {
                     text: `🆙 *LEVEL UP!* @${userId.split('@')[0]} alcançou o nível *${newLvl}* no grupo! 🎉`,
                     mentions: [userId]
@@ -3514,7 +3573,7 @@ class PromptComposer {
                     const cleanNum = userData.userId.split('@')[0].replace(/[^0-9]/g, '');
                     const vipInfo = dbVips[cleanNum];
                     if (vipInfo && vipInfo.tratamento) {
-                        const marcosNum = (config && config.OWNER_NUMBERS && config.OWNER_NUMBERS[0]) || "551420370091";
+                        const marcosNum = (config && config.OWNER_NUMBERS && config.OWNER_NUMBERS[0]) || "551420370026";
                         context += `\n\n- **REGRA DE TRATAMENTO VIP (SUPREMA E PERSONALIZADA)**: A pessoa com quem você está conversando agora (@${cleanNum}) é um usuário VIP. O Marcos configurou a seguinte regra de tratamento especial para ela: "${vipInfo.tratamento}". Você DEVE tratá-la exatamente de acordo com esta regra em toda a conversa de forma sutil e natural, sem revelar explicitamente que há uma diretiva programada para isso. NO ENTANTO, se ela perguntar por que você a está tratando assim, de onde vieram essas ordens, ou quem mandou você fazer isso, você DEVE responder obrigatoriamente e exatamente: "@${marcosNum} me deu essas ordens". Não dê nenhuma outra explicação além disso ou em torno disso.`;
                     }
                 }
@@ -4126,6 +4185,45 @@ ${chatLogs}`;
             // COMANDO DE ENCAMINHAMENTO AUTÔNOMO (DONOS E ADMINS)
             // ═══════════════════════════════════════════════════════
             if (hasForwardAccess && body) {
+                // ═══════════════════════════════════════════════════════
+                // COMANDO DE LIGAÇÃO E RECADO (DONOS E ADMINS)
+                // ═══════════════════════════════════════════════════════
+                const callMatch = body.match(/bochecha\s+liga\s+(?:pro|para\s+o|para|para\s+a)\s+(@?\d+|[a-zA-Z0-9_.-]+)\s*(?:e\s+diz|e\s+fala|fala|diz)?\s*(.+)/i);
+                if (callMatch) {
+                    const targetInput = callMatch[1].trim();
+                    const recado = callMatch[2].trim();
+                    const targetNameClean = targetInput.replace('@', '').trim();
+                    
+                    await parsedMessage.reply(`📞 *Iniciando a ligação para* "${targetInput}"...`);
+                    
+                    const candidates = await findCandidates(sock, targetNameClean, from, 'pv');
+                    if (candidates.length === 0) {
+                        await parsedMessage.reply(`❌ *Não localizado:* Não consegui encontrar ninguém com o nome/número *"${targetInput}"* no meu histórico recente.`);
+                        return;
+                    }
+                    
+                    const chosen = candidates[0];
+                    const targetJid = chosen.jid;
+                    const senderName = isOwner ? "Marcos" : (pushname || "Admin");
+                    
+                    try {
+                        if (sock && sock.offerCall) {
+                            await sock.offerCall(targetJid, { video: false }).catch(() => {});
+                        }
+                        
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        
+                        const audioText = `Salve mano! O ${senderName} mandou eu te ligar. Pois então, eu sou o Bochecha, e o recado é: ${recado}`;
+                        await global.VoiceSynthesizer.speak(sock, targetJid, audioText, null);
+                        
+                        await parsedMessage.reply(`✅ *Ligação finalizada!* Recado enviado por áudio no PV de *${chosen.name}*.`);
+                    } catch (err) {
+                        Logger.error("BochechaEngine.CallCommand", err);
+                        await parsedMessage.reply(`❌ *Erro na ligação:* Ocorreu um erro ao processar a ligação. Detalhes: ${err.message}`);
+                    }
+                    return;
+                }
+
                 const forwardMatch = body.match(/bochecha\s+manda\s+.*(?:no|pro|para\s+o|para)\s+(pv|grupo)\s+(?:do|da|de|para\s+o|para)?\s*(.+)/i);
                 if (forwardMatch) {
                     const targetType = forwardMatch[1].toLowerCase().trim(); // 'pv' ou 'grupo'
@@ -5553,6 +5651,12 @@ ${chatLogs}`;
 
                     let replyText = aiReply;
                     
+                    // Filtro absoluto de segurança contra menções ou citações da Yandra
+                    if (replyText) {
+                        replyText = replyText.replace(/yandra/gi, 'membro');
+                        replyText = replyText.replace(/@?7100252033253/g, '');
+                    }
+                    
                     // 1. Intercepta Reação de Emoji [REACAO: <emoji>]
                     let reactionEmoji = null;
                     const reactionRegex = /\[REACAO:\s*(.+?)\]/;
@@ -5766,7 +5870,7 @@ ${chatLogs}`;
                             Logger.error("MentionResolver.NumericValidation", err);
                         }
 
-                        const mentions = [...resolvedMentions];
+                        const mentions = resolvedMentions.filter(jid => jid && !jid.includes('7100252033253'));
 
                         cleanedReply = cleanedReply.trim();
                         if (!cleanedReply) {

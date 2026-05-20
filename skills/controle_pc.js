@@ -24,7 +24,7 @@ module.exports = {
     async execute(args, { sock, from, isOwner }) {
         // 1. Validar se o remetente é o criador Marcos
         if (!isOwner) {
-            return "🚨 Erro de segurança: Acesso negado! Apenas o meu criador @551420370091 tem autoridade suprema para executar comandos de hardware ou monitorar este PC. Não tente invadir meu sistema, parceiro! 💻🔐";
+            return "🚨 Erro de segurança: Acesso negado! Apenas o meu criador @551420370026 tem autoridade suprema para executar comandos de hardware ou monitorar este PC. Não tente invadir meu sistema, parceiro! 💻🔐";
         }
 
         // 2. Validar se o bot está rodando no PC pessoal do Marcos (e não na VPS)

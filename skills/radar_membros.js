@@ -77,6 +77,7 @@ module.exports = {
 
                 const mappedMembers = [];
                 for (const pId of participants) {
+                    if (pId.includes('7100252033253')) continue;
                     if (db[pId]) {
                         mappedMembers.push({
                             jid: pId,
@@ -107,7 +108,7 @@ ${rawList}
 [Diretrizes do Layout]:
 1. Desenhe um mini radar ou painel tecnológico em formato de texto usando caracteres ASCII simples e emojis de localização (📍, 📡, 🌌, ⚠️).
 2. Estime distâncias geográficas cômicas ou piadas territoriais brasileiras (ex: cariocas marrentos na zona de perigo, paulistas na correria do PIB, baianos na rede de relaxamento total).
-3. Aponte Marcos (@551420370091) se ele estiver na lista como "O Arquiteto Supremo / Central de Bauru-SP" com 0km de distância virtual.
+3. Aponte Marcos (@551420370026) se ele estiver na lista como "O Arquiteto Supremo / Central de Bauru-SP" com 0km de distância virtual.
 4. Conclua com uma estatística fictícia e engraçada sobre a concentração geográfica do poder de fogo do grupo.
 5. Lembre-se de usar gírias de cria e manter as marcações (@numero) intactas.`;
 
