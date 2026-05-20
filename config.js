@@ -25,7 +25,7 @@ const BOT_CONFIG = {
     name:   "𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀",          // Nome do bot exibido no menu
     prefix: "/",                     // Prefixo dos comandos
     owner:  "𝐌𝐀𝐑𝐂𝐎𝐒 亗",           // Nome do dono exibido no menu
-    panelPort: 3030,                 // Porta do painel web
+    panelPort: 4061,                 // Porta do painel web (Alinhada com a Bronxys Host)
     timezone: "America/Bahia",       // Timezone padrão
     menuVideoUrl: "https://files.catbox.moe/mcnawn.mp4", // Vídeo do menu principal
 };
