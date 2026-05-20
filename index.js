@@ -495,6 +495,7 @@ const banner = `
 ║    𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀  -  𝐈𝐀    ║
 ╚══════════════════════╝
   🚀 Inicializando...
+  👥 Original Repo: https://github.com/mg5860606-ux/bochecha-ia
 `;
 
 console.clear();

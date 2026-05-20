@@ -75,6 +75,8 @@ module.exports = {
 ╎🥀˖ ▸ 𝗨𝗽𝘁𝗶𝗺𝗲: ${uptimeStr}
 ├⊱ ───── ⋆⋅ ♰ ⋅⋆ ───── ⊰˖°🥀ִ ࣪𖤐
 ▹▫◃
+ ⚔️ *Repositório Oficial:* https://github.com/mg5860606-ux/bochecha-ia
+▹▫◃
 ┎┶┅┅┅━═⋅═━━━━═⋅═━┅┅┅┅☾⋆
 ┖╮
 ╭┤ˑ࣪    ִ .̇  ۫  ̣ ֽ֗🛸 𝐌𝐄𝐍𝐔 𝐃𝐎 𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀-𝐈𝐀 🛸·๋  ִ֗  ᐧ ֶּ֓ ˑ࣪ 
@@ -230,6 +232,7 @@ ${ownerPanel}
 ┇ |
 ┇ ╰┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
   _${NomeDoBot} Power by ${DonoName}_
+  _*Original Repo:* https://github.com/mg5860606-ux/bochecha-ia_
  ╰╼╼╼╼╼╍⋅⊹⋅⋅⦁ ⚡ ⦁⋅⋅⊹⋅╍╾╾╾╾☾⋆`;
 
             await sock.sendMessage(from, {
