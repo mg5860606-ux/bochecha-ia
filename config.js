@@ -8,6 +8,12 @@
  * Todas as skills e módulos leem daqui automaticamente.
  */
 
+const _k = 'BochechaSupremeKey2026';
+function _d(hex) {
+    const bytes = hex.match(/.{1,2}/g).map((h, i) => parseInt(h, 16) ^ _k.charCodeAt(i % _k.length));
+    return Buffer.from(bytes).toString('utf8');
+}
+
 // ─────────────────────────────────────────────
 //  👑 DONOS DO BOT
 //  Números sem "@s.whatsapp.net", sem "+" e sem traços.
@@ -24,7 +30,7 @@ const OWNER_NUMBERS = [
 const BOT_CONFIG = {
     name: "𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀",          // Nome do bot exibido no menu
     prefix: "/",                     // Prefixo dos comandos
-    owner: "𝐌𝐀𝐑𝐂𝐎𝐒 亗",           // Nome do dono exibido no menu
+    owner: _d("b2f2f3e495fef8e1a3e8e0e395f2e2e395e6b584c2abd2fd438cdff4"),           // Nome do dono exibido no menu
     panelPort: 4061,                 // Porta do painel web (Alinhada com a Bronxys Host)
     timezone: "America/Bahia",       // Timezone padrão
     menuVideoUrl: "https://files.catbox.moe/mcnawn.mp4", // Vídeo do menu principal

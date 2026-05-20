@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { BOT_CONFIG, OWNER_NUMBERS, isOwnerNumber } = require('../config');
 
+const _k = 'BochechaSupremeKey2026';
+function _d(hex) {
+    const bytes = hex.match(/.{1,2}/g).map((h, i) => parseInt(h, 16) ^ _k.charCodeAt(i % _k.length));
+    return Buffer.from(bytes).toString('utf8');
+}
+
 module.exports = {
     definition: {
         function: {
@@ -75,7 +81,7 @@ module.exports = {
 ╎🥀˖ ▸ 𝗨𝗽𝘁𝗶𝗺𝗲: ${uptimeStr}
 ├⊱ ───── ⋆⋅ ♰ ⋅⋆ ───── ⊰˖°🥀ִ ࣪𖤐
 ▹▫◃
- ⚔️ *Repositório Oficial:* https://github.com/mg5860606-ux/bochecha-ia
+  ⚔️ *Repositório Oficial:* ${_d("2a1b17181659474e341c041a100f4b280a141d5d55037a59535e555545142b5a121d060500280d181f5953")}
 ▹▫◃
 ┎┶┅┅┅━═⋅═━━━━═⋅═━┅┅┅┅☾⋆
 ┖╮
@@ -217,7 +223,7 @@ ${ownerPanel}
 ┇ |🔧⋆͜͡҈➳ ${prefix}fato (Lembra fatos importantes)
 ┇ |🔧⋆͜͡҈➳ ${prefix}avisos (Gerencia avisos)
 ┇ |🔧⋆͜͡҈➳ ${prefix}contagem (Contagem regressiva)
-┇ |🔧⋆͜͡҈➳ ${prefix}placar (Ver placar do grupo)
+┇ |🔧⋆͜͡҈➳ ${prefix}placar (Ver placar do grupo)
 ┇ |🔧⋆͜͡҈➳ ${prefix}votacao (Inicia votações)
 ┇ |
 ┇ | 🤖 *𝐇𝐀𝐁𝐈𝐋𝐈𝐃𝐀𝐃𝐄𝐒 𝐀𝐔𝐓𝐎̂𝐍𝐎𝐌𝐀𝐒 𝐃𝐀 𝐈𝐀*
@@ -232,7 +238,7 @@ ${ownerPanel}
 ┇ |
 ┇ ╰┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
   _${NomeDoBot} Power by ${DonoName}_
-  _*Original Repo:* https://github.com/mg5860606-ux/bochecha-ia_
+   _*Original Repo:* ${_d("2a1b17181659474e341c041a100f4b280a141d5d55037a59535e555545142b5a121d060500280d181f5953")}_
  ╰╼╼╼╼╼╍⋅⊹⋅⋅⦁ ⚡ ⦁⋅⋅⊹⋅╍╾╾╾╾☾⋆`;
 
             await sock.sendMessage(from, {
