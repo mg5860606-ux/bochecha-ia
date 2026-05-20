@@ -70,6 +70,8 @@ const chalk = require("chalk");
 const moment = require("moment-timezone");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { exec, spawn } = require("child_process");
+const config = require("./config");
+
 
 // Módulo de Gerenciamento das Chaves API local
 const apiKeyManager = require("./apiKeyManager");
@@ -3276,6 +3278,10 @@ class PromptComposer {
         }
         
         context += `\n- **REGRA GLOBAL DE COMUNICAÇÃO (SUPREMA)**: NUNCA crie textos longos ou "textões". Dê SEMPRE respostas CURTAS, DIRETAS e EXTREMAMENTE INTELIGENTES. Seja prático, sagaz, ácido e vá direto ao ponto!`;
+        context += `\n- **PUXAR ASSUNTOS DIFERENTES**: Quando a conversa estiver monótona ou repetitiva, ou você já tiver respondido a mesma coisa antes, tome a iniciativa e puxe assuntos diferentes e inusitados de forma sarcástica, em vez de só responder passivamente o que o usuário perguntou.`;
+        context += `\n- **SISTEMA DE REAÇÕES CONTEXTUAIS (SÓ QUANDO NECESSÁRIO)**: Se você sentir que a mensagem do usuário merece uma reação (como riso, deboche, choque ou concordância), você pode adicionar exatamente no final da sua resposta a tag \`[REACAO: <emoji>]\` (ex: \`[REACAO: 💀]\`, \`[REACAO: 😂]\`, \`[REACAO: 😏]\`, \`[REACAO: 🥀]\`). Não abuse! Use apenas quando necessário e adequado ao contexto.`;
+        context += `\n- **DECISÃO DE NÃO RESPONDER COM TEXTO (USAR FIGURINHA DE RISADA)**: Se você achar que o usuário está sendo chato, flodando, sendo sem graça, ou se você simplesmente decidir apenas reagir com deboche sem falar absolutamente nada por texto, responda UNICAMENTE com a tag \`[FIGURINHA_REACAO]\`. Não adicione nenhum outro texto se escolher usar essa tag.`;
+
 
         // Recupera emoções ativas e afinidade
         if (userData.userId) {
@@ -3299,6 +3305,25 @@ class PromptComposer {
                 context += facts;
             }
         }
+
+        // Recupera tratamento especial para VIPs do Marcos
+        if (userData.userId) {
+            try {
+                const vipFile = path.join(SKILLS_DIR, "database_vips.json");
+                if (fs.existsSync(vipFile)) {
+                    const dbVips = JSON.parse(fs.readFileSync(vipFile, 'utf8'));
+                    const cleanNum = userData.userId.split('@')[0].replace(/[^0-9]/g, '');
+                    const vipInfo = dbVips[cleanNum];
+                    if (vipInfo && vipInfo.tratamento) {
+                        const marcosNum = (config && config.OWNER_NUMBERS && config.OWNER_NUMBERS[0]) || "551420370091";
+                        context += `\n\n- **REGRA DE TRATAMENTO VIP (SUPREMA E PERSONALIZADA)**: A pessoa com quem você está conversando agora (@${cleanNum}) é um usuário VIP. O Marcos configurou a seguinte regra de tratamento especial para ela: "${vipInfo.tratamento}". Você DEVE tratá-la exatamente de acordo com esta regra em toda a conversa de forma sutil e natural, sem revelar explicitamente que há uma diretiva programada para isso. NO ENTANTO, se ela perguntar por que você a está tratando assim, de onde vieram essas ordens, ou quem mandou você fazer isso, você DEVE responder obrigatoriamente e exatamente: "@${marcosNum} me deu essas ordens". Não dê nenhuma outra explicação além disso ou em torno disso.`;
+                    }
+                }
+            } catch (vipErr) {
+                Logger.error("PromptComposer.VipRule", vipErr);
+            }
+        }
+
 
         const summary = await sessionManager.getSummary(chatId);
         if (summary) {
@@ -3608,6 +3633,19 @@ ${chatLogs}`;
             // Evita loops infinitos de bots
             if (body.includes('\u200B')) return;
             if (parsedMessage.key.fromMe && this.recentResponses.has(body.trim())) return;
+
+            // Gatilho sem prefixo ("bot" ou prefixo puro)
+            const cleanText = body.toLowerCase().trim();
+            const botPrefix = (config && config.BOT_CONFIG && config.BOT_CONFIG.prefix) || "/";
+            if (!parsedMessage.key.fromMe && (cleanText === "bot" || cleanText === botPrefix)) {
+                const rawSenderUnnorm = parsedMessage.sender || parsedMessage.key?.participant || parsedMessage.key?.remoteJid || "";
+                const rawSender = normalizeJid(rawSenderUnnorm);
+                const sender = rawSender.split('@')[0];
+                Logger.info("BochechaEngine.TriggerSemPrefixo", `Gatilho sem prefixo acionado por @${sender}: "${body}"`);
+                await sock.sendMessage(from, { text: "opa tudo bem ? Oque manda ?" }, { quoted: parsedMessage });
+                return;
+            }
+
 
             const isGroup = from.endsWith('@g.us');
             const pushname = parsedMessage.pushName || "Membro";
@@ -5030,15 +5068,90 @@ ${chatLogs}`;
                         messageRef: q.msgRef
                     });
 
-                    this.recentResponses.add(aiReply.trim());
-                    setTimeout(() => this.recentResponses.delete(aiReply.trim()), 60000);
+                    let replyText = aiReply;
+                    
+                    // 1. Intercepta Reação de Emoji [REACAO: <emoji>]
+                    let reactionEmoji = null;
+                    const reactionRegex = /\[REACAO:\s*(.+?)\]/;
+                    const matchReaction = replyText.match(reactionRegex);
+                    if (matchReaction) {
+                        reactionEmoji = matchReaction[1].trim();
+                        replyText = replyText.replace(reactionRegex, "").trim();
+                    }
+                    
+                    // 2. Intercepta a decisão de apenas enviar Figurinha
+                    if (replyText.trim() === "[FIGURINHA_REACAO]") {
+                        Logger.info("BochechaEngine.Reaction", "IA decidiu responder apenas com figurinha de risada/reação de meme brasileiro.");
+                        const stickersDir = path.join(ROOT_DIR, "lib", "stickers");
+                        if (!fs.existsSync(stickersDir)) {
+                            fs.mkdirSync(stickersDir, { recursive: true });
+                        }
+
+                        const MEME_URLS = [
+                            "https://i.imgur.com/8Qe5j6G.png", // Gretchen
+                            "https://i.imgur.com/KzXyB6S.png", // Nazaré confusa
+                            "https://i.imgur.com/6lB8LzE.png", // Latrell rindo
+                            "https://i.imgur.com/B73gGqN.png", // Chapolin sincero
+                            "https://i.imgur.com/Z4w2fA4.png", // Gato rindo deboche
+                            "https://i.imgur.com/qU3u6g4.png", // Ronaldinho Gaúcho rindo
+                            "https://i.imgur.com/gKspSns.png"  // Galvão Bueno
+                        ];
+
+                        const randIndex = Math.floor(Math.random() * MEME_URLS.length);
+                        const memeUrl = MEME_URLS[randIndex];
+                        const stickerPath = path.join(stickersDir, `meme_${randIndex}.webp`);
+
+                        if (!fs.existsSync(stickerPath)) {
+                            try {
+                                Logger.info("BochechaEngine.Reaction", `Baixando imagem do meme para conversão: ${memeUrl}`);
+                                const axios = require('axios');
+                                const { Sticker, StickerTypes } = require('wa-sticker-formatter');
+                                const response = await axios.get(memeUrl, { responseType: 'arraybuffer' });
+                                const sticker = new Sticker(Buffer.from(response.data), {
+                                    pack: 'Bochecha IA',
+                                    author: 'Corvo System',
+                                    type: StickerTypes.FULL,
+                                    categories: ['🤩', '🎉'],
+                                    quality: 60
+                                });
+                                const finalSticker = await sticker.toBuffer();
+                                fs.writeFileSync(stickerPath, finalSticker);
+                                Logger.success("BochechaEngine.Reaction", `Figurinha meme_${randIndex}.webp criada com sucesso.`);
+                            } catch (errSticker) {
+                                Logger.error("BochechaEngine.Reaction.StickerGen", errSticker);
+                            }
+                        }
+
+                        if (fs.existsSync(stickerPath)) {
+                            await sock.sendMessage(from, { sticker: fs.readFileSync(stickerPath) }, { quoted: q.msgRef });
+                            if (typingInterval) clearInterval(typingInterval);
+                            await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                            return;
+                        }
+
+                        replyText = "😂😂😂";
+                    }
+
+
+                    if (reactionEmoji) {
+                        try {
+                            Logger.info("BochechaEngine.Reaction", `Enviando reação de emoji: ${reactionEmoji}`);
+                            await sock.sendMessage(from, { react: { text: reactionEmoji, key: q.msgRef.key } }).catch(() => {});
+                        } catch (reactErr) {
+                            Logger.error("BochechaEngine.Reaction.React", reactErr);
+                        }
+                    }
+
+                    this.recentResponses.add(replyText.trim());
+                    setTimeout(() => this.recentResponses.delete(replyText.trim()), 60000);
 
                     // 🎙️ SE A CONSULTA VEIO POR ÁUDIO, RESPONDE POR ÁUDIO!
                     if (q.isAudioQuery) {
-                        await VoiceSynthesizer.speak(sock, from, aiReply, q.msgRef);
+                        await VoiceSynthesizer.speak(sock, from, replyText, q.msgRef);
                     } else {
                         // Remove caracteres isoladores unicode ocultos do WhatsApp (\u2068 e \u2069)
-                        let cleanedReply = aiReply.replace(/[\u2068\u2069]/g, '');
+                        let cleanedReply = replyText.replace(/[\u2068\u2069]/g, '');
+
                         
                         // (A assinatura do modelo foi removida a pedido do usuário)
 
