@@ -133,6 +133,65 @@ function saveLidMappings() {
 /**
  * Normaliza e resolve qualquer JID (inclusive LIDs do WhatsApp) para o JID de telefone real se disponível no cache.
  */
+/**
+ * Resolve assincronamente qualquer JID (inclusive LIDs do WhatsApp) para o JID de telefone real usando o signalRepository do Baileys e o store.
+ * Salva o resultado no mapa persistente lidMappings para uso imediato em normalizeJid.
+ */
+async function resolveJidAsync(jid) {
+    if (!jid) return jid;
+    
+    let cleanJid = jid;
+    if (cleanJid.includes(':')) {
+        const parts = cleanJid.split(':');
+        const suffix = parts[1].split('@')[1];
+        cleanJid = parts[0] + '@' + suffix;
+    }
+
+    // 1. Verifica no mapa persistente local
+    if (lidMappings[cleanJid]) {
+        return lidMappings[cleanJid];
+    }
+
+    // 2. Se for LID, tenta resolver pelo signalRepository do Baileys (com await)
+    if (cleanJid.endsWith('@lid') && BochechaEngine.sockRef) {
+        try {
+            const sock = BochechaEngine.sockRef;
+            if (sock.signalRepository && sock.signalRepository.lidMapping) {
+                const pn = await sock.signalRepository.lidMapping.getPNForLID(cleanJid);
+                if (pn) {
+                    const resolved = pn.endsWith('@s.whatsapp.net') ? pn : pn + '@s.whatsapp.net';
+                    lidMappings[cleanJid] = resolved;
+                    saveLidMappings();
+                    return resolved;
+                }
+            }
+        } catch (e) {
+            // Silencioso
+        }
+    }
+
+    // 3. Se for LID, tenta resolver pelo store
+    if (cleanJid.endsWith('@lid') && BochechaEngine.storeRef) {
+        try {
+            const contacts = BochechaEngine.storeRef.contacts || {};
+            const contact = Object.values(contacts).find(c => c.id === cleanJid || c.jid === cleanJid);
+            if (contact && contact.phoneNumber) {
+                const resolved = contact.phoneNumber + "@s.whatsapp.net";
+                lidMappings[cleanJid] = resolved;
+                saveLidMappings();
+                return resolved;
+            }
+        } catch (err) {
+            // Silencioso
+        }
+    }
+
+    return cleanJid;
+}
+
+/**
+ * Normaliza e resolve qualquer JID (inclusive LIDs do WhatsApp) para o JID de telefone real se disponível no cache (síncrono).
+ */
 function normalizeJid(jid) {
     if (!jid) return jid;
     
@@ -148,25 +207,7 @@ function normalizeJid(jid) {
         return lidMappings[cleanJid];
     }
 
-    // 2. Se for LID, tenta resolver pelo signalRepository do Baileys
-    if (cleanJid.endsWith('@lid') && BochechaEngine.sockRef) {
-        try {
-            const sock = BochechaEngine.sockRef;
-            if (sock.signalRepository && sock.signalRepository.lidMapping) {
-                const pn = sock.signalRepository.lidMapping.getPNForLID(cleanJid);
-                if (pn) {
-                    const resolved = pn.endsWith('@s.whatsapp.net') ? pn : pn + '@s.whatsapp.net';
-                    lidMappings[cleanJid] = resolved;
-                    saveLidMappings();
-                    return resolved;
-                }
-            }
-        } catch (e) {
-            // Silencioso
-        }
-    }
-
-    // 3. Se for LID, tenta resolver pelo store
+    // 2. Se for LID, tenta resolver pelo store de forma síncrona
     if (cleanJid.endsWith('@lid') && BochechaEngine.storeRef) {
         try {
             const contacts = BochechaEngine.storeRef.contacts || {};
@@ -3517,7 +3558,7 @@ class BochechaEngine {
     /**
      * Sincroniza e mapeia os Local Identifiers (LID) com JIDs de telefone de forma cruzada usando as credenciais do Baileys e o store local.
      */
-    static syncLidMappings() {
+    static async syncLidMappings() {
         try {
             if (!BochechaEngine.sockRef) return;
             
@@ -3547,13 +3588,13 @@ class BochechaEngine {
                 }
             }
 
-            // 3. Mapeia proativamente os donos configurados via Baileys signalRepository
+            // 3. Mapeia proativamente os donos configurados via Baileys signalRepository (com await)
             if (BochechaEngine.sockRef.signalRepository && BochechaEngine.sockRef.signalRepository.lidMapping) {
                 const owners = config.OWNER_NUMBERS || [];
                 for (const ownerNum of owners) {
                     try {
                         const cleanNum = ownerNum.replace(/[^0-9]/g, '');
-                        const lid = BochechaEngine.sockRef.signalRepository.lidMapping.getLIDForPN(cleanNum);
+                        const lid = await BochechaEngine.sockRef.signalRepository.lidMapping.getLIDForPN(cleanNum);
                         if (lid) {
                             const resolvedLid = lid.endsWith('@lid') ? lid : lid + '@lid';
                             const resolvedJid = cleanNum + "@s.whatsapp.net";
@@ -3810,25 +3851,34 @@ ${chatLogs}`;
             if (body.includes('\u200B')) return;
             if (parsedMessage.key.fromMe && this.recentResponses.has(body.trim())) return;
 
+            // Resolvendo o remetente com suporte a LIDs de forma assíncrona
+            const rawSenderUnnorm = parsedMessage.sender || parsedMessage.key?.participant || parsedMessage.key?.remoteJid || "";
+            
+            // Tenta mapear o Alt ID do Baileys v7 se disponível antes da resolução assíncrona
+            const altSender = parsedMessage.originalMsg?.key?.participantAlt || parsedMessage.originalMsg?.key?.remoteJidAlt;
+            if (altSender && rawSenderUnnorm.endsWith('@lid') && altSender.endsWith('@s.whatsapp.net')) {
+                const cleanLid = rawSenderUnnorm.includes(':') ? rawSenderUnnorm.split(':')[0] + '@lid' : rawSenderUnnorm;
+                const cleanAlt = altSender.includes(':') ? altSender.split(':')[0] + '@s.whatsapp.net' : altSender;
+                if (lidMappings[cleanLid] !== cleanAlt) {
+                    lidMappings[cleanLid] = cleanAlt;
+                    saveLidMappings();
+                }
+            }
+
+            const rawSender = await resolveJidAsync(rawSenderUnnorm);
+            const sender = rawSender.split('@')[0];
+
             // Gatilho sem prefixo ("bot" ou prefixo puro)
             const cleanText = body.toLowerCase().trim();
             const botPrefix = (config && config.BOT_CONFIG && config.BOT_CONFIG.prefix) || "/";
             if (!parsedMessage.key.fromMe && (cleanText === "bot" || cleanText === botPrefix)) {
-                const rawSenderUnnorm = parsedMessage.sender || parsedMessage.key?.participant || parsedMessage.key?.remoteJid || "";
-                const rawSender = normalizeJid(rawSenderUnnorm);
-                const sender = rawSender.split('@')[0];
                 Logger.info("BochechaEngine.TriggerSemPrefixo", `Gatilho sem prefixo acionado por @${sender}: "${body}"`);
                 await sock.sendMessage(from, { text: "opa tudo bem ? Oque manda ?" }, { quoted: parsedMessage });
                 return;
             }
 
-
             const isGroup = from.endsWith('@g.us');
             const pushname = parsedMessage.pushName || "Membro";
-
-            const rawSenderUnnorm = parsedMessage.sender || parsedMessage.key?.participant || parsedMessage.key?.remoteJid || "";
-            const rawSender = normalizeJid(rawSenderUnnorm);
-            const sender = rawSender.split('@')[0];
 
             // 🛡️ VERIFICADOR DE ESCOLHA DE ENCAMINHAMENTO PENDENTE
             const pendingKey = `${from}-${rawSender}`;
