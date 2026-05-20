@@ -45,6 +45,11 @@ module.exports = {
 ┇ |⚙️⋆͜͡҈➳ ${prefix}eval (Executa código JavaScript nativo)
 ┇ |⚙️⋆͜͡҈➳ ${prefix}run / ${prefix}terminal (Executa comando no terminal)
 ┇ |⚙️⋆͜͡҈➳ ${prefix}controle_pc (Hardware, RAM, CPU & processos)
+┇ |⚙️⋆͜͡҈➳ ${prefix}buscar_arquivo <nome> (Busca e envia arquivo do PC)
+┇ |⚙️⋆͜͡҈➳ ${prefix}enviar_arquivo (Salva arquivo enviado no PC)
+┇ |⚙️⋆͜͡҈➳ ${prefix}webcam / ${prefix}vigiar (Captura foto da webcam/monitor)
+┇ |⚙️⋆͜͡҈➳ ${prefix}download <link> (Baixa arquivo no PC)
+┇ |⚙️⋆͜͡҈➳ ${prefix}speedtest (Testa conexão do PC)
 ┇ |⚙️⋆͜͡҈➳ ${prefix}afins (Afinidade emocional de todos no grupo)
 ┇ |⚙️⋆͜͡҈➳ ${prefix}telemetria (Diagnóstico de latência e API)
 ┇ |⚙️⋆͜͡҈➳ ${prefix}addkey / ${prefix}removekey (Rotacionador de chaves)
@@ -100,6 +105,7 @@ ${ownerPanel}
 ┇ |✨⋆͜͡҈➳ ${prefix}gpt (Falar com a IA)
 ┇ |✨⋆͜͡҈➳ ${prefix}gerar (Gera imagem por IA)
 ┇ |✨⋆͜͡҈➳ ${prefix}efeitos (Efeitos na imagem por IA)
+┇ |✨⋆͜͡҈➳ ${prefix}fake / ${prefix}detetive (Detetive de Links e Fake News)
 ┇ |
 ┇ | ♰ *𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐑𝐒 & 𝐌𝐈́𝐃𝐈𝐀*
 ┇ |🎥⋆͜͡҈➳ ${prefix}baixar / ${prefix}play (Baixa de YouTube, Reels, TikTok e Pinterest)
@@ -161,8 +167,11 @@ ${ownerPanel}
 ┇ |💰⋆͜͡҈➳ ${prefix}blackjack (Jogo do Blackjack)
 ┇ |💰⋆͜͡҈➳ ${prefix}cassino (Jogo de Cassino)
 ┇ |💰⋆͜͡҈➳ ${prefix}ricos (Mais ricos do grupo)
+┇ |💰⋆͜͡҈➳ ${prefix}loja / ${prefix}comprar (Loja do Submundo)
 ┇ |
 ┇ | ♰ *𝐉𝐎𝐆𝐎𝐒 & 𝐙𝐎𝐄𝐈𝐑𝐀*
+┇ |🕹⋆͜͡҈➳ ${prefix}meme (Cria meme respondendo foto)
+┇ |🕹⋆͜͡҈➳ ${prefix}segredo (Confessionário anônimo pelo PV)
 ┇ |🕹⋆͜͡҈➳ ${prefix}velha (Jogo da velha)
 ┇ |🕹⋆͜͡҈➳ ${prefix}forca (Jogo da forca)
 ┇ |🕹⋆͜͡҈➳ ${prefix}roleta (Roleta russa)

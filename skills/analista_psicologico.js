@@ -71,7 +71,9 @@ module.exports = {
         // ═════════════════════════════════════════════════════════════════
         if (action === "perfil") {
             const userMessages = historyDb[from]?.[targetUser] || [];
-            const targetName = targetUser === sender ? pushname : `@${targetUser.split('@')[0]}`;
+            const customNickObj = global.userNicknames?.get(targetUser);
+            const baseTargetName = targetUser === sender ? pushname : `@${targetUser.split('@')[0]}`;
+            const targetName = (customNickObj && customNickObj.expires > Date.now()) ? `${baseTargetName} (Apelido: "${customNickObj.nick}")` : baseTargetName;
             
             if (isCommand) {
                 await sock.sendMessage(from, { text: `🔮 *INICIANDO EXTRAÇÃO COGNITIVA* 🔮\n\nVarrendo histórico neural de ${targetName} no banco de dados do submundo...` });
@@ -102,10 +104,13 @@ module.exports = {
                 const { response: aiRes } = await currentBrain.executeWithRotation([], analysisPrompt, [], sys, true);
                 const profileText = aiRes.response.text().trim();
 
+                const userTitle = global.userTitles?.get(targetUser) ? `👑 *Título:* _${global.userTitles.get(targetUser)}_\n` : '';
+
                 const report = `╔═══════════════════════════════╗\n` +
                                `   🧠 DIAGNÓSTICO COGNITIVO NEURAL 🧠\n` +
                                `╚═══════════════════════════════╝\n\n` +
                                `👤 *Alvo:* ${targetName}\n` +
+                               userTitle +
                                `🗂️ *Mensagens Analisadas:* ${userMessages.length}\n` +
                                `📶 *Sincronia Cerebral:* 98.7% (Conexão Segura)\n\n` +
                                `${profileText}\n\n` +

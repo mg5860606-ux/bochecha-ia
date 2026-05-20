@@ -4,13 +4,13 @@ module.exports = {
     definition: {
         function: {
             name: "sistema_economia",
-            description: "Gerencia a economia (Bochecha-Coins) e Cassino. Suporta: saldo, minerar, pix, blackjack, roleta, duelo, silenciar e ricos.",
+            description: "Gerencia a economia (Bochecha-Coins) e Cassino. Suporta: saldo, minerar, diario, trabalhar, pix, blackjack, roleta, duelo, silenciar e ricos.",
             parameters: {
                 type: "object",
                 properties: {
                     acao: { 
                         type: "string", 
-                        enum: ["saldo", "minerar", "pix", "blackjack", "roleta", "duelo", "silenciar", "ricos"], 
+                        enum: ["saldo", "minerar", "diario", "trabalhar", "pix", "blackjack", "roleta", "duelo", "silenciar", "ricos"], 
                         description: "Ação a ser executada." 
                     },
                     valor: { type: "number", description: "O valor da aposta, pix ou pagamento." },
@@ -21,7 +21,8 @@ module.exports = {
             }
         }
     },
-    async execute(args, { sock, from, sender, pushname, message }) {
+    async execute(args, ctx) {
+        const { sock, from, sender, pushname, message } = ctx;
         // Obter referências globais do storage
         const storage = global.storage || require("../sansekai").storage;
         const agora = Date.now();
@@ -324,6 +325,53 @@ module.exports = {
 
             await sock.sendMessage(from, { text, mentions });
             return "Ranking de riquezas exibido com sucesso.";
+        }
+
+        // 9. DIÁRIO (DAILY REWARD)
+        if (args.acao === "diario") {
+            if (!global.dailyCooldowns) global.dailyCooldowns = new Map();
+            const lastDaily = global.dailyCooldowns.get(sender) || 0;
+            const espera = 24 * 60 * 60 * 1000; // 24 horas
+
+            if (agora - lastDaily < espera) {
+                const restanteMs = espera - (agora - lastDaily);
+                const horas = Math.floor(restanteMs / 3600000);
+                const minutos = Math.floor((restanteMs % 3600000) / 60000);
+                return `⏳ *RECOMPENSA DIÁRIA RETIRADA!* ⏳\n\nVocê já resgatou seu prêmio hoje. Volte em *${horas}h e ${minutos}m*! 💀`;
+            }
+
+            const ganho = Math.floor(Math.random() * 201) + 100; // 100 a 300 coins
+            const novoSaldo = await storage.addCoins(from, sender, ganho);
+            global.dailyCooldowns.set(sender, agora);
+
+            return `🎁 *BOLSINHA DIÁRIA DO SUBMUNDO!* 🎁\n\nVocê resgatou sua recompensa diária e recebeu *${ganho} Bochecha-Coins*!\n\n🪙 *Novo Saldo:* *${novoSaldo} Bochecha-Coins* 🥀🛸`;
+        }
+
+        // 10. TRABALHAR
+        if (args.acao === "trabalhar") {
+            if (!global.workCooldowns) global.workCooldowns = new Map();
+            const lastWork = global.workCooldowns.get(sender) || 0;
+            const espera = 30 * 60 * 1000; // 30 minutos
+
+            if (agora - lastWork < espera) {
+                const restanteMin = Math.ceil((espera - (agora - lastWork)) / 60000);
+                return `⏳ *TRABALHADOR CANSADO!* ⏳\n\nVocê está exausto dos bicos no submundo. Descanse por mais *${restanteMin} minutos*! 💀`;
+            }
+
+            const trabalhos = [
+                { desc: "vendeu bala no semáforo do submundo", min: 30, max: 70 },
+                { desc: "lavou os carros blindados dos admins", min: 40, max: 80 },
+                { desc: "entregou encomendas misteriosas na favela", min: 50, max: 100 },
+                { desc: "hackeou uma conta antiga de Orkut", min: 35, max: 75 },
+                { desc: "limpou as jaulas dos dragões do cassino", min: 45, max: 90 }
+            ];
+
+            const job = trabalhos[Math.floor(Math.random() * trabalhos.length)];
+            const ganho = Math.floor(Math.random() * (job.max - job.min + 1)) + job.min;
+            const novoSaldo = await storage.addCoins(from, sender, ganho);
+            global.workCooldowns.set(sender, agora);
+
+            return `💼 *BICO DO SUBMUNDO!* 💼\n\nVocê *${job.desc}* e faturou *${ganho} Bochecha-Coins*!\n\n🪙 *Novo Saldo:* *${novoSaldo} Bochecha-Coins* 💀🥀`;
         }
     }
 };

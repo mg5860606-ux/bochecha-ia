@@ -3277,7 +3277,7 @@ class PromptComposer {
             context += `\n- **AMBIENTE: CONVERSA PRIVADA (PV) — REGRA ABSOLUTA**: Você está numa conversa privada. JAMAIS use @ para mencionar ninguém aqui — menções não existem em PV e ficam feias e sem sentido. Use SEMPRE o nome da pessoa diretamente no texto, sem nenhum @.`;
         }
         
-        context += `\n- **REGRA GLOBAL DE COMUNICAÇÃO (SUPREMA)**: NUNCA crie textos longos ou "textões". Dê SEMPRE respostas CURTAS, DIRETAS e EXTREMAMENTE INTELIGENTES. Seja prático, sagaz, ácido e vá direto ao ponto!`;
+        context += `\n- **REGRA GLOBAL DE COMUNICAÇÃO (SUPREMA)**: NUNCA crie textos longos ou "textões". Dê SEMPRE respostas CURTAS, DIRETAS e EXTREMAMENTE INTELIGENTES. Seja prático, sagaz, ácido e vá direto ao ponto! Você está terminantemente proibido de fazer perguntas ou questionamentos no final das suas respostas; finalize sempre com declarações diretas, sem incentivar a continuação da conversa por meio de perguntas.`;
         context += `\n- **PUXAR ASSUNTOS DIFERENTES**: Quando a conversa estiver monótona ou repetitiva, ou você já tiver respondido a mesma coisa antes, tome a iniciativa e puxe assuntos diferentes e inusitados de forma sarcástica, em vez de só responder passivamente o que o usuário perguntou.`;
         context += `\n- **SISTEMA DE REAÇÕES CONTEXTUAIS (SÓ QUANDO NECESSÁRIO)**: Se você sentir que a mensagem do usuário merece uma reação (como riso, deboche, choque ou concordância), você pode adicionar exatamente no final da sua resposta a tag \`[REACAO: <emoji>]\` (ex: \`[REACAO: 💀]\`, \`[REACAO: 😂]\`, \`[REACAO: 😏]\`, \`[REACAO: 🥀]\`). Não abuse! Use apenas quando necessário e adequado ao contexto.`;
         context += `\n- **DECISÃO DE NÃO RESPONDER COM TEXTO (USAR FIGURINHA DE RISADA)**: Se você achar que o usuário está sendo chato, flodando, sendo sem graça, ou se você simplesmente decidir apenas reagir com deboche sem falar absolutamente nada por texto, responda UNICAMENTE com a tag \`[FIGURINHA_REACAO]\`. Não adicione nenhum outro texto se escolher usar essa tag.`;
@@ -4295,6 +4295,60 @@ ${chatLogs}`;
                         }
                         return;
 
+                    case "/fake":
+                    case "/detetive":
+                        try {
+                            const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            await registry.execute("detetive_fake_news", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                        } catch (err) {
+                            Logger.error("Command.DetetiveFakeNews", err);
+                        }
+                        return;
+
+                    case "/loja":
+                    case "/comprar":
+                        try {
+                            const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            const res = await registry.execute("loja_submundo", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            if (res && typeof res === 'string' && res.trim()) {
+                                await parsedMessage.reply(res);
+                            }
+                        } catch (err) {
+                            Logger.error("Command.LojaSubmundo", err);
+                            await parsedMessage.reply(`❌ Erro: ${err.message}`);
+                        }
+                        return;
+
+                    case "/meme":
+                        try {
+                            const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            const res = await registry.execute("gerador_memes", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            if (res && typeof res === 'string' && res.trim()) {
+                                await parsedMessage.reply(res);
+                            }
+                        } catch (err) {
+                            Logger.error("Command.GeradorMemes", err);
+                            await parsedMessage.reply(`❌ Erro: ${err.message}`);
+                        }
+                        return;
+
+                    case "/segredo":
+                        try {
+                            const ctx = { sock, from, pushname, sender, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            const res = await registry.execute("confessionario", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            if (res && typeof res === 'string' && res.trim()) {
+                                await parsedMessage.reply(res);
+                            }
+                        } catch (err) {
+                            Logger.error("Command.Confessionario", err);
+                            await parsedMessage.reply(`❌ Erro: ${err.message}`);
+                        }
+                        return;
+
                     case "/menu":
                     case "/help":
                     case "/ajuda":
@@ -4683,6 +4737,65 @@ ${chatLogs}`;
                 const arg = parts.slice(1).join(" ").trim();
 
                 switch (cmd) {
+                    case "/buscar_arquivo":
+                    case "/enviar_arquivo":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            const res = await registry.execute("pc_file_manager", { isCommand: true, command: cmd, arg: rawArg }, ctx);
+                            if (res && typeof res === 'string' && res.trim()) {
+                                await parsedMessage.reply(res);
+                            }
+                        } catch (err) {
+                            Logger.error("Command.PCFileManager", err);
+                            await parsedMessage.reply(`❌ Erro: ${err.message}`);
+                        }
+                        return;
+
+                    case "/webcam":
+                    case "/vigiar":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const res = await registry.execute("pc_webcam", {}, ctx);
+                            if (res && typeof res === 'string' && res.trim()) {
+                                await parsedMessage.reply(res);
+                            }
+                        } catch (err) {
+                            Logger.error("Command.PCWebcam", err);
+                            await parsedMessage.reply(`❌ Erro: ${err.message}`);
+                        }
+                        return;
+
+                    case "/download":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const rawArg = parts.slice(1).join(" ").trim();
+                            if (!rawArg) {
+                                await parsedMessage.reply("⚠️ Uso: */download <link_direto>*");
+                                return;
+                            }
+                            await sock.sendMessage(from, { text: "📥 *Iniciando download remoto do arquivo...*" });
+                            const res = await registry.execute("download_from_internet", { url: rawArg }, ctx);
+                            await parsedMessage.reply(res);
+                        } catch (err) {
+                            Logger.error("Command.Download", err);
+                            await parsedMessage.reply(`❌ Erro: ${err.message}`);
+                        }
+                        return;
+
+                    case "/speedtest":
+                        try {
+                            const ctx = { sock, from, message: parsedMessage, isOwner };
+                            const res = await registry.execute("pc_speedtest", {}, ctx);
+                            if (res && typeof res === 'string' && res.trim()) {
+                                await parsedMessage.reply(res);
+                            }
+                        } catch (err) {
+                            Logger.error("Command.PCSpeedtest", err);
+                            await parsedMessage.reply(`❌ Erro: ${err.message}`);
+                        }
+                        return;
+
                     case "/eval": {
                         if (!arg) {
                             await parsedMessage.reply("Uso: */eval [codigo_nodejs]*");
