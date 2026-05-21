@@ -89,29 +89,25 @@ function init() {
   syncWithFirestore();
 }
 
-let currentKey = null;
-let currentClaudeKey = null;
+let currentKeyIndex = 0;
+let currentClaudeKeyIndex = 0;
 
 function getKey() {
   if (!keys || keys.length === 0) return null;
   
-  if (currentKey && keys.indexOf(currentKey) !== -1) {
-    return currentKey;
-  }
+  const key = keys[currentKeyIndex % keys.length];
+  currentKeyIndex = (currentKeyIndex + 1) % keys.length;
   
-  currentKey = keys[0];
-  return currentKey;
+  return key;
 }
 
 function getClaudeKey() {
   if (!claudekeys || claudekeys.length === 0) return null;
   
-  if (currentClaudeKey && claudekeys.indexOf(currentClaudeKey) !== -1) {
-    return currentClaudeKey;
-  }
+  const key = claudekeys[currentClaudeKeyIndex % claudekeys.length];
+  currentClaudeKeyIndex = (currentClaudeKeyIndex + 1) % claudekeys.length;
   
-  currentClaudeKey = claudekeys[0];
-  return currentClaudeKey;
+  return key;
 }
 
 function listKeys() {
@@ -131,16 +127,10 @@ function markClaudeFailure(failedKey, force = false) {
     console.log(chalk.yellow(`[AVISO] apiKeyManager: Falha/Exaustão detectada na chave Claude ${failedKey.substring(0, 8)}... - Rotacionando para a próxima chave.`));
     claudekeys.splice(idx, 1);
     claudekeys.push(failedKey);
-    if (currentClaudeKey === failedKey) {
-      currentClaudeKey = null;
-    }
     return;
   }
   
   claudekeys.splice(idx, 1);
-  if (currentClaudeKey === failedKey) {
-    currentClaudeKey = null;
-  }
   try {
     const cfg = loadConfig();
     if (cfg.claudekeys && Array.isArray(cfg.claudekeys)) {
@@ -168,16 +158,10 @@ function markFailure(failedKey, force = false) {
     console.log(chalk.yellow(`[AVISO] apiKeyManager: Falha/Exaustão detectada na chave ${failedKey.substring(0, 8)}... - Rotacionando para a próxima chave.`));
     keys.splice(idx, 1);
     keys.push(failedKey);
-    if (currentKey === failedKey) {
-      currentKey = null;
-    }
     return;
   }
   
   keys.splice(idx, 1);
-  if (currentKey === failedKey) {
-    currentKey = null;
-  }
   try {
     const cfg = loadConfig();
     if (cfg.keys && Array.isArray(cfg.keys)) {
