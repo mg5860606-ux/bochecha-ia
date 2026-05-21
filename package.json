@@ -1,0 +1,60 @@
+{
+  "name": "bochecha-ia",
+  "version": "1.0.0",
+  "description": "𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀 - Bot de WhatsApp com IA",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "whatsapp-bot",
+    "whatsapp-baileys",
+    "bot-ia",
+    "groq"
+  ],
+  "author": {
+    "name": "Marcos",
+    "email": "mg5860606@gmail.com",
+    "url": "https://github.com/mg5860606-ux"
+  },
+  "contributors": [
+    {
+      "name": "Marcos",
+      "email": "mg5860606@gmail.com",
+      "url": "https://github.com/mg5860606-ux"
+    }
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "@distube/ytdl-core": "^4.16.12",
+    "@google/generative-ai": "^0.24.1",
+    "@hapi/boom": "^10.0.0",
+    "@whiskeysockets/baileys": "^6.7.16",
+    "chalk": "^4.1.2",
+    "edge-tts-universal": "^1.4.0",
+    "ffmpeg-static": "^5.3.0",
+    "firebase": "^12.13.0",
+    "fluent-ffmpeg": "^2.1.3",
+    "google-tts-api": "^2.0.2",
+    "groq-sdk": "^1.1.2",
+    "jimp": "^1.6.1",
+    "moment-timezone": "^0.5.46",
+    "node-schedule": "^2.1.1",
+    "node-webpmux": "^3.2.1",
+    "openai": "^6.38.0",
+    "pino": "^7.0.5",
+    "qrcode-terminal": "^0.12.0",
+    "wa-sticker-formatter": "^4.4.4",
+    "yt-search": "^2.13.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mg5860606-ux/bochecha-ia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mg5860606-ux/bochecha-ia/issues"
+  },
+  "homepage": "https://github.com/mg5860606-ux/bochecha-ia#readme"
+}

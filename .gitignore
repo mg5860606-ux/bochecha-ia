@@ -1,0 +1,15 @@
+node_modules
+package-lock.json
+session.json
+session
+yusril
+learnings
+memory
+bochecha_sessao/
+key.json
+key_backup.json
+scratch/
+*.json
+!package.json
+*.bak
+test_all_models.js
