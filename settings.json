@@ -3,5 +3,5 @@
     "216716214853887"
   ],
   "isPublic": true,
-  "primaryModel": "meta-llama/llama-3.3-70b-instruct:free"
+  "primaryModel": "poolside/laguna-m.1:free"
 }
