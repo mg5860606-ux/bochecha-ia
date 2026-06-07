@@ -2887,6 +2887,7 @@ class SkillRegistry {
 
 // Instanciar singleton registry
 const registry = new SkillRegistry();
+global.registry = registry;
 
 // ══════════════════════════════════════════════════════════════════════════
 // 7. MODERATION SYSTEM (ANTI-ABUSO, FLOOD E CONTROLE DE ADVERTÊNCIAS)
