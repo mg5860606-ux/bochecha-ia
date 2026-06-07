@@ -59,6 +59,14 @@ O Bochecha agora interage com o chat como se fosse um usuário real, de forma na
 ### ⚡ 6. Resposta Rápida Sem Prefixo
 * **Interceção Econômica**: Se algum membro digitar apenas `"bot"` ou o prefixo puro (ex: `/`), o Bochecha responde instantaneamente com: `"opa tudo bem ? Oque manda ?"` sem consumir tokens das chaves de API, agilizando o atendimento.
 
+### 🛡️ 7. Escudo de Anti-Spam Avançado & Proteção contra Ban
+Para blindar o bot contra banimentos automáticos do WhatsApp, integramos mecanismos rigorosos de proteção:
+* **BotRateLimiter Ativo:** Sistema de limite dinâmico de taxa que restringe o envio de mensagens (limite global de 18 mensagens/min e 4 mensagens/min por chat). Envios em excesso são retidos temporariamente com backoff.
+* **Delay Humanizado de Digitação (`humanDelay`):** O bot calcula o tempo de resposta e simula digitação (800ms base + 20ms por caractere + jitter aleatório de 500ms) mostrando o status de "digitando..." antes do envio de cada mensagem.
+* **Envio Controlado de Alarmes:** Limita no máximo 3 alarmes por ciclo e adiciona um delay de 2 segundos entre envios de alarmes pendentes consecutivos.
+* **Reflexão Profunda Restrita:** A rotina automática de sonho e geração de diário (`triggerReflection()`) foi restrita à janela de menor atividade (00:00 às 06:00 fuso de São Paulo).
+* **Parada no Erro 403:** A reconexão foi aprimorada para detectar suspensão/ban da conta (Erro 403 Forbidden), interrompendo o ciclo de reinício para proteger o IP do servidor.
+
 ---
 
 ## 🛡️ Escudo de Segurança do Grupo com Firestore (Group Security Shield)
@@ -123,7 +131,7 @@ Abaixo está o time responsável pelo desenvolvimento, engenharia de prompts e d
     <tr>
       <td align="center">
         <a href="https://github.com/mg5860606-ux">
-          <img src="https://avatars.githubusercontent.com/u/129759239?v=4" width="100px;" alt="Marcos Avatar"/><br />
+          <img src="marcos.png" width="120px;" style="border-radius: 50%; border: 2px solid #ff007f;" alt="Marcos Avatar"/><br />
           <sub><b>Marcos (mg5860606-ux)</b></sub>
         </a><br />
         👑 <b>Desenvolvedor Líder, Arquiteto & Dono</b>
