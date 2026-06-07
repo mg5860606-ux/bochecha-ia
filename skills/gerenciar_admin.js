@@ -34,10 +34,30 @@ module.exports = {
         const myNumber = (sock.user?.id || "").replace(/:.*/, "").replace(/@.*/, "");
         const myLid = (sock.authState?.creds?.me?.lid || "").replace(/:.*/, "").replace(/@.*/, "");
 
+        // Fallback para comando direto: /gerenciar_admin @numero <acao>
+        if (!args.mencao || !args.acao) {
+            const texto = (args.texto || args.alvo || '').trim();
+            if (texto) {
+                const partes = texto.split(/\s+/);
+                const acaoMap = { 'promover': 'promover', 'rebaixar': 'rebaixar', 'promote': 'promover', 'demote': 'rebaixar' };
+                for (const p of partes) {
+                    if (acaoMap[p.toLowerCase()]) {
+                        args.acao = acaoMap[p.toLowerCase()];
+                    } else if (!args.mencao && (p.startsWith('@') || /^[0-9]{8,}/.test(p))) {
+                        args.mencao = p;
+                    }
+                }
+            }
+            if (!args.mencao || !args.acao) {
+                return "❌ Use: /gerenciar_admin @numero promover | /gerenciar_admin @numero rebaixar";
+            }
+        }
+
         let target = args.mencao.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
         if (message.message?.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
             target = message.message.extendedTextMessage.contextInfo.mentionedJid[0];
         }
+
 
         const cleanTarget = target.split('@')[0];
 

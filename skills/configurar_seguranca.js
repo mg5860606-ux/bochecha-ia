@@ -29,6 +29,21 @@ module.exports = {
     async execute(args, { sock, from }) {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
         
+        // Fallback para comando direto: /configurar_seguranca <protecao> <on|off>
+        if (!args.protecao || args.estado === undefined) {
+            const texto = (args.texto || args.alvo || '').trim().toLowerCase();
+            if (texto) {
+                const partes = texto.split(/\s+/);
+                if (partes[0]) args.protecao = partes[0];
+                if (partes[1] !== undefined) {
+                    args.estado = ['on', 'true', '1', 'ativar', 'ativo'].includes(partes[1]) ? true : false;
+                }
+            }
+            if (!args.protecao || args.estado === undefined) {
+                return "❌ Use: /configurar_seguranca <protecao> on | off\nEx: /configurar_seguranca antilink on";
+            }
+        }
+
         const storage = global.storage || require("../sansekai").storage;
         await storage.updateGroupSecurity(from, args.protecao, args.estado);
         

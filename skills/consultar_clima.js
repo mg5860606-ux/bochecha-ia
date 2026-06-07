@@ -18,7 +18,7 @@ module.exports = {
     },
     async execute(args) {
         try {
-            const cidade = args.cidade || "São Paulo";
+            const cidade = args.cidade || args.texto || args.alvo || "São Paulo";
             const response = await fetch(`https://wttr.in/${encodeURIComponent(cidade)}?format=3`);
             const clima = await response.text();
             return clima || "Não foi possível pegar o clima.";

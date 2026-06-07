@@ -33,11 +33,12 @@ module.exports = {
             return "❌ Apenas administradores do grupo ou o Arquiteto podem usar este comando.";
         }
 
-        if (!args.mencao) {
+        const targetInput = args.mencao || args.texto || args.alvo;
+        if (!targetInput) {
             return "❌ Por favor, forneça o número da pessoa a ser adicionada.";
         }
 
-        const cleanInput = args.mencao.replace(/[^0-9]/g, '');
+        const cleanInput = targetInput.replace(/[^0-9]/g, '');
         const target = `${cleanInput}@s.whatsapp.net`;
 
         try {

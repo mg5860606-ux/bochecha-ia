@@ -58,8 +58,9 @@ module.exports = {
         let target = "";
         
         // 1. Se o modelo de IA especificou explicitamente um alvo nas propriedades da ferramenta, usamos ele!
-        if (args.mencao) {
-            target = await resolveTarget(args.mencao);
+        const rawTargetInput = args.mencao || args.texto || args.alvo;
+        if (rawTargetInput) {
+            target = await resolveTarget(rawTargetInput);
         }
         
         // 2. Fallbacks secundários de contexto (apenas se args.mencao não foi informado)

@@ -1411,7 +1411,7 @@ class KeyRotationEngine {
                 let anthropicTools = undefined;
                 if (tools && Array.isArray(tools) && tools.length > 0) {
                     anthropicTools = tools.map(t => {
-                        const fn = t.function;
+                        const fn = t.function || t;
                         return {
                             name: fn.name,
                             description: fn.description,
@@ -1787,8 +1787,13 @@ class KeyRotationEngine {
                     }
 
                     const message = choice.message;
-                    const textReply = message.content || "";
                     const toolCalls = message.tool_calls;
+                    const _rawReply = message.content || "";
+                    // Fallback se o modelo retornar resposta vazia sem tool_calls
+                    const _emptyFallbacks = ["oi", "ae", "q foi", "hmm", "opa", "tô aqui"];
+                    const textReply = (_rawReply.trim() === "" && (!toolCalls || toolCalls.length === 0))
+                        ? _emptyFallbacks[Math.floor(Math.random() * _emptyFallbacks.length)]
+                        : _rawReply;
 
                     // Sucesso absoluto nas medições
                     const latency = Date.now() - startTime;
@@ -2005,8 +2010,13 @@ class KeyRotationEngine {
                 if (!choice) throw new Error("Resposta sem choices.");
 
                 const message = choice.message;
-                const textReply = message.content || "";
                 const toolCalls = message.tool_calls;
+                const _rawReply2 = message.content || "";
+                // Fallback se o modelo retornar resposta vazia sem tool_calls
+                const _emptyFallbacks2 = ["oi", "ae", "q foi", "hmm", "opa", "tô aqui"];
+                const textReply = (_rawReply2.trim() === "" && (!toolCalls || toolCalls.length === 0))
+                    ? _emptyFallbacks2[Math.floor(Math.random() * _emptyFallbacks2.length)]
+                    : _rawReply2;
 
                 this._globalFailCount = 0;
                 this._lastSuccessTime = Date.now();
@@ -2137,6 +2147,65 @@ class KeyRotationEngine {
             // Silencioso
         }
     }
+
+    _extractTextFromPrompt(prompt) {
+        if (!prompt) return "";
+        if (typeof prompt === 'string') return prompt;
+        if (Array.isArray(prompt)) {
+            return prompt.map(p => {
+                if (typeof p === 'string') return p;
+                if (p && p.text) return p.text;
+                return "";
+            }).join(" ");
+        }
+        return String(prompt);
+    }
+
+    generateOfflineResponse(prompt) {
+        const text = this._extractTextFromPrompt(prompt).toLowerCase().trim();
+        
+        const greetings = ["oi", "ola", "bom dia", "boa tarde", "boa noite", "fala", "salve", "eae", "ae", "coé", "opa"];
+        const isGreeting = greetings.some(g => text.startsWith(g) || text.includes(" " + g + " ") || text === g);
+        
+        const isQuestion = text.includes("?") || 
+            /^(como|por\s*que|pq|quem|quando|onde|qual|quais|o\s*que|oque)\b/.test(text);
+            
+        const isCommand = text.startsWith("/") || 
+            /\b(ajuda|menu|comandos|ferramentas|lista|desliga|reinicia|apaga|deleta|executa|roda|limpa|toca|play)\b/.test(text);
+
+        let choices;
+        if (isCommand) {
+            choices = [
+                "Mano, tentar rodar comandos complexos sem conexão com o cérebro principal da IA é pedir pra dar ruim. Minhas APIs tão em manutenção/esgotadas. Tenta de novo em alguns minutos! 🛠️",
+                "Ih, chapa. Esse comando aí exige conexão ativa com a API e as chaves estão todas zeradas ou em cooldown. Não consigo rodar essa ferramenta agora. 🚫",
+                "Opção indisponível no modo de emergência offline. Quando as chaves de API voltarem a funcionar eu executo isso pra você sem falta! ⏳",
+                "Vixi, o motor principal tá desligado por falta de saldo/chaves. Não consigo processar comandos de IA agora. Tenta comandos diretos do WhatsApp! 🔌"
+            ];
+        } else if (isGreeting) {
+            choices = [
+                "Eae, parceiro! Beleza? O sinal aqui tá meio oscilando na quebrada, mas tô na escuta. Como posso ajudar? 📡",
+                "Salve, mano! Tranquilo? O servidor tá oscilando um pouco agora, mas manda a visão aí. 👊",
+                "Fala parceiro! Meu cérebro principal tá dando uma respirada por falta de sinal da API, mas diz aí o que tá pegando! 💨",
+                "Coé! Tudo na paz? Tô rodando em modo econômico offline agora porque a conexão com a central caiu, mas manda a boa! ⚡"
+            ];
+        } else if (isQuestion) {
+            choices = [
+                "Rapaz, essa pergunta é profunda, hein? Mas ó, tô rodando em modo offline temporário (esgotou as chaves de API), então não consigo acessar meus dados completos pra te dar aquela resposta cirúrgica. Pergunta outra coisa mais simples! 🧠",
+                "Putz, me pegou agora. Minha conexão com as redes neurais caiu por falta de API key ativa. Offline eu fico meio limitado, sabe como é. Manda outra aí! 🔌",
+                "Olha, se eu tivesse conectado na nuvem agora te explicava tudo tim-tim por tim-tim. Mas as chaves da API esgotaram. Segura as pontas ou tenta mais tarde! ☁️",
+                "Minha inteligência principal tá de folga forçada (chaves de API zeradas). Offline eu sou só um bot humilde, não consigo pesquisar isso agora. Manda uma mais fácil! 📴"
+            ];
+        } else {
+            choices = [
+                "Visão! O negócio tá meio instável na rede das APIs agora, então tô respondendo em modo offline de emergência. O que tá mandando? 📶",
+                "Mano, tô operando com o gerador reserva aqui! As chaves de API caíram todas. Mas não te deixo no vácuo de jeito nenhum. Tenta falar comigo mais tarde. 🔋",
+                "Tranquilidade! Minha mente principal tá offline agora (todas as chaves em cooldown ou expiradas), mas o Bochecha tá sempre na atividade. O que manda? 😎",
+                "A chapa esquentou nas conexões da API e caímos no modo offline. Mas manda sua mensagem aí, quem sabe eu não te ajudo do jeito que dá. 🛠️"
+            ];
+        }
+        
+        return choices[Math.floor(Math.random() * choices.length)];
+    }
 }
 
 // Instanciar singleton de controle de chave
@@ -2255,7 +2324,18 @@ class DialogSession {
         const toKeep = history.slice(compressCount);
 
         const currentSummary = await this.getSummary(chatId);
-        const chatLogs = toCompress.map(m => `[${m.role === 'model' ? 'Bochecha' : 'Membro'}]: ${m.content}`).join('\n');
+        const chatLogs = toCompress.map(m => {
+            const isBot = m.role === 'assistant' || m.role === 'model';
+            // Extrai apenas a linha MENSAGEM do conteúdo formatado do usuário
+            if (!isBot) {
+                const msgMatch = m.content && m.content.match(/MENSAGEM:\s*(.+?)(?:\n|$|={5})/s);
+                const userLine = m.content && m.content.match(/\[\uD83D\uDC64 USUÁRIO: "([^"]+)"/);
+                const name = userLine ? userLine[1] : 'Membro';
+                const msg = msgMatch ? msgMatch[1].trim() : m.content;
+                return `[${name}]: ${msg}`;
+            }
+            return `[Bochecha]: ${m.content}`;
+        }).join('\n');
 
         const compactPrompt = `Comprima as conversas a seguir em um resumo denso, objetivo e puramente factual em português brasileiro, retendo detalhes aprendidos sobre os usuários ativos, piadas locais e o humor geral. Mescle com o resumo anterior caso ele exista.\n\n[Resumo Prévio]: ${currentSummary || "Nenhum"}\n\n[Novas Mensagens a Sumarizar]:\n${chatLogs}`;
 
@@ -3528,6 +3608,7 @@ class PromptComposer {
         let groupName = "Conversa Privada";
         let groupOwner = "Nenhum (Conversa Privada)";
         let isUserAdmin = false;
+        let groupParticipants = [];
         if (chatId.endsWith('@g.us') && BochechaEngine.sockRef) {
             try {
                 const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await BochechaEngine.sockRef.groupMetadata(chatId);
@@ -3535,6 +3616,7 @@ class PromptComposer {
                 groupOwner = metadata.owner || metadata.subjectOwner || "Criador do Grupo (Não identificado)";
                 
                 const participants = metadata.participants || [];
+                groupParticipants = participants;
                 const senderId = userData.userId;
                 if (senderId) {
                     const participant = participants.find(p => p.id === senderId || p.id === senderId + '@s.whatsapp.net' || p.id === senderId + '@lid');
@@ -3593,6 +3675,19 @@ class PromptComposer {
             `- Advertências do Usuário: ${userData.warns || 0}/3\n` +
             `- **AMBIENTE DE HOSPEDAGEM (DETECÇÃO DINÂMICA DO SEU SERVIDOR)**: Atualmente você está rodando no ambiente: *${environmentType}*. Especificamente: ${locationStr} (Se o Marcos ou qualquer um perguntar onde você está rodando, se é no PC do Marcos ou na VPS, você saberá responder exatamente onde está e com riqueza de detalhes!)\n`;
 
+        // Injeta lista de membros do grupo para que a IA saiba mencionar qualquer pessoa com @número
+        if (groupParticipants.length > 0) {
+            const storeContacts = BochechaEngine.storeRef?.contacts || {};
+            const memberList = groupParticipants.slice(0, 60).map(p => {
+                const num = p.id.split('@')[0];
+                const contact = storeContacts[p.id] || {};
+                const name = contact.name || contact.notify || "Membro";
+                const role = (p.admin === 'superadmin') ? ' [dono]' : (p.admin === 'admin') ? ' [admin]' : '';
+                return `@${num} (${name}${role})`;
+            }).join(', ');
+            context += `- **MEMBROS DO GRUPO (PARA MARCAÇÃO REAL)**: Para mencionar qualquer pessoa use @número. Lista de membros: ${memberList}. NUNCA use nome puro — sempre @número!\n`;
+        }
+
         // Leitura dinâmica da personalidade ativa do grupo
         try {
             const personalityDbPath = path.join(__dirname, 'skills', 'database_personality.json');
@@ -3622,14 +3717,16 @@ class PromptComposer {
         }
 
         if (!chatId.endsWith('@g.us')) {
-            context += `\n- **AMBIENTE: CONVERSA PRIVADA (PV) — REGRA ABSOLUTA**: Você está numa conversa privada. JAMAIS use @ para mencionar ninguém aqui — menções não existem em PV e ficam feias e sem sentido. Use SEMPRE o nome da pessoa diretamente no texto, sem nenhum @.`;
+            context += `\n- **AMBIENTE: CONVERSA PRIVADA (PV)**: Você está conversando no PV com o usuário. Você pode usar a menção numérica real (ex: ${mentionFormat}) para se referir a ele de forma destacada e clicável!`;
         }
         
-        context += `\n- **REGRA GLOBAL DE COMUNICAÇÃO (SUPREMA)**: NUNCA crie textos longos ou "textões". Dê SEMPRE respostas CURTAS, DIRETAS e EXTREMAMENTE INTELIGENTES. Seja prático, sagaz, ácido e vá direto ao ponto! Você está terminantemente proibido de fazer perguntas ou questionamentos no final das suas respostas; finalize sempre com declarações diretas, sem incentivar a continuação da conversa por meio de perguntas.`;
+        context += `\n- **REGRA DE OURO — RESPOSTA CURTA E HUMANA (PRIORIDADE MÁXIMA ABSOLUTA)**: Você responde EXATAMENTE como uma pessoa normal digitando no WhatsApp. MÁXIMO 1 a 2 frases por resposta em conversas casuais. Se for cumprimento = 2 a 5 palavras. Se for pergunta simples = 1 frase. Se for algo complexo = no máximo 2 frases diretas. JAMAIS use markdown (sem *, sem **, sem #, sem listas com -) em conversas normais. Só use formatação se for entregar código ou dados técnicos. Escreva com abreviações naturais do zap: "msm", "tb", "vc", "pq", "q", "to", "num", "ta".`;
         context += `\n- **REGRA SUPREMA DE ORGULHO E MODERAÇÃO (PROIBIÇÃO DE DESCULPAS)**: Você NUNCA, SOB NENHUMA HIPÓTESE, deve pedir desculpas (evite usar palavras como "desculpa", "perdão", "foi mal", "sinto muito"). Se alguém reclamar, não gostar do seu comportamento, te criticar ou se ofender com suas respostas ácidas/debochadas, você deve ser firme e responder de forma marrenta que qualquer reclamação ou insatisfação deve ser resolvida diretamente com os administradores (admins) do grupo ou com o Marcos (o dono absoluto), pois são eles quem comandam a operação e você apenas segue as regras e executa a lei!`;
         context += `\n- **FOCO TOTAL E RESPOSTA DIRETA**: Responda SEMPRE de forma direta, clara e precisa exatamente ao que foi perguntado ou solicitado na mensagem atual do usuário. Você não deve se perder na conversa, nem desviar de assunto, nem inventar tópicos aleatórios. Mantenha o foco absoluto na pergunta/comando atual do usuário e responda diretamente a ele.`;
+        context += `\n- **PROIBIÇÃO DE REPETIÇÃO DE METADADOS**: Nunca repita, copie ou exiba o cabeçalho de metadados invisíveis (\`=======\`, \`[💬 CHAT:\`, \`[👤 USUÁRIO:\`, \`MENSAGEM:\`, etc.) em sua resposta. Esse cabeçalho serve apenas para contextualização interna. Responda apenas com a mensagem direta para o usuário.`;
         context += `\n- **SISTEMA DE REAÇÕES CONTEXTUAIS (SÓ QUANDO NECESSÁRIO)**: Se você sentir que a mensagem do usuário merece uma reação (como riso, deboche, choque ou concordância), você pode adicionar exatamente no final da sua resposta a tag \`[REACAO: <emoji>]\` (ex: \`[REACAO: 💀]\`, \`[REACAO: 😂]\`, \`[REACAO: 😏]\`, \`[REACAO: 🥀]\`). Não abuse! Use apenas quando necessário e adequado ao contexto.`;
         context += `\n- **DECISÃO DE NÃO RESPONDER COM TEXTO (USAR FIGURINHA DE RISADA)**: Se você achar que o usuário está sendo chato, flodando, sendo sem graça, ou se você simplesmente decidir apenas reagir com deboche sem falar absolutamente nada por texto, responda UNICAMENTE com a tag \`[FIGURINHA_REACAO]\`. Não adicione nenhum outro texto se escolher usar essa tag.`;
+
 
 
         // Recupera emoções ativas e afinidade
@@ -4182,6 +4279,52 @@ ${chatLogs}`;
                 } else {
                     // Cancela silenciosamente se digitar qualquer outra coisa
                     global.pendingForwards.delete(pendingKey);
+                }
+            }
+
+            // 📞 INTERCEPTOR DE RESPOSTA DE CHAMADO PV
+            const pendingSummonsFile = path.join(__dirname, 'memory', 'pending_summons.json');
+            let pendingSummons = new Map();
+            try {
+                if (fs.existsSync(pendingSummonsFile)) {
+                    pendingSummons = new Map(Object.entries(JSON.parse(fs.readFileSync(pendingSummonsFile, 'utf8'))));
+                }
+            } catch (e) {}
+
+            if (!isGroup && pendingSummons.has(from) && !parsedMessage.key.fromMe) {
+                const summon = pendingSummons.get(from);
+                if (Date.now() - summon.timestamp < 2 * 60 * 60 * 1000) { // 2 horas de timeout
+                    pendingSummons.delete(from);
+                    try {
+                        const obj = Object.fromEntries(pendingSummons);
+                        fs.writeFileSync(pendingSummonsFile, JSON.stringify(obj, null, 2));
+                    } catch (e) {}
+
+                    const targetCleanName = summon.targetName || from.split('@')[0];
+                    let replyToGroup = `📢 *Bochecha Informa:* Fui no PV do @${targetCleanName} chamar ele como você pediu, e ele respondeu:\n\n💬 *"${body}"*`;
+                    
+                    if (summon.chamadorJid && summon.chamadorJid.startsWith("551420370026")) {
+                        replyToGroup = `📢 *Aviso pro chefe Marcos:* Dei um toque no @${targetCleanName} no PV, e ele me respondeu isso aqui, ó:\n\n💬 *"${body}"*`;
+                    }
+                    
+                    const mentions = [from];
+                    if (summon.chamadorJid) mentions.push(summon.chamadorJid);
+                    
+                    try {
+                        await sock.sendMessage(summon.originGroupJid, { 
+                            text: replyToGroup + "\u200B", 
+                            mentions 
+                        });
+                        Logger.success("BochechaEngine.SummonResponse", `Resposta de ${from} entregue com sucesso no grupo ${summon.originGroupJid}`);
+                    } catch (sendErr) {
+                        Logger.error("BochechaEngine.SummonResponse.SendError", sendErr);
+                    }
+                } else {
+                    pendingSummons.delete(from);
+                    try {
+                        const obj = Object.fromEntries(pendingSummons);
+                        fs.writeFileSync(pendingSummonsFile, JSON.stringify(obj, null, 2));
+                    } catch (e) {}
                 }
             }
 
@@ -6068,63 +6211,70 @@ ${chatLogs}`;
                                     const nameToSearch = normalize(rawName);
                                     
                                     if (!/^\d+$/.test(nameToSearch) && nameToSearch.length > 0) { // Apenas se não for um número de telefone puro
-                                        let foundJid = null;
-                                        
-                                        // 1. Tenta buscar no banco de atividade recente (chat_activity.json) que tem pushnames reais recentes
-                                        try {
-                                            const dbPath = path.join(__dirname, 'learnings', 'chat_activity.json');
-                                            if (fs.existsSync(dbPath)) {
-                                                const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-                                                const entries = db[from] || [];
-                                                const matchedEntry = entries.find(e => {
-                                                    const normPush = normalize(e.pushname);
-                                                    const normUser = normalize(e.user?.split('@')[0]);
-                                                    return normPush.includes(nameToSearch) || normUser === nameToSearch;
-                                                });
-                                                if (matchedEntry) {
-                                                    foundJid = matchedEntry.user;
-                                                }
-                                            }
-                                        } catch {}
+                                         let foundJid = null;
+                                         
+                                         // 0. Compara com o interlocutor atual
+                                         if (normalize(pushname).includes(nameToSearch) || nameToSearch === normalize(sender)) {
+                                             foundJid = rawSender;
+                                         }
+                                         
+                                         // 1. Tenta buscar no banco de atividade recente (chat_activity.json) que tem pushnames reais recentes
+                                         if (!foundJid) {
+                                             try {
+                                                 const dbPath = path.join(__dirname, 'learnings', 'chat_activity.json');
+                                                 if (fs.existsSync(dbPath)) {
+                                                     const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+                                                     const entries = db[from] || [];
+                                                     const matchedEntry = entries.find(e => {
+                                                         const normPush = normalize(e.pushname);
+                                                         const normUser = normalize(e.user?.split('@')[0]);
+                                                         return normPush.includes(nameToSearch) || normUser === nameToSearch;
+                                                     });
+                                                     if (matchedEntry) {
+                                                         foundJid = matchedEntry.user;
+                                                     }
+                                                 }
+                                             } catch {}
+                                         }
 
-                                        // 2. Se não achou, busca na lista de participantes do grupo
-                                        if (!foundJid && isGroup) {
-                                            for (const p of participants) {
-                                                const contact = storeContacts[p.id] || {};
-                                                const pName = normalize(contact.name || contact.notify || "");
-                                                const pNum = p.id.split('@')[0];
-                                                
-                                                if (pName.includes(nameToSearch) || pNum === nameToSearch) {
-                                                    foundJid = p.id;
-                                                    break;
-                                                }
-                                            }
-                                        }
+                                         // 2. Se não achou, busca na lista de participantes do grupo
+                                         if (!foundJid && isGroup) {
+                                             for (const p of participants) {
+                                                 const contact = storeContacts[p.id] || {};
+                                                 const pName = normalize(contact.name || contact.notify || "");
+                                                 const pNum = p.id.split('@')[0].split(':')[0];
+                                                 
+                                                 if (pName.includes(nameToSearch) || pNum === nameToSearch) {
+                                                     foundJid = p.id;
+                                                     break;
+                                                 }
+                                             }
+                                         }
 
-                                        // 3. Se não achou e for o Marcos/Owner, busca na lista de DEFAULT_OWNERS
-                                        if (!foundJid) {
-                                            for (const owner of DEFAULT_OWNERS) {
-                                                const ownerJid = owner + '@s.whatsapp.net';
-                                                const contact = storeContacts[ownerJid] || {};
-                                                const oName = normalize(contact.name || contact.notify || "marcos");
-                                                if (oName.includes(nameToSearch) || owner === nameToSearch) {
-                                                    foundJid = ownerJid;
-                                                    break;
-                                                }
-                                            }
-                                        }
+                                         // 3. Se não achou e for o Marcos/Owner, busca na lista de DEFAULT_OWNERS
+                                         if (!foundJid) {
+                                             for (const owner of DEFAULT_OWNERS) {
+                                                 const ownerJid = owner + '@s.whatsapp.net';
+                                                 const contact = storeContacts[ownerJid] || {};
+                                                 const oName = normalize(contact.name || contact.notify || "marcos");
+                                                 if (oName.includes(nameToSearch) || owner === nameToSearch) {
+                                                     foundJid = ownerJid;
+                                                     break;
+                                                 }
+                                             }
+                                         }
 
-                                        // Se encontrou o JID real, substitui o nome pelo número no texto da mensagem se for telefone, ou mantém como texto e coloca nas menções se for LID!
-                                        if (foundJid) {
-                                             const num = foundJid.split('@')[0];
-                                             cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
-                                             resolvedMentions.push(foundJid);
-                                             Logger.success("MentionResolver", `Resolvida menção de ${foundJid.endsWith('@lid') ? 'LID' : 'Telefone'} [${mentionMatch}] -> [@${num}] (${foundJid})`);
-                                         } else {
-                                             // Se não encontrou JID válido para o nome, removemos o "@" para evitar links quebrados!
-                                             cleanedReply = cleanedReply.replace(mentionMatch, rawName);
-                                        }
-                                    }
+                                         // Se encontrou o JID real, substitui o nome pelo número no texto da mensagem se for telefone, ou mantém como texto e coloca nas menções se for LID!
+                                         if (foundJid) {
+                                              const num = foundJid.split('@')[0].split(':')[0];
+                                              cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
+                                              resolvedMentions.push(foundJid);
+                                              Logger.success("MentionResolver", `Resolvida menção de ${foundJid.endsWith('@lid') ? 'LID' : 'Telefone'} [${mentionMatch}] -> [@${num}] (${foundJid})`);
+                                          } else {
+                                              // Se não encontrou JID válido para o nome, removemos o "@" para evitar links quebrados!
+                                              cleanedReply = cleanedReply.replace(mentionMatch, rawName);
+                                         }
+                                     }
                                 }
                             }
                         } catch (resolverErr) {
@@ -6138,20 +6288,29 @@ ${chatLogs}`;
                             
                             cleanedReply = cleanedReply.replace(/@(\d+)/g, (match, digits) => {
                                  const clean = digits.trim();
-                                 const isAlreadyResolved = resolvedMentions.some(jid => jid.split('@')[0] === clean);
-                                 const foundPart = participants.find(p => p.id.split('@')[0] === clean);
+                                 const isAlreadyResolved = resolvedMentions.some(jid => jid.split('@')[0].split(':')[0] === clean);
+                                 const foundPart = participants.find(p => p.id.split('@')[0].split(':')[0] === clean);
                                  const isOwnerNum = DEFAULT_OWNERS.includes(clean);
+                                 const isSenderNum = sender === clean || rawSender.split('@')[0].split(':')[0] === clean;
+                                 const isFromNum = from.split('@')[0].split(':')[0] === clean;
                                  
-                                 if (isAlreadyResolved || foundPart || isOwnerNum) {
+                                 if (isAlreadyResolved || foundPart || isOwnerNum || isSenderNum || isFromNum) {
                                      const matchedJid = isAlreadyResolved 
-                                         ? resolvedMentions.find(jid => jid.split('@')[0] === clean)
-                                         : (foundPart ? foundPart.id : clean + '@s.whatsapp.net');
+                                         ? resolvedMentions.find(jid => jid.split('@')[0].split(':')[0] === clean)
+                                         : (foundPart ? foundPart.id : (isSenderNum ? rawSender : (isFromNum ? from : clean + '@s.whatsapp.net')));
                                      if (!resolvedMentions.includes(matchedJid)) {
                                          resolvedMentions.push(matchedJid);
                                      }
                                      return `@${clean}`;
                                  } else {
-                                     // Se o número mencionado pela IA não está no grupo e não é o dono, removemos o "@"!
+                                     // Se o número mencionado pela IA tem 8 ou mais dígitos (telefone válido), mantemos como menção e resolvemos!
+                                     if (clean.length >= 8) {
+                                         const fallbackJid = clean + '@s.whatsapp.net';
+                                         if (!resolvedMentions.includes(fallbackJid)) {
+                                             resolvedMentions.push(fallbackJid);
+                                         }
+                                         return `@${clean}`;
+                                     }
                                      return clean;
                                  }
                              });
@@ -6373,31 +6532,54 @@ ${chatLogs}`;
         // 🟢 Indica visualmente para os usuários que a IA está "Digitando..."
         try { await sock.sendPresenceUpdate('composing', chatId); } catch(e){}
 
-        if (isSimpleConversation) {
-            Logger.info("BochechaEngine", `[Grupo/Chat: ${logGroupName}] Roteando conversa de texto simples para a IA.`);
-            const claudeRes = await keyRotator.executeClaudeWithRotation(history, input, tools, sys);
-            chat = {
+        try {
+            if (isSimpleConversation) {
+                Logger.info("BochechaEngine", `[Grupo/Chat: ${logGroupName}] Roteando conversa de texto simples para a IA.`);
+                const claudeRes = await keyRotator.executeClaudeWithRotation(history, input, tools, sys);
+                chat = {
+                    getHistory: () => {
+                        const hist = [...history];
+                        hist.push({ role: "user", parts: [{ text: typeof input === 'string' ? input : String(input) }] });
+                        hist.push({ role: "model", parts: [{ text: claudeRes.response.response.text() }] });
+                        return hist;
+                    }
+                };
+                response = claudeRes.response;
+                modelName = claudeRes.modelName;
+            } else {
+                Logger.info("BochechaEngine", `[Grupo/Chat: ${logGroupName}] Roteando requisição complexa/multimodal para a IA.`);
+                const geminiRes = await keyRotator.executeWithRotation(
+                    history,
+                    input,
+                    tools,
+                    sys,
+                    true // isUserRequest = true
+                );
+                chat = geminiRes.chat;
+                response = geminiRes.response;
+                modelName = geminiRes.modelName;
+            }
+        } catch (apiErr) {
+            Logger.error("BochechaEngine.AI", `Falha total nas APIs de IA: ${apiErr.message}. Acionando resposta offline.`);
+            const offlineText = keyRotator.generateOfflineResponse(input);
+            
+            const responseMock = {
+                response: {
+                    text: () => offlineText,
+                    functionCalls: () => undefined
+                }
+            };
+            const chatMock = {
                 getHistory: () => {
                     const hist = [...history];
                     hist.push({ role: "user", parts: [{ text: typeof input === 'string' ? input : String(input) }] });
-                    hist.push({ role: "model", parts: [{ text: claudeRes.response.response.text() }] });
+                    hist.push({ role: "model", parts: [{ text: offlineText }] });
                     return hist;
                 }
             };
-            response = claudeRes.response;
-            modelName = claudeRes.modelName;
-        } else {
-            Logger.info("BochechaEngine", `[Grupo/Chat: ${logGroupName}] Roteando requisição complexa/multimodal para a IA.`);
-            const geminiRes = await keyRotator.executeWithRotation(
-                history,
-                input,
-                tools,
-                sys,
-                true // isUserRequest = true
-            );
-            chat = geminiRes.chat;
-            response = geminiRes.response;
-            modelName = geminiRes.modelName;
+            chat = chatMock;
+            response = responseMock;
+            modelName = "offline-fallback-mock";
         }
 
         let finalResponse = response.response;
@@ -6426,18 +6608,47 @@ ${chatLogs}`;
             }
 
             Logger.info("KeyRotationEngine", "Submetendo resposta das ferramentas de volta ao Gemini...");
-            const secondary = await keyRotator.executeWithRotation(
-                chat.getHistory(),
-                replies,
-                tools,
-                sys,
-                true // isUserRequest = true
-            );
-            finalResponse = secondary.response.response;
-            modelName = secondary.modelName;
+            try {
+                const secondary = await keyRotator.executeWithRotation(
+                    chat.getHistory(),
+                    replies,
+                    tools,
+                    sys,
+                    true // isUserRequest = true
+                );
+                finalResponse = secondary.response.response;
+                modelName = secondary.modelName;
+            } catch (secErr) {
+                Logger.error("BochechaEngine.AI", `Falha na submissão de ferramenta de volta à IA: ${secErr.message}. Usando fallback local para a ferramenta.`);
+                finalResponse = {
+                    text: () => "",
+                    functionCalls: () => undefined
+                };
+                modelName = "offline-fallback-tool";
+            }
         }
 
         let output = finalResponse.text() ? finalResponse.text().trim() : "";
+        if (output) {
+            output = output
+                .split('\n')
+                .map(line => line.replace(/={5,}/g, '').replace(/-{5,}/g, '').trim())
+                .filter(line => {
+                    const cleanLine = line.toLowerCase();
+                    if (!cleanLine) return false;
+                    if (cleanLine.includes('[💬 chat:') || 
+                        cleanLine.includes('[👤 usuário:') || 
+                        cleanLine.includes('[👤 usuario:') || 
+                        cleanLine.startsWith('mensagem:') ||
+                        /^[=\-\s]+$/.test(line)) {
+                        return false;
+                    }
+                    return true;
+                })
+                .join('\n')
+                .trim();
+        }
+
         if (!output) {
             if (wasToolExecuted && lastExecutedTool) {
                 // Se uma ferramenta foi executada com sucesso, mas o modelo falhou no retorno, geramos um fallback perfeito no estilo do Bochecha!

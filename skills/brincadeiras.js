@@ -22,8 +22,12 @@ module.exports = {
     },
     async execute(args, { sock, from, pushname, message }) {
         const percent = Math.floor(Math.random() * 101);
-        const mentioned = message.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-        const target = mentioned[0] ? `@${mentioned[0].split('@')[0]}` : (args.alvo || "Você");
+        const mentioned = message?.message?.extendedTextMessage?.contextInfo?.mentionedJid 
+            || message?.message?.extendedTextMessage?.contextInfo?.participant && [message.message.extendedTextMessage.contextInfo.participant]
+            || [];
+        // Se args.alvo vier como @número da IA, usa direto; senão usa o mencionado ou fallback
+        const targetRaw = mentioned[0] ? `@${mentioned[0].split('@')[0]}` : (args.alvo || "Você");
+        const target = targetRaw;
         
         let mediaUrl = "";
         let caption = "";

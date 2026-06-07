@@ -22,6 +22,17 @@ module.exports = {
         }
     },
     async execute(args, { sock, from }) {
+        // Fallback para comando direto: /consultar_dados <tipo> <query>
+        if (!args.tipo || !args.query) {
+            const texto = (args.texto || args.alvo || '').trim();
+            if (texto) {
+                const partes = texto.split(/\s+/);
+                if (partes[0]) args.tipo = partes[0];
+                if (partes.length > 1) args.query = partes.slice(1).join(' ');
+            }
+            if (!args.tipo || !args.query) return "❌ Use: /consultar_dados <tipo> <valor>\nEx: /consultar_dados cpf 12345678900";
+        }
+
         await sock.sendMessage(from, { text: `🔎 Conectando à Central de Dados VIP para buscar: *${args.tipo.toUpperCase()}*...` });
         
         const CONSULTAS_TOKEN = '6b37bf08416e08c4276b4d55cc276be2';

@@ -8,6 +8,238 @@ function _d(hex) {
     return Buffer.from(bytes).toString('utf8');
 }
 
+const CATEGORY_NAMES = {
+    elite: { title: "👑 𝐒𝐔𝐏𝐄𝐑-𝐇𝐀𝐁𝐈𝐋𝐈𝐃𝐀𝐃𝐄𝐒 𝐄𝐋𝐈𝐓𝐄 𝟐𝟎𝟐𝟔", icon: "🔥" },
+    dev: { title: "💻 𝐏𝐀𝐈𝐍𝐄𝐋 𝐃𝐎 𝐃𝐄𝐒𝐄𝐍𝐕𝐎𝐋𝐕𝐄𝐃𝐎𝐑 (𝐃𝐎𝐍𝐎)", icon: "⚙️", ownerOnly: true },
+    info: { title: "♰ 𝐈𝐍𝐅𝐎𝐒 & 𝐒𝐓𝐀𝐓𝐔𝐒", icon: "♱" },
+    ia: { title: "♰ 𝐈𝐍𝐓𝐄𝐋𝐈𝐆𝐄̂𝐍𝐂𝐈𝐀 𝐀𝐑𝐓𝐈𝐅𝐈𝐂𝐈𝐀𝐋", icon: "✨" },
+    media: { title: "♰ 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐑𝐒 & 𝐌𝐈́𝐃𝐈𝐀", icon: "🎥" },
+    stickers: { title: "♰ 𝐅𝐈𝐆𝐔𝐑𝐈𝐍𝐇𝐀𝐒", icon: "🎭" },
+    data: { title: "♰ 𝐏𝐄𝐒𝑄𝐔𝐈𝐒𝐀𝐒 & 𝐃𝐀𝐃𝐎𝐒", icon: "🎲" },
+    admin: { title: "♰ 𝐀𝐃𝐌𝐈𝐍𝐈𝐒𝐓𝐑𝐀𝐂̧𝐀̃𝐎", icon: "🛡️" },
+    security: { title: "♰ 𝐒𝐄𝐆𝐔𝐑𝐀𝐍𝐂̧𝐀 & 𝐓𝐑𝐀𝐕𝐀𝐒", icon: "🛡️" },
+    economy: { title: "♰ 𝐄𝐂𝐎𝐍𝐎𝐌𝐈𝐀 𝐄 𝐂𝐀𝐒𝐒𝐈𝐍 O", icon: "💰" },
+    games: { title: "♰ 𝐉𝐎𝐆𝐎𝐒 & 𝐙𝐎𝐄𝐈𝐑𝐀", icon: "🕹" },
+    astro: { title: "♰ 𝐀𝐒𝐓𝐑𝐎𝐋𝐎𝐆𝐈𝐀 & 𝐌𝐔𝐍𝐃𝐎", icon: "🔮" },
+    tools: { title: "♰ 𝐅𝐄𝐑𝐑𝐀𝐌𝐄𝐍𝐓𝐀𝐒 & 𝐔́𝐓𝐄𝐈𝐒", icon: "🔧" },
+    other: { title: "🛸 𝐎𝐔𝐓𝐑𝐀𝐒 𝐅𝐄𝐑𝐑𝐀𝐌𝐄𝐍𝐓𝐀𝐒", icon: "👾" }
+};
+
+const SKILL_CATEGORIES = {
+    eval: "dev", run_terminal: "dev", terminal: "dev", controle_pc: "dev", pc_file_manager: "dev",
+    read_system_file: "dev", write_system_file: "dev", list_system_directory: "dev",
+    search_system_files: "dev", send_file_to_whatsapp: "dev", download_from_internet: "dev",
+    pc_webcam: "dev", pc_speedtest: "dev", limpar_keys: "dev", reload: "dev", reiniciar: "dev",
+    dream: "dev", refletir: "dev", git_manager: "dev", github_explorer: "dev", github_ai_hunter: "dev",
+    release_generator: "dev", issue_operator: "dev", manage_system_directory: "dev",
+    
+    editor_universal: "elite", bochecha_voz: "elite", devaneios: "elite", radar_membros: "elite",
+    bochecha_modo: "elite", detector_ko: "elite", analise_grupo: "elite", casar: "elite",
+    divorciar: "elite", tribunal: "elite", executar_codigo_sandbox: "elite", namoro: "elite",
+    chamar_no_pv: "elite", melhorar_grupo: "elite", analista_psicologico: "elite",
+    enviar_mensagem_privada: "elite",
+    
+    ping: "info", status_sistema: "info", infogp: "info", exibir_ranking: "info",
+    perfil: "info", total_comandos: "info", mostrar_atividade_atual: "info", exibir_menu: "info",
+    listar_minhas_ferramentas: "info",
+    
+    gpt: "ia", gerar_imagem_ia: "ia", gerador_efeitos: "ia", detetive_fake_news: "ia",
+    transformar_foto_ia: "ia", auto_resposta: "ia", gerenciar_ias: "ia",
+    
+    baixar_videos: "media", baixar_adulto: "media", pesquisar_youtube: "media",
+    falar_em_audio: "media", revelar: "media", resumir_fofoca: "media", play_audio: "media",
+    
+    fazer_figurinha: "stickers", fazer_figurinha_de_texto: "stickers",
+    renomear_figurinha: "stickers", arte_figurinha: "stickers",
+    
+    consultar_clima: "data", google: "data", wiki: "data", consultar_dados: "data",
+    consultar_pv: "data", cep: "data", ip: "data", web_reader: "data",
+    
+    remover_membro: "admin", adicionar_membro: "admin", promover_membro: "admin",
+    rebaixar_membro: "admin", advertir_membro: "admin", remover_advertencia: "admin",
+    mutar_grupo: "admin", desmutar_grupo: "admin", apagar_mensagem: "admin",
+    apagar_especial: "admin", marcar_todos: "admin", configurar_bv: "admin",
+    configurar_grupo: "admin", modo_noturno: "admin", postar_status: "admin",
+    configurar_menu: "admin", definir_vip: "admin", gerenciar_admin: "admin",
+    gerenciar_grupo: "admin", gerenciar_info_grupo: "admin",
+    
+    configurar_seguranca: "security", antilink: "security", antiporn: "security",
+    antidelete: "security", antifake: "security", antistatus: "security",
+    antipromote: "security", antidemote: "security", antipagamento: "security",
+    antiflood: "security", bemvindo: "security",
+    
+    saldo: "economy", minerar: "economy", pix: "economy", duelo: "economy",
+    blackjack: "economy", cassino: "economy", ricos: "economy", loja_submundo: "economy",
+    sistema_economia: "economy",
+    
+    gerador_memes: "games", confessionario: "games", jogo_da_velha: "games",
+    jogo_forca: "games", roleta_russa: "games", quiz: "games", jokenpo: "games",
+    enquete: "games", namorar: "games", separar: "games", casais: "games",
+    dado_rpg: "games", piada: "games", fato_curioso: "games", desafio: "games",
+    moeda: "games", enquete_rapida: "games", brincadeiras: "games", velha: "games",
+    verdade_desafio: "games", criar_enquete: "games", games_controller: "games",
+    jogar_moeda: "games", rolar_dados: "games",
+    
+    horoscopo: "astro", signo: "astro", hora_mundial: "astro",
+    
+    calcular: "tools", sorteio: "tools", tradutor: "tools", texto_tools: "tools",
+    base64: "tools", cor_hex: "tools", adicionar_lembrete: "tools",
+    agendar_lembrete: "tools", lembrar_fato: "tools", memoria_permanente: "tools",
+    avisos: "tools", contagem_regressiva: "tools", placar: "tools", votacao: "tools",
+    ferramentas_internet: "tools"
+};
+
+const SKILL_SHORT_DESCRIPTIONS = {
+    ping: "Testa latência",
+    status_sistema: "Status do sistema",
+    infogp: "Informações do grupo",
+    exibir_ranking: "Exibe ranking de XP",
+    perfil: "Sua carteira, level e XPs",
+    total_comandos: "Total de comandos",
+    mostrar_atividade_atual: "Atividade recente",
+    exibir_menu: "Exibe este menu",
+    listar_minhas_ferramentas: "Lista ferramentas instaladas",
+    gpt: "Falar com a IA",
+    gerar_imagem_ia: "Gera imagem por IA",
+    gerador_efeitos: "Efeitos na imagem por IA",
+    detetive_fake_news: "Detetive de links e fake news",
+    gerenciar_ias: "Configura os modelos de IA",
+    baixar_videos: "Baixa de YouTube/TikTok/Reels",
+    baixar_adulto: "Busca de vídeos adultos",
+    pesquisar_youtube: "Busca vídeos no YouTube",
+    falar_em_audio: "Texto para voz realista",
+    revelar: "Revela visualização única",
+    resumir_fofoca: "Resumo de IA das interações",
+    play_audio: "Baixa áudio/música",
+    fazer_figurinha: "Cria figurinha de imagem",
+    fazer_figurinha_de_texto: "Figurinha de texto animada",
+    renomear_figurinha: "Renomeia figurinha",
+    arte_figurinha: "Efeitos de stickers",
+    consultar_clima: "Consulta o clima",
+    google: "Busca no Google",
+    wiki: "Busca na Wikipédia",
+    consultar_dados: "Consulta CPF/CNPJ/Placa",
+    consultar_pv: "Consulta dados privados",
+    web_reader: "Extrai conteúdo de links web",
+    remover_membro: "Remove membro (ban)",
+    adicionar_membro: "Adiciona membro",
+    promover_membro: "Promove a admin",
+    rebaixar_membro: "Rebaixa de admin",
+    advertir_membro: "Adverte membro",
+    remover_advertencia: "Remove advertência",
+    mutar_grupo: "Muta o grupo",
+    desmutar_grupo: "Desmuta o grupo",
+    apagar_mensagem: "Apaga mensagens",
+    apagar_especial: "Apaga mensagens de outros",
+    marcar_todos: "Marca todos os membros",
+    configurar_bv: "Configura boas-vindas",
+    configurar_grupo: "Configura permissões",
+    modo_noturno: "Modo noturno automático",
+    postar_status: "Posta status no bot",
+    configurar_menu: "Configura estilo do menu",
+    definir_vip: "Define/remove membro VIP",
+    gerenciar_admin: "Promove/rebaixa admin",
+    gerenciar_grupo: "Gerencia configurações do grupo",
+    gerenciar_info_grupo: "Configura foto e dados do grupo",
+    configurar_seguranca: "Configura travas",
+    antilink: "Muta links",
+    antiporn: "Muta pornografia",
+    antidelete: "Reenvia apagadas",
+    antifake: "Muta gringos",
+    antistatus: "Muta status",
+    antipromote: "Segurança de admin",
+    antidemote: "Segurança de admin",
+    antipagamento: "Muta pagamentos",
+    antiflood: "Muta flood",
+    bemvindo: "Muta boas-vindas",
+    saldo: "Ver Bochecha-Coins",
+    minerar: "Minera moedas",
+    pix: "Transfere moedas",
+    duelo: "Duelo de moedas",
+    blackjack: "Jogo de cartas",
+    cassino: "Jogo de cassino",
+    ricos: "Mais ricos do grupo",
+    loja_submundo: "Loja do submundo",
+    sistema_economia: "Economia global",
+    gerador_memes: "Cria meme com foto",
+    confessionario: "Segredo anônimo no PV",
+    jogo_da_velha: "Jogo da velha",
+    jogo_forca: "Jogo da forca",
+    roleta_russa: "Roleta russa",
+    quiz: "Quiz interativo",
+    jokenpo: "Pedra, papel, tesoura",
+    enquete: "Cria enquetes",
+    namorar: "Propõe namoro",
+    separar: "Termina namoro",
+    casais: "Forma casais",
+    dado_rpg: "Dado RPG",
+    piada: "Conta piadas",
+    fato_curioso: "Conta fatos",
+    desafio: "Desafios zueiros",
+    moeda: "Cara ou coroa",
+    enquete_rapida: "Enquete rápida",
+    brincadeiras: "Brincadeiras diversas",
+    criar_enquete: "Cria enquete no chat",
+    games_controller: "Gerencia status dos jogos",
+    jogar_moeda: "Joga cara ou coroa rápido",
+    rolar_dados: "Rola dados numéricos",
+    horoscopo: "Ver horóscopo do dia",
+    signo: "Ver signo",
+    hora_mundial: "Ver hora no mundo",
+    calcular: "Calculadora avançada",
+    sorteio: "Realiza sorteio",
+    tradutor: "Traduz textos",
+    texto_tools: "Modifica textos",
+    base64: "Codifica/Decodifica",
+    cor_hex: "Cores hexadecimais",
+    adicionar_lembrete: "Cria lembretes",
+    agendar_lembrete: "Agenda lembretes",
+    lembrar_fato: "Fatos importantes",
+    memoria_permanente: "Gerencia fatos",
+    avisos: "Gerencia avisos",
+    contagem_regressiva: "Contagem regressiva",
+    placar: "Ver placar de XP",
+    votacao: "Inicia votações",
+    ferramentas_internet: "Utilitários de rede e web",
+    eval: "Executa JavaScript",
+    run_terminal: "Executa comando no terminal",
+    terminal: "Executa no terminal",
+    controle_pc: "Hardware, RAM, CPU & processos",
+    pc_file_manager: "Gerenciador de arquivos",
+    read_system_file: "Lê arquivo do PC",
+    write_system_file: "Cria arquivo no PC",
+    list_system_directory: "Lista diretório do PC",
+    search_system_files: "Busca arquivos",
+    send_file_to_whatsapp: "Envia arquivo do PC",
+    download_from_internet: "Baixa arquivo no PC",
+    pc_webcam: "Captura foto webcam",
+    pc_speedtest: "Testa velocidade do PC",
+    git_manager: "Gerencia Git do bot",
+    github_explorer: "Busca repositórios",
+    github_ai_hunter: "Busca repositórios IA",
+    release_generator: "Gera changelog",
+    issue_operator: "Gerencia issues dev",
+    manage_system_directory: "Gerencia pastas do PC",
+    editor_universal: "Edita fotos, vídeos e PDFs",
+    bochecha_voz: "Modulador de voz",
+    devaneios: "Sonhos subconscientes",
+    radar_membros: "Radar geográfico",
+    bochecha_modo: "Muda personalidade",
+    detector_ko: "Detector de mentiras",
+    analise_grupo: "Laudo psicológico",
+    casar: "Casamento e separação",
+    divorciar: "Divórcio litigioso",
+    tribunal: "Júri popular e ban",
+    executar_codigo_sandbox: "Executa JS em Sandbox",
+    namoro: "Namoro",
+    velha: "Jogo da velha",
+    verdade_desafio: "Verdade ou desafio",
+    chamar_no_pv: "Chama membro no PV e avisa",
+    melhorar_grupo: "Gera foto do grupo com IA",
+    analista_psicologico: "Análise de perfil psicológico",
+    enviar_mensagem_privada: "Envia mensagem no PV de alguém"
+};
+
 module.exports = {
     definition: {
         function: {
@@ -42,33 +274,70 @@ module.exports = {
 
             const speed = (Date.now() - (message.messageTimestamp * 1000)) / 1000;
 
-            // Painel Exclusivo de Desenvolvedor / Dono
-            let ownerPanel = "";
-            if (isOwner) {
-                ownerPanel = `
-┇ |
-┇ | 💻 *𝐏𝐀𝐈𝐍𝐄𝐋 𝐃𝐎 𝐃𝐄𝐒𝐄𝐍𝐕𝐎𝐋𝐕𝐄𝐃𝐎𝐑 (𝐃𝐎𝐍𝐎)*
-┇ |⚙️⋆͜͡҈➳ ${prefix}eval (Executa código JavaScript nativo)
-┇ |⚙️⋆͜͡҈➳ ${prefix}run / ${prefix}terminal (Executa comando no terminal)
-┇ |⚙️⋆͜͡҈➳ ${prefix}controle_pc (Hardware, RAM, CPU & processos)
-┇ |⚙️⋆͜͡҈➳ ${prefix}buscar_arquivo <nome> (Busca e envia arquivo do PC)
-┇ |⚙️⋆͜͡҈➳ ${prefix}enviar_arquivo (Salva arquivo enviado no PC)
-┇ |⚙️⋆͜͡҈➳ ${prefix}webcam / ${prefix}vigiar (Captura foto da webcam/monitor)
-┇ |⚙️⋆͜͡҈➳ ${prefix}download <link> (Baixa arquivo no PC)
-┇ |⚙️⋆͜͡҈➳ ${prefix}speedtest (Testa conexão do PC)
-┇ |⚙️⋆͜͡҈➳ ${prefix}afins (Afinidade emocional de todos no grupo)
-┇ |⚙️⋆͜͡҈➳ ${prefix}telemetria (Diagnóstico de latência e API)
-┇ |⚙️⋆͜͡҈➳ ${prefix}addkey / ${prefix}removekey (Rotacionador de chaves)
-┇ |⚙️⋆͜͡҈➳ ${prefix}limparkeys (Limpa chaves com falha)
-┇ |⚙️⋆͜͡҈➳ ${prefix}reload (Recarrega todas as habilidades/skills)
-┇ |⚙️⋆͜͡҈➳ ${prefix}reiniciar (Reinicia a máquina do Bochecha)
-┇ |⚙️⋆͜͡҈➳ ${prefix}dream / ${prefix}refletir (Força reflexão da IA)
-┇ |⚙️⋆͜͡҈➳ ${prefix}github (Explorador de Repositórios GitHub)
-┇ |⚙️⋆͜͡҈➳ ${prefix}buscaria / ${prefix}superia (Caçador de repositórios IA)
-┇ |⚙️⋆͜͡҈➳ ${prefix}release (Gerador de Changelog automático)
-┇ |⚙️⋆͜͡҈➳ ${prefix}issue (Manipulador de issues e tarefas dev)`;
+            // Carrega dinamicamente todas as skills
+            const skillsDir = __dirname;
+            const files = fs.readdirSync(skillsDir);
+            const skillsList = [];
+
+            for (const file of files) {
+                if (file.endsWith(".js") && file !== "games_controller.js") {
+                    try {
+                        const skillPath = path.join(skillsDir, file);
+                        const skill = require(skillPath);
+                        if (skill.definition && skill.definition.function) {
+                            const fn = skill.definition.function;
+                            skillsList.push({
+                                name: fn.name,
+                                description: fn.description || ""
+                            });
+                        }
+                    } catch (err) {
+                        // Silencioso
+                    }
+                }
             }
 
+            // Agrupa por categoria
+            const groups = {};
+            for (const catKey in CATEGORY_NAMES) {
+                groups[catKey] = [];
+            }
+
+            for (const s of skillsList) {
+                const cat = SKILL_CATEGORIES[s.name] || "other";
+                groups[cat].push(s);
+            }
+
+            // Constrói o texto das categorias do menu
+            let categoriesText = "";
+            for (const catKey in CATEGORY_NAMES) {
+                const catInfo = CATEGORY_NAMES[catKey];
+                
+                if (catInfo.ownerOnly && !isOwner) {
+                    continue;
+                }
+
+                const skillsInCat = groups[catKey];
+                if (skillsInCat.length === 0) continue;
+
+                // Ordena alfabeticamente
+                skillsInCat.sort((a, b) => a.name.localeCompare(b.name));
+
+                categoriesText += `\n┇ |\n┇ | ${catInfo.title}\n`;
+                for (const s of skillsInCat) {
+                    categoriesText += `┇ |${catInfo.icon}⋆͜͡҈➳ ${prefix}${s.name}\n`;
+                }
+            }
+
+            // Adiciona a Habilidade especial Autoprogramada create_custom_skill no painel do dev
+            if (isOwner) {
+                categoriesText = categoriesText.replace(
+                    `\n┇ |\n┇ | ${CATEGORY_NAMES.dev.title}\n`,
+                    `\n┇ |\n┇ | ${CATEGORY_NAMES.dev.title}\n┇ |⚙️⋆͜͡҈➳ ${prefix}create_custom_skill\n`
+                );
+            }
+
+            // Menu principal com cabeçalho e rodapé
             const menuText = `╭⊱ ───── ⋆⋅ ♰ ⋅⋆ ───── ⊰˖°🥀ִ ࣪𖤐
 ├─ ⊹ 𖤐 𝐈𝐍𝐅𝐎𝐒 𝐃𝐎 𝐁𝐎𝐓 / 𝐔𝐒𝐄𝐑
 ╎🥀˖ ▸ 𝗨𝘀𝘂́𝗮𝗿𝗶𝗼: @${sender.split('@')[0]}
@@ -87,145 +356,7 @@ module.exports = {
 ┖╮
 ╭┤ˑ࣪    ִ .̇  ۫  ̣ ֽ֗🛸 𝐌𝐄𝐍𝐔 𝐃𝐎 𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀-𝐈𝐀 🛸·๋  ִ֗  ᐧ ֶּ֓ ˑ࣪ 
 ┇├┉━┅━┅━┅━┅━┅━┅━⋅≎⋆ᐧ
-┇ | 
-┇ | 👑 *𝐒𝐔𝐏𝐄𝐑-𝐇𝐀𝐁𝐈𝐋𝐈𝐃𝐀𝐃𝐄𝐒 𝐄𝐋𝐈𝐓𝐄 𝟐𝟎𝟐𝟔*
-┇ |🔥⋆͜͡҈➳ ${prefix}editar (Editor Universal de Fotos, Vídeos, Áudios & PDFs)
-┇ |🔥⋆͜͡҈➳ ${prefix}voz <preset> <texto> (Modulador de Voz cômico/dublagem)
-┇ |🔥⋆͜͡҈➳ ${prefix}devaneios (Sonhos subconscientes surreais do grupo)
-┇ |🔥⋆͜͡҈➳ ${prefix}localidade / ${prefix}radar (Radar geográfico ativo)
-┇ |🔥⋆͜͡҈➳ ${prefix}bochecha_modo (Muda personalidade do bot)
-┇ |🔥⋆͜͡҈➳ ${prefix}detector_ko (Laudo polígrafo de mentiras - quoted)
-┇ |🔥⋆͜͡҈➳ ${prefix}analise_grupo (Laudo psicológico/social do chat)
-┇ |🔥⋆͜͡҈➳ ${prefix}casar / ${prefix}divorciar (Casamento & economia litigiosa)
-┇ |🔥⋆͜͡҈➳ ${prefix}tribunal @vacilao (Júri popular e kick democrático)
-┇ |🔥⋆͜͡҈➳ ${prefix}executar_codigo (Interpretador JavaScript VM isolada)
-${ownerPanel}
-┇ |
-┇ | ♰ *𝐈𝐍𝐅𝐎𝐒 & 𝐒𝐓𝐀𝐓𝐔𝐒*
-┇ |♱˖ ▸ ${prefix}ping (Testa latência)
-┇ |♱˖ ▸ ${prefix}status (Status do sistema)
-┇ |♱˖ ▸ ${prefix}infogp (Informações do grupo)
-┇ |♱˖ ▸ ${prefix}ranking (Exibe ranking de XP)
-┇ |♱˖ ▸ ${prefix}perfil (Sua carteira, level, XPs e humor com IA)
-┇ |♱˖ ▸ ${prefix}total_comandos (Total de comandos)
-┇ |
-┇ | ♰ *𝐈𝐍𝐓𝐄𝐋𝐈𝐆𝐄̂𝐍𝐂𝐈𝐀 𝐀𝐑𝐓𝐈𝐅𝐈𝐂𝐈𝐀𝐋*
-┇ |✨⋆͜͡҈➳ ${prefix}gpt (Falar com a IA)
-┇ |✨⋆͜͡҈➳ ${prefix}gerar (Gera imagem por IA)
-┇ |✨⋆͜͡҈➳ ${prefix}efeitos (Efeitos na imagem por IA)
-┇ |✨⋆͜͡҈➳ ${prefix}fake / ${prefix}detetive (Detetive de Links e Fake News)
-┇ |
-┇ | ♰ *𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐑𝐒 & 𝐌𝐈́𝐃𝐈𝐀*
-┇ |🎥⋆͜͡҈➳ ${prefix}baixar / ${prefix}play (Baixa de YouTube, Reels, TikTok e Pinterest)
-┇ |🎥⋆͜͡҈➳ ${prefix}yt (Busca de vídeos e links do YouTube)
-┇ |🎥⋆͜͡҈➳ ${prefix}falar (Sintetizador de texto para voz realista)
-┇ |🎥⋆͜͡҈➳ ${prefix}revelar (Revela qualquer mensagem de visualização única)
-┇ |🎥⋆͜͡҈➳ ${prefix}resumir / ${prefix}fofoca (Resumo de IA das conversas recentes)
-┇ |
-┇ | ♰ *𝐅𝐈𝐆𝐔𝐑𝐈𝐍𝐇𝐀𝐒*
-┇ |🎭⋆͜͡҈➳ ${prefix}s (Cria figurinha de imagem)
-┇ |🎭⋆͜͡҈➳ ${prefix}fstiker (Efeitos e artes de stickers)
-┇ |🎭⋆͜͡҈➳ ${prefix}attp (Figurinha de texto animada)
-┇ |🎭⋆͜͡҈➳ ${prefix}rename (Renomeia figurinha)
-┇ |
-┇ | ♰ *𝐏𝐄𝐒𝑄𝐔𝐈𝐒𝐀𝐒 & 𝐃𝐀𝐃𝐎𝐒*
-┇ |🎲⋆͜͡҈➳ ${prefix}clima (Consulta o clima)
-┇ |🎲⋆͜͡҈➳ ${prefix}google (Busca no Google)
-┇ |🎲⋆͜͡҈➳ ${prefix}wiki (Busca na Wikipédia)
-┇ |🎲⋆͜͡҈➳ ${prefix}cpf (Consulta de CPF)
-┇ |🎲⋆͜͡҈➳ ${prefix}cnpj (Consulta de CNPJ)
-┇ |🎲⋆͜͡҈➳ ${prefix}placa (Consulta de Placa)
-┇ |🎲⋆͜͡҈➳ ${prefix}cep (Consulta de CEP)
-┇ |🎲⋆͜͡҈➳ ${prefix}ip (Consulta de IP)
-┇ |
-┇ | ♰ *𝐀𝐃𝐌𝐈𝐍𝐈𝐒𝐓𝐑𝐀𝐂̧𝐀̃𝐎*
-┇ |🛡️⋆͜͡҈➳ ${prefix}ban (Remove membro)
-┇ |🛡️⋆͜͡҈➳ ${prefix}adicionar (Adiciona membro ao grupo)
-┇ |🛡️⋆͜͡҈➳ ${prefix}promover (Dá admin)
-┇ |🛡️⋆͜͡҈➳ ${prefix}rebaixar (Tira admin)
-┇ |🛡️⋆͜͡҈➳ ${prefix}warn (Adverte membro)
-┇ |🛡️⋆͜͡҈➳ ${prefix}radv (Remove advertência)
-┇ |🛡️⋆͜͡҈➳ ${prefix}mutar (Muta o grupo)
-┇ |🛡️⋆͜͡҈➳ ${prefix}desmutar (Desmuta o grupo)
-┇ |🛡️⋆͜͡҈➳ ${prefix}apagar (Apaga mensagens)
-┇ |🛡️⋆͜͡҈➳ ${prefix}todos (Marca todos os membros)
-┇ |🛡️⋆͜͡҈➳ ${prefix}bv (Configura boas-vindas)
-┇ |🛡️⋆͜͡҈➳ ${prefix}configurar_grupo (Configura o grupo)
-┇ |🛡️⋆͜͡҈➳ ${prefix}noturno (Modo noturno automático)
-┇ |🛡️⋆͜͡҈➳ ${prefix}postar_status (Posta status)
-┇ |
-┇ | ♰ *𝐒𝐄𝐆𝐔𝐑𝐀𝐍𝐂̧𝐀 & 𝐓𝐑𝐀𝐕𝐀𝐒*
-┇ |🛡️⋆͜͡҈➳ ${prefix}configurar_seguranca (Configura antilink/antiporn/antistatus)
-┇ |🛡️⋆͜͡҈➳ ${prefix}antilink <on/off> (Bloqueia links de grupo)
-┇ |🛡️⋆͜͡҈➳ ${prefix}antiporn <on/off> (Bloqueia pornografia)
-┇ |🛡️⋆͜͡҈➳ ${prefix}antidelete <on/off> (Reenvia msgs deletadas)
-┇ |🛡️⋆͜͡҈➳ ${prefix}antifake <on/off> (Bloqueia números gringos)
-┇ |🛡️⋆͜͡҈➳ ${prefix}antistatus <on/off> (Bloqueia links nos status)
-┇ |🛡️⋆͜͡҈➳ ${prefix}antipromote <on/off> (Segurança de promoção de admins)
-┇ |🛡️⋆͜͡҈➳ ${prefix}antidemote <on/off> (Segurança de rebaixamento de admins)
-┇ |🛡️⋆͜͡҈➳ ${prefix}antipagamento <on/off> (Bloqueia pagamentos)
-┇ |🛡️⋆͜͡҈➳ ${prefix}antiflood <on/off> (Muta spammers)
-┇ |🛡️⋆͜͡҈➳ ${prefix}bemvindo <on/off> (Boas-vindas automáticas)
-┇ |
-┇ | ♰ *𝐄𝐂𝐎𝐍𝐎𝐌𝐈𝐀 𝐄 𝐂𝐀𝐒𝐒𝐈𝐍𝐎*
-┇ |💰⋆͜͡҈➳ ${prefix}saldo (Ver Bochecha-Coins)
-┇ |💰⋆͜͡҈➳ ${prefix}minerar (Minera moedas)
-┇ |💰⋆͜͡҈➳ ${prefix}pix (Transfere moedas)
-┇ |💰⋆͜͡҈➳ ${prefix}duelo (Duelo de moedas)
-┇ |💰⋆͜͡҈➳ ${prefix}blackjack (Jogo do Blackjack)
-┇ |💰⋆͜͡҈➳ ${prefix}cassino (Jogo de Cassino)
-┇ |💰⋆͜͡҈➳ ${prefix}ricos (Mais ricos do grupo)
-┇ |💰⋆͜͡҈➳ ${prefix}loja / ${prefix}comprar (Loja do Submundo)
-┇ |
-┇ | ♰ *𝐉𝐎𝐆𝐎𝐒 & 𝐙𝐎𝐄𝐈𝐑𝐀*
-┇ |🕹⋆͜͡҈➳ ${prefix}meme (Cria meme respondendo foto)
-┇ |🕹⋆͜͡҈➳ ${prefix}segredo (Confessionário anônimo pelo PV)
-┇ |🕹⋆͜͡҈➳ ${prefix}velha (Jogo da velha)
-┇ |🕹⋆͜͡҈➳ ${prefix}forca (Jogo da forca)
-┇ |🕹⋆͜͡҈➳ ${prefix}roleta (Roleta russa)
-┇ |🕹⋆͜͡҈➳ ${prefix}quiz (Quiz interativo)
-┇ |🕹⋆͜͡҈➳ ${prefix}jokenpo (Pedra, papel, tesoura)
-┇ |🕹⋆͜͡҈➳ ${prefix}enquete (Cria enquetes)
-┇ |🕹⋆͜͡҈➳ ${prefix}namorar (Namora alguém)
-┇ |🕹⋆͜͡҈➳ ${prefix}separar (Separa namoro)
-┇ |🕹⋆͜͡҈➳ ${prefix}casais (Forma casais)
-┇ |🕹⋆͜͡҈➳ ${prefix}dado_rpg (Dado RPG)
-┇ |🕹⋆͜͡҈➳ ${prefix}piada (Conta piadas)
-┇ |🕹⋆͜͡҈➳ ${prefix}fato_curioso (Conta fatos)
-┇ |🕹⋆͜͡҈➳ ${prefix}desafio (Desafios zueiros)
-┇ |🕹⋆͜͡҈➳ ${prefix}moeda (Cara ou coroa)
-┇ |🕹⋆͜͡҈➳ ${prefix}enquete_rapida (Enquete rápida)
-┇ |🕹⋆͜͡҈➳ ${prefix}matar (Brincadeira matar)
-┇ |🕹⋆͜͡҈➳ ${prefix}comer (Brincadeira comer)
-┇ |🕹⋆͜͡҈➳ ${prefix}beijar (Brincadeira beijar)
-┇ |🕹⋆͜͡҈➳ ${prefix}abracar (Brincadeira abraçar)
-┇ |🕹⋆͜͡҈➳ ${prefix}tapa (Brincadeira dar tapa)
-┇ |🕹⋆͜͡҈➳ ${prefix}chute (Brincadeira dar chute)
-┇ |🕹⋆͜͡҈➳ ${prefix}gay (Mede nível gay)
-┇ |🕹⋆͜͡҈➳ ${prefix}corno (Mede nível corno)
-┇ |🕹⋆͜͡҈➳ ${prefix}gado (Mede nível gado)
-┇ |🕹⋆͜͡҈➳ ${prefix}fofo (Mede nível fofo)
-┇ |🕹⋆͜͡҈➳ ${prefix}lindo (Mede nível lindo)
-┇ |
-┇ | ♰ *♈ 𝐀𝐒𝐓𝐑𝐎𝐋𝐎𝐆𝐈𝐀 & 𝐌𝐔𝐍𝐃𝐎*
-┇ |🔮⋆͜͡҈➳ ${prefix}horoscopo (Ver horóscopo do dia)
-┇ |🔮⋆͜͡҈➳ ${prefix}signo (Ver signo)
-┇ |🔮⋆͜͡҈➳ ${prefix}hora_mundial (Ver hora no mundo)
-┇ |
-┇ | ♰ *🧮 𝐅𝐄𝐑𝐑𝐀𝐌𝐄𝐍𝐓𝐀𝐒 & 𝐔́𝐓𝐄𝐈𝐒*
-┇ |🔧⋆͜͡҈➳ ${prefix}calcular (Calculadora avançada)
-┇ |🔧⋆͜͡҈➳ ${prefix}sorteio (Realiza sorteio)
-┇ |🔧⋆͜͡҈➳ ${prefix}tradutor (Traduz texto)
-┇ |🔧⋆͜͡҈➳ ${prefix}texto (Modifica textos)
-┇ |🔧⋆͜͡҈➳ ${prefix}base64 (Codifica/Decodifica)
-┇ |🔧⋆͜͡҈➳ ${prefix}cor_hex (Gera cores hex)
-┇ |🔧⋆͜͡҈➳ ${prefix}lembrete (Cria lembretes)
-┇ |🔧⋆͜͡҈➳ ${prefix}fato (Lembra fatos importantes)
-┇ |🔧⋆͜͡҈➳ ${prefix}avisos (Gerencia avisos)
-┇ |🔧⋆͜͡҈➳ ${prefix}contagem (Contagem regressiva)
-┇ |🔧⋆͜͡҈➳ ${prefix}placar (Ver placar do grupo)
-┇ |🔧⋆͜͡҈➳ ${prefix}votacao (Inicia votações)
-┇ |
+┇ | ${categoriesText}┇ |
 ┇ | 🤖 *𝐇𝐀𝐁𝐈𝐋𝐈𝐃𝐀𝐃𝐄𝐒 𝐀𝐔𝐓𝐎̂𝐍𝐎𝐌𝐀𝐒 𝐃𝐀 𝐈𝐀*
 ┇ | _Fale naturalmente com o Bochecha:_
 ┇ |🗣️⋆͜͡҈➳ Áudios: Mande áudios ou peça pra ele falar

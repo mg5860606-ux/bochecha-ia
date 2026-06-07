@@ -19,6 +19,7 @@ module.exports = {
         }
     },
     async execute(args, { sock, from }) {
+        if (!args.prompt) args.prompt = args.texto || args.alvo || '';
         if (!args.prompt) return "❌ Por favor, descreva o que você quer que eu desenhe.";
 
         await sock.sendMessage(from, { text: `🎨 Minhas redes neurais estão desenhando: "${args.prompt}"... Aguarde um instante.` });

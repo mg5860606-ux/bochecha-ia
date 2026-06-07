@@ -30,7 +30,7 @@ module.exports = {
             return "Erro crítico de segurança: Você não possui autorização (isOwner = false) para baixar arquivos na máquina do servidor.";
         }
 
-        const fileUrl = args.url;
+        const fileUrl = args.url || args.texto || args.alvo || '';
         let dest = args.destPath;
 
         if (!dest) {

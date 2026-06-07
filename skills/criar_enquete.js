@@ -25,7 +25,27 @@ module.exports = {
         }
     },
     async execute(args, { sock, from }) {
+        // Fallback para comando direto: /criar_enquete <pergunta>? <opcao1> | <opcao2> | ...
+        if (!args.pergunta || !args.opcoes) {
+            const texto = (args.texto || args.alvo || '').trim();
+            if (texto) {
+                const partes = texto.split('|').map(s => s.trim()).filter(Boolean);
+                if (partes.length >= 2) {
+                    args.pergunta = partes[0];
+                    args.opcoes = partes.slice(1);
+                } else if (partes.length === 1) {
+                    // tenta dividir por vírgula
+                    const porVirgula = partes[0].split(',').map(s => s.trim()).filter(Boolean);
+                    if (porVirgula.length >= 2) {
+                        args.pergunta = porVirgula[0];
+                        args.opcoes = porVirgula.slice(1);
+                    }
+                }
+            }
+        }
+
         if (!args.opcoes || args.opcoes.length < 2) {
+
             return "Avise ao usuário que uma enquete precisa de pelo menos 2 opções para funcionar.";
         }
         

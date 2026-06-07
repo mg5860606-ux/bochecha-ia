@@ -43,6 +43,23 @@ module.exports = {
         const storage = global.storage || require('../sansekai').storage;
         let db = await storage.read(VIP_FILE, {});
 
+        // Fallback para comando direto: /definir_vip <acao> [@numero] [nome] [tratamento]
+        if (!args.acao) {
+            const texto = (args.texto || args.alvo || '').trim();
+            if (texto) {
+                const partes = texto.split(/\s+/);
+                const acoes = ['definir', 'remover', 'listar'];
+                if (acoes.includes(partes[0]?.toLowerCase())) {
+                    args.acao = partes[0].toLowerCase();
+                    if (partes[1] && (partes[1].startsWith('@') || /^[0-9]{8,}/.test(partes[1]))) {
+                        args.numero = partes[1];
+                        if (partes.length > 2) args.tratamento = partes.slice(2).join(' ');
+                    }
+                }
+            }
+            if (!args.acao) return "❌ Use: /definir_vip listar | /definir_vip definir @numero tratamento | /definir_vip remover @numero";
+        }
+
         const { acao, numero, nome, tratamento } = args;
 
         // ── LISTAR ──────────────────────────────────────────

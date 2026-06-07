@@ -42,6 +42,23 @@ module.exports = {
         const db = getDb();
         if (!db[from]) db[from] = {};
 
+        // Fallback para comando direto: /auto_resposta <acao> [gatilho | resposta]
+        if (!args.acao) {
+            const texto = (args.texto || args.alvo || '').trim();
+            if (texto) {
+                const partes = texto.split('|').map(s => s.trim());
+                const acoes = ['ensinar', 'esquecer', 'listar'];
+                const primeiroToken = partes[0].split(/\s+/)[0].toLowerCase();
+                if (acoes.includes(primeiroToken)) {
+                    args.acao = primeiroToken;
+                    const restoPrimeiro = partes[0].slice(primeiroToken.length).trim();
+                    if (restoPrimeiro) args.gatilho = restoPrimeiro;
+                    if (partes[1]) args.resposta = partes[1];
+                }
+            }
+            if (!args.acao) return "❌ Use: /auto_resposta ensinar <gatilho> | <resposta>\nOu: /auto_resposta esquecer <gatilho> | /auto_resposta listar";
+        }
+
         if (args.acao === "ensinar") {
             if (!args.gatilho || !args.resposta) return "❌ Você precisa dizer o gatilho e a resposta! Ex: /ensinar oi | olá tudo bem?";
             const gatilho = args.gatilho.toLowerCase().trim();

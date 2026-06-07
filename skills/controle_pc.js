@@ -13,8 +13,12 @@ module.exports = {
                 properties: {
                     acao: {
                         type: "string",
-                        enum: ["print", "bloquear", "status", "processos"],
+                        enum: ["print", "bloquear", "status", "processos", "tocar_audio", "desligar", "cancelar_desligamento"],
                         description: "A ação a ser executada no computador pessoal do Marcos."
+                    },
+                    parametro: {
+                        type: "string",
+                        description: "Parâmetro adicional. Para tocar_audio: caminho de áudio local ou URL. Para desligar: tempo em segundos ou minutos."
                     }
                 },
                 required: ["acao"]
@@ -35,11 +39,19 @@ module.exports = {
             return "⚠️ O bot está rodando na VPS Cloud em produção no momento, por isso os comandos de hardware local do seu PC pessoal não estão disponíveis aqui! Reinicie o bot no seu PC pessoal local para poder controlá-lo. 😉";
         }
 
-        // Extrai a ação suportando tanto chamada estruturada da IA (acao) quanto comando direto no chat (texto/alvo)
-        const action = (args.acao || args.texto || args.alvo || "").trim().toLowerCase();
+        let action = (args.acao || "").trim().toLowerCase();
+        let param = (args.parametro || "").trim();
+
+        // Se veio via comando direto (/controle_pc acao parametro)
+        if (!action && (args.texto || args.alvo)) {
+            const rawText = (args.texto || args.alvo).trim();
+            const parts = rawText.split(/\s+/);
+            action = parts[0].toLowerCase();
+            param = parts.slice(1).join(" ");
+        }
 
         if (!action) {
-            return "💡 Uso correto: `/controle_pc print` | `bloquear` | `status` | `processos`";
+            return "💡 Uso correto: `/controle_pc print` | `bloquear` | `status` | `processos` | `tocar_audio <caminho/url>` | `desligar <tempo>` | `cancelar_desligamento`";
         }
 
         try {
@@ -130,8 +142,114 @@ module.exports = {
                            `\`\`\`\n${procOutput}\n\`\`\`\n` +
                            `*Dica:* Se precisar matar algum processo pesado, fale para eu fazer isso que eu escrevo a skill correspondente! 😉`;
 
+                case "tocar":
+                case "play":
+                case "tocar_audio": {
+                    if (!param) {
+                        return "⚠️ Por favor, especifique o caminho de um arquivo de áudio local ou uma URL (MP3/WAV).";
+                    }
+
+                    let audioPath = param;
+                    let isTemp = false;
+
+                    if (param.startsWith("http://") || param.startsWith("https://")) {
+                        try {
+                            const axios = require("axios");
+                            const tempDir = path.join(__dirname, "..", "temp");
+                            if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+                            
+                            const ext = param.split("?")[0].endsWith(".wav") ? ".wav" : ".mp3";
+                            audioPath = path.join(tempDir, `local_play_${Date.now()}${ext}`);
+                            
+                            const writer = fs.createWriteStream(audioPath);
+                            const response = await axios({
+                                url: param,
+                                method: 'GET',
+                                responseType: 'stream'
+                            });
+                            
+                            response.data.pipe(writer);
+                            await new Promise((resolve, reject) => {
+                                writer.on('finish', resolve);
+                                writer.on('error', reject);
+                            });
+                            isTemp = true;
+                        } catch (downloadErr) {
+                            return `❌ Falha ao baixar o áudio da URL: ${downloadErr.message}`;
+                        }
+                    }
+
+                    if (!fs.existsSync(audioPath)) {
+                        return `❌ Arquivo de áudio não encontrado no caminho especificado: "${audioPath}"`;
+                    }
+
+                    const isWav = audioPath.toLowerCase().endsWith(".wav");
+                    let psAudioCommand;
+                    if (isWav) {
+                        psAudioCommand = `(New-Object System.Media.SoundPlayer('${audioPath.replace(/\\/g, '\\\\')}')).PlaySync()`;
+                    } else {
+                        psAudioCommand = `Add-Type -AssemblyName PresentationCore; $player = New-Object System.Windows.Media.MediaPlayer; $player.Open('${audioPath.replace(/\\/g, '\\\\')}'); $player.Play(); Start-Sleep -Seconds 60;`;
+                    }
+
+                    const { spawn } = require("child_process");
+                    const child = spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psAudioCommand], {
+                        detached: true,
+                        stdio: 'ignore'
+                    });
+                    child.unref();
+
+                    if (isTemp) {
+                        setTimeout(() => {
+                            try {
+                                if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+                            } catch {}
+                        }, 70000);
+                    }
+
+                    return `🎵 *Reproduzindo áudio no seu PC local!* 🔊\n*Arquivo:* \`${path.basename(audioPath)}\`\n(Duração máxima: 60 segundos)`;
+                }
+
+                case "desligar":
+                case "shutdown": {
+                    let seconds = 60;
+                    if (param) {
+                        if (param.includes("min") || param.includes("m")) {
+                            const match = param.match(/\d+/);
+                            if (match) {
+                                seconds = parseInt(match[0]) * 60;
+                            }
+                        } else {
+                            const match = param.match(/\d+/);
+                            if (match) {
+                                seconds = parseInt(match[0]);
+                            }
+                        }
+                    }
+
+                    await new Promise((resolve, reject) => {
+                        exec(`shutdown /s /f /t ${seconds}`, (error) => {
+                            if (error) reject(error);
+                            else resolve();
+                        });
+                    });
+
+                    return `🖥️ *Desligamento do PC pessoal agendado!* 🔌\nO computador será desligado em *${seconds} segundos* (${Math.round(seconds / 60)} minutos).\n\n💡 Para cancelar, envie: \`/controle_pc cancelar\` ou diga para eu abortar o desligamento.`;
+                }
+
+                case "cancelar":
+                case "abortar":
+                case "cancelar_desligamento": {
+                    await new Promise((resolve, reject) => {
+                        exec("shutdown /a", (error) => {
+                            if (error) reject(error);
+                            else resolve();
+                        });
+                    });
+                    return "✅ *Agendamento de desligamento cancelado com sucesso!* Seu computador continuará ligado normalmente. 🖥️🙌";
+                }
+
                 default:
-                    return `❌ Ação de hardware desconhecida: "${action}". Use: print, bloquear, status ou processos.`;
+                    return `❌ Ação de hardware desconhecida: "${action}". Use: print, bloquear, status, processos, tocar_audio, desligar ou cancelar_desligamento.`;
             }
         } catch (err) {
             console.error(err);

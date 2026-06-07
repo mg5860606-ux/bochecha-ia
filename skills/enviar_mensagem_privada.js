@@ -22,12 +22,23 @@ module.exports = {
         }
     },
     async execute(args, { sock, from }) {
-        if (!args.mencao || !args.mensagem) {
+        let mencao = args.mencao;
+        let mensagem = args.mensagem;
+
+        // Se veio via comando direto (/enviar_mensagem_privada @membro mensagem)
+        if (!mencao && (args.texto || args.alvo)) {
+            const rawText = (args.texto || args.alvo).trim();
+            const parts = rawText.split(/\s+/);
+            mencao = parts[0];
+            mensagem = parts.slice(1).join(" ");
+        }
+
+        if (!mencao || !mensagem) {
             return "Erro: Parâmetros mencao e mensagem são obrigatórios.";
         }
 
         let target = "";
-        const cleanMention = args.mencao.replace(/[^0-9]/g, '');
+        const cleanMention = mencao.replace(/[^0-9]/g, '');
 
         try {
             // Tenta obter o JID real (suportando LID ou telefone) na lista de participantes do grupo

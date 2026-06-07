@@ -19,7 +19,7 @@ module.exports = {
         }
     },
     async execute(args, ctx) {
-        const rawCode = args.code;
+        const rawCode = args.code || args.texto || args.alvo;
         if (!rawCode) return "Erro: Nenhum código fornecido para execução.";
 
         console.log(chalk.yellow(`[🧠 CODE INTERPRETER] Executando script no sandbox...`));

@@ -27,6 +27,18 @@ module.exports = {
     async execute(args, { sock, from, message }) {
         if (!from.endsWith('@g.us')) return "❌ Este comando só funciona dentro de grupos.";
 
+        // Fallback para comando direto: /gerenciar_grupo <acao> [valor]
+        if (!args.acao) {
+            const texto = (args.texto || args.alvo || '').trim();
+            if (texto) {
+                const partes = texto.split(' ');
+                args.acao = partes[0].toLowerCase();
+                if (partes.length > 1) args.valor = partes.slice(1).join(' ');
+            }
+        }
+
+        if (!args.acao) return "❌ Informe a ação. Ex: /gerenciar_grupo fechar_grupo | nome Novo Nome | link | info";
+
         try {
             switch (args.acao) {
                 case "nome":

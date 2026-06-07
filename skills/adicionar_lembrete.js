@@ -24,6 +24,25 @@ module.exports = {
     },
     async execute(args, context) {
         try {
+            // Fallback para comando direto: /adicionar_lembrete <mensagem> <minutos>
+            if (!args.mensagem || !args.minutos_daqui) {
+                const texto = (args.texto || args.alvo || '').trim();
+                if (texto) {
+                    const partes = texto.split(/\s+/);
+                    const ultimoToken = partes[partes.length - 1];
+                    const minParsed = parseInt(ultimoToken);
+                    if (!isNaN(minParsed)) {
+                        args.minutos_daqui = minParsed;
+                        args.mensagem = partes.slice(0, -1).join(' ') || 'Lembrete';
+                    } else {
+                        args.mensagem = texto;
+                    }
+                }
+                if (!args.mensagem || !args.minutos_daqui) {
+                    return "❌ Use: /adicionar_lembrete <mensagem> <minutos>\nEx: /adicionar_lembrete reunião com cliente 60";
+                }
+            }
+
             const minutos = parseInt(args.minutos_daqui);
             if (isNaN(minutos) || minutos <= 0) {
                 return "Erro: 'minutos_daqui' deve ser um número positivo.";

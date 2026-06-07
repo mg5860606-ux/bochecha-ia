@@ -55,7 +55,7 @@ module.exports = {
             fs.mkdirSync(TEMP_DIR, { recursive: true });
         }
 
-        const query = args.busca ? args.busca.trim() : "";
+        const query = (args.busca || args.texto || args.alvo || "").trim();
         await sock.sendMessage(from, { text: `🔞 *Bochecha Adult System* 🔞\nBuscando vídeo adulto ${query ? `sobre "${query}"` : "aleatório"}...` });
 
         try {

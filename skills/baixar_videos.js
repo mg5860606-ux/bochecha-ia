@@ -25,6 +25,7 @@ module.exports = {
         }
     },
     async execute(args, { sock, from }) {
+        if (!args.query) args.query = args.texto || args.alvo || '';
         if (!args.query) return "Aviso: Nenhum link ou pesquisa fornecido.";
         
         const query = args.query.trim();

@@ -21,6 +21,14 @@ module.exports = {
     async execute(args, { sock, from }) {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
 
+        // Fallback para comando direto: /configurar_grupo <aberto|fechado>
+        if (!args.estado) {
+            const texto = (args.texto || args.alvo || '').trim().toLowerCase();
+            if (texto === 'aberto' || texto === 'open') args.estado = 'aberto';
+            else if (texto === 'fechado' || texto === 'closed') args.estado = 'fechado';
+            else return "❌ Use: /configurar_grupo aberto | /configurar_grupo fechado";
+        }
+
         try {
             const setting = args.estado === "aberto" ? "not_announcement" : "announcement";
             console.log(chalk.yellow(`[⚙️ GRUPO] Alterando para ${args.estado}`));

@@ -31,8 +31,9 @@ module.exports = {
         let target = "";
         
         // 1. Se o modelo de IA especificou explicitamente um alvo nas propriedades da ferramenta, usamos ele!
-        if (args.mencao) {
-            const cleanedMention = args.mencao.replace(/[^0-9]/g, '');
+        const rawTargetInput = args.mencao || args.texto || args.alvo;
+        if (rawTargetInput) {
+            const cleanedMention = rawTargetInput.replace(/[^0-9]/g, '');
             try {
                 const metadata = await sock.groupMetadata(from);
                 const participants = metadata.participants || [];
@@ -45,10 +46,10 @@ module.exports = {
             }
 
             if (!target) {
-                if (args.mencao.includes('@lid')) {
+                if (rawTargetInput.includes('@lid')) {
                     target = cleanedMention + '@lid';
-                } else if (args.mencao.includes('@g.us')) {
-                    target = args.mencao;
+                } else if (rawTargetInput.includes('@g.us')) {
+                    target = rawTargetInput;
                 } else {
                     target = cleanedMention + '@s.whatsapp.net';
                 }

@@ -23,6 +23,21 @@ module.exports = {
         let db = fs.existsSync(dbPath) ? JSON.parse(fs.readFileSync(dbPath)) : {};
         if (!db[from]) db[from] = {};
 
+        // Fallback para comando direto: /configurar_bv <acao> [modelo] [legenda]
+        if (!args.acao) {
+            const texto = (args.texto || args.alvo || '').trim();
+            if (texto) {
+                const partes = texto.split(/\s+/);
+                const acoes = ['definir_modelo', 'definir_legenda'];
+                if (acoes.includes(partes[0])) {
+                    args.acao = partes[0];
+                    if (partes[1]) args.modelo = partes[1];
+                    if (partes.length > 2) args.legenda = partes.slice(2).join(' ');
+                }
+            }
+            if (!args.acao) return "❌ Use: /configurar_bv definir_modelo 1 | /configurar_bv definir_legenda 1 <texto>";
+        }
+
         if (args.acao === "definir_modelo") {
             db[from].modelo_bv = args.modelo;
             fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
