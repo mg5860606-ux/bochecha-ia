@@ -83,9 +83,35 @@ module.exports = {
                     const uptimeHrs = Math.round(os.uptime() / 3600);
                     const platform = os.platform();
                     
+                    // Obter IP Local
+                    const networkInterfaces = os.networkInterfaces();
+                    let localIp = "Desconhecido";
+                    for (const interfaceName in networkInterfaces) {
+                        const interfaces = networkInterfaces[interfaceName];
+                        for (const iface of interfaces) {
+                            if (iface.family === "IPv4" && !iface.internal) {
+                                localIp = iface.address;
+                                break;
+                            }
+                        }
+                        if (localIp !== "Desconhecido") break;
+                    }
+                    
+                    // Obter IP Público
+                    let publicIp = "Buscando...";
+                    try {
+                        const axios = require("axios");
+                        const resIp = await axios.get("https://api.ipify.org", { timeout: 3000 });
+                        publicIp = resIp.data.trim();
+                    } catch (e) {
+                        publicIp = "Não foi possível detectar (Offline/Timeout)";
+                    }
+                    
                     return `💻 *STATUS DO SEU PC PESSOAL* 💻\n\n` +
                            `*💻 Host OS:* Windows (${platform})\n` +
                            `*👤 Usuário Ativo:* ${username}\n` +
+                           `*🌐 IP Local:* ${localIp}\n` +
+                           `*🌍 IP Público:* ${publicIp}\n` +
                            `*🧠 Processador:* ${cpuModel}\n` +
                            `*💾 Memória RAM:* ${usedMem}GB usados / ${totalMem}GB totais (${freeMem}GB livres)\n` +
                            `*⏳ Tempo de Atividade (Uptime):* ${uptimeHrs} horas ativo\n` +
