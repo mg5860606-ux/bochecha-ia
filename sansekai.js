@@ -1593,8 +1593,9 @@ class KeyRotationEngine {
         } else if (hasTools) {
             // Function Calling: modelos com melhor suporte a tools
             const eliteToolsModels = [
-                "poolside/laguna-m.1:free",
-                "openai/gpt-oss-120b:free"
+                "openai/gpt-oss-120b:free",
+                "qwen/qwen3-coder:free",
+                "poolside/laguna-m.1:free"
             ];
             list.sort((a, b) => {
                 const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
@@ -1704,26 +1705,36 @@ class KeyRotationEngine {
                         }
                     }
 
-                    // Adapta o prompt de entrada (textual ou multimodal) para o OpenRouter
+                    // Adapta o prompt de entrada (textual, multimodal ou retorno de ferramentas) para o OpenRouter
                     let finalContent;
                     if (typeof prompt === 'string') {
                         finalContent = prompt;
                     } else if (Array.isArray(prompt)) {
-                        finalContent = [];
-                        for (const item of prompt) {
-                            if (item.text) {
-                                finalContent.push({ type: "text", text: item.text });
-                            } else if (item.inlineData) {
-                                finalContent.push({
-                                    type: "image_url",
-                                    image_url: {
-                                        url: `data:${item.inlineData.mimeType};base64,${item.inlineData.data}`
-                                    }
-                                });
+                        const isToolResponse = prompt.some(item => item && item.functionResponse);
+                        if (isToolResponse) {
+                            finalContent = prompt.map(item => {
+                                const fr = item.functionResponse;
+                                if (!fr) return "";
+                                const resString = typeof fr.response === 'object' ? (fr.response.result || JSON.stringify(fr.response)) : String(fr.response);
+                                return `[RETORNO DA FERRAMENTA: "${fr.name}"]\nResultado da execução:\n${resString}`;
+                            }).join("\n\n");
+                        } else {
+                            finalContent = [];
+                            for (const item of prompt) {
+                                if (item.text) {
+                                    finalContent.push({ type: "text", text: item.text });
+                                } else if (item.inlineData) {
+                                    finalContent.push({
+                                        type: "image_url",
+                                        image_url: {
+                                            url: `data:${item.inlineData.mimeType};base64,${item.inlineData.data}`
+                                        }
+                                    });
+                                }
                             }
-                        }
-                        if (finalContent.length === 1 && finalContent[0].type === "text") {
-                            finalContent = finalContent[0].text;
+                            if (finalContent.length === 1 && finalContent[0].type === "text") {
+                                finalContent = finalContent[0].text;
+                            }
                         }
                     } else {
                         finalContent = String(prompt);
@@ -1940,12 +1951,21 @@ class KeyRotationEngine {
                 if (typeof prompt === 'string') {
                     finalContent = prompt;
                 } else if (Array.isArray(prompt)) {
-                    const parts = [];
-                    for (const item of prompt) {
-                        if (item.text) parts.push({ type: "text", text: item.text });
-                        // Modelos gratuitos geralmente não suportam imagem — apenas texto
+                    const isToolResponse = prompt.some(item => item && item.functionResponse);
+                    if (isToolResponse) {
+                        finalContent = prompt.map(item => {
+                            const fr = item.functionResponse;
+                            if (!fr) return "";
+                            const resString = typeof fr.response === 'object' ? (fr.response.result || JSON.stringify(fr.response)) : String(fr.response);
+                            return `[RETORNO DA FERRAMENTA: "${fr.name}"]\nResultado da execução:\n${resString}`;
+                        }).join("\n\n");
+                    } else {
+                        const parts = [];
+                        for (const item of prompt) {
+                            if (item.text) parts.push({ type: "text", text: item.text });
+                        }
+                        finalContent = parts.length === 1 && parts[0].type === 'text' ? parts[0].text : parts.map(p => p.text || '').join(' ');
                     }
-                    finalContent = parts.length === 1 && parts[0].type === 'text' ? parts[0].text : parts.map(p => p.text || '').join(' ');
                 } else {
                     finalContent = String(prompt);
                 }
