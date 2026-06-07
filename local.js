@@ -87,9 +87,35 @@ function startConsoleChat() {
                 });
 
                 const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-                
+                let text = res.output || "";
+
+                // Remove Unicode isolators
+                text = text.replace(/[\u2068\u2069]/g, '');
+
+                // Intercept Reaction [REACAO: <emoji>]
+                let reactionEmoji = null;
+                const reactionRegex = /\[REACAO:\s*(.+?)\]/;
+                const matchReaction = text.match(reactionRegex);
+                if (matchReaction) {
+                    reactionEmoji = matchReaction[1].trim();
+                    text = text.replace(reactionRegex, "").trim();
+                }
+
+                // Intercept Sticker reaction
+                let isSticker = false;
+                if (text.trim() === "[FIGURINHA_REACAO]") {
+                    text = chalk.italic.green("🖼️ [Enviou uma figurinha de meme/risada]");
+                    isSticker = true;
+                }
+
+                // Format own mentions nicely for console visibility
+                text = text.replace(/@551420370026/g, chalk.bold.yellow("@Marcos"));
+
                 console.log(chalk.cyan(`\n🛸 Bochecha-IA [${res.modelName || 'Desconhecido'}] (${elapsed}s) 🛸`));
-                console.log(chalk.white(res.output));
+                console.log(chalk.white(text));
+                if (reactionEmoji) {
+                    console.log(chalk.green(`[Reagiu com: ${reactionEmoji}]`));
+                }
                 console.log(chalk.cyan("──────────────────────────────────────────────────\n"));
 
             } catch (err) {
