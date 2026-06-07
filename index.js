@@ -390,11 +390,10 @@ ${fileContent}
         let success = false;
         
         const healModels = [
-            "google/gemini-2.5-pro:free",
-            "anthropic/claude-3.7-sonnet",
-            "openai/o3-mini",
-            "google/gemini-2.5-pro",
-            "anthropic/claude-3.5-sonnet"
+            "qwen/qwen3-coder:free",
+            "nousresearch/hermes-3-llama-3.1-405b:free",
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "google/gemma-4-31b-it:free"
         ];
 
         for (const key of keys) {

@@ -7,48 +7,37 @@ const SETTINGS_PATH = path.join(__dirname, '..', 'settings.json');
 
 // Mapeamento de apelidos para IDs gratuitos do OpenRouter
 const MODEL_ALIASES = {
-    // DeepSeek R1 (raciocínio SOTA gratuito)
-    'r1': 'deepseek/deepseek-r1:free',
-    'deepseek': 'deepseek/deepseek-r1:free',
-    'deepseek-r1': 'deepseek/deepseek-r1:free',
-
-    // DeepSeek V4 Flash
-    'flash': 'deepseek/deepseek-v4-flash:free',
-    'deepseek-flash': 'deepseek/deepseek-v4-flash:free',
-    'v4': 'deepseek/deepseek-v4-flash:free',
-
-    // Gemini 2.5 Flash (rápido e multimodal)
-    'gemini': 'google/gemini-2.5-flash:free',
-    'gemini-flash': 'google/gemini-2.5-flash:free',
-
-    // Gemini 2.5 Pro
-    'gemini-pro': 'google/gemini-2.5-pro:free',
-    'pro': 'google/gemini-2.5-pro:free',
-
     // Llama 3.3 70B
     'llama': 'meta-llama/llama-3.3-70b-instruct:free',
     'llama3': 'meta-llama/llama-3.3-70b-instruct:free',
 
-    // Qwen 2.5 72B
-    'qwen': 'qwen/qwen-2.5-72b-instruct:free',
-    'qwen72': 'qwen/qwen-2.5-72b-instruct:free',
+    // Gemma 4 31B
+    'gemma': 'google/gemma-4-31b-it:free',
+    'gemma4': 'google/gemma-4-31b-it:free',
 
-    // Qwen 2.5 Coder
-    'coder': 'qwen/qwen-2.5-coder-32b-instruct:free',
-    'qwen-coder': 'qwen/qwen-2.5-coder-32b-instruct:free',
+    // Hermes 3 Llama 3.1 405B
+    'hermes': 'nousresearch/hermes-3-llama-3.1-405b:free',
+    'hermes405': 'nousresearch/hermes-3-llama-3.1-405b:free',
 
-    // GPT-OSS 120B (gratuito OpenRouter)
+    // GPT-OSS 120B
     'gpt': 'openai/gpt-oss-120b:free',
     'gpt-oss': 'openai/gpt-oss-120b:free',
-    'gpt120': 'openai/gpt-oss-120b:free',
+
+    // Qwen 3 Coder
+    'coder': 'qwen/qwen3-coder:free',
+    'qwen3-coder': 'qwen/qwen3-coder:free',
 
     // Poolside Laguna
     'poolside': 'poolside/laguna-m.1:free',
     'laguna': 'poolside/laguna-m.1:free',
 
-    // Gemma 2 9B
-    'gemma': 'google/gemma-2-9b-it:free',
-    'gemma2': 'google/gemma-2-9b-it:free',
+    // Nemotron Nano VL
+    'nemotron': 'nvidia/nemotron-nano-12b-v2-vl:free',
+    'vision': 'nvidia/nemotron-nano-12b-v2-vl:free',
+
+    // Llama 3.2 3B
+    'llama32': 'meta-llama/llama-3.2-3b-instruct:free',
+    'fast': 'meta-llama/llama-3.2-3b-instruct:free',
 
     // Auto (roteamento automático do OpenRouter)
     'auto': 'openrouter/free',
@@ -57,16 +46,14 @@ const MODEL_ALIASES = {
 
 // Nomes amigáveis para exibição
 const FRIENDLY_NAMES = {
-    'deepseek/deepseek-r1:free': 'DeepSeek-R1 🧠 (Raciocínio SOTA Gratuito)',
-    'deepseek/deepseek-v4-flash:free': 'DeepSeek V4 Flash ⚡ (Rápido & Poderoso)',
-    'google/gemini-2.5-flash:free': 'Gemini 2.5 Flash 🌟 (Multimodal & Veloz)',
-    'google/gemini-2.5-pro:free': 'Gemini 2.5 Pro 💎 (Contexto 2M & Análise)',
     'meta-llama/llama-3.3-70b-instruct:free': 'Llama 3.3 70B 🦙 (Fluido & Humano)',
-    'qwen/qwen-2.5-72b-instruct:free': 'Qwen 2.5 72B 🔮 (Alta Qualidade Geral)',
-    'qwen/qwen-2.5-coder-32b-instruct:free': 'Qwen 2.5 Coder 💻 (Especialista em Código)',
+    'google/gemma-4-31b-it:free': 'Gemma 4 31B 🌟 (Modelo Google SOTA)',
+    'nousresearch/hermes-3-llama-3.1-405b:free': 'Hermes 3 405B 🧠 (Raciocínio & Conhecimento Gigante)',
     'openai/gpt-oss-120b:free': 'GPT-OSS 120B 🤖 (Open Source da OpenAI)',
+    'qwen/qwen3-coder:free': 'Qwen 3 Coder 💻 (Novo Especialista em Código)',
     'poolside/laguna-m.1:free': 'Poolside Laguna 🏊 (Tools & Agentes)',
-    'google/gemma-2-9b-it:free': 'Gemma 2 9B 🌱 (Leve & Eficiente)',
+    'nvidia/nemotron-nano-12b-v2-vl:free': 'Nemotron Nano VL 👁️ (Visão & Imagens)',
+    'meta-llama/llama-3.2-3b-instruct:free': 'Llama 3.2 3B ⚡ (Super Rápido)',
     'openrouter/free': 'OpenRouter Auto 🔄 (Roteamento Automático)'
 };
 

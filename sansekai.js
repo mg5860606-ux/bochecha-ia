@@ -1317,10 +1317,13 @@ class KeyRotationEngine {
         // Modelos GRATUITOS: apenas modelos estáveis e confiáveis
         this.freeModels = [
             "meta-llama/llama-3.3-70b-instruct:free",
-            "deepseek/deepseek-r1:free",
-            "qwen/qwen-2.5-72b-instruct:free",
-            "google/gemini-2.5-flash:free",
-            "google/gemma-2-9b-it:free"
+            "google/gemma-4-31b-it:free",
+            "nousresearch/hermes-3-llama-3.1-405b:free",
+            "openai/gpt-oss-120b:free",
+            "qwen/qwen3-coder:free",
+            "poolside/laguna-m.1:free",
+            "nvidia/nemotron-nano-12b-v2-vl:free",
+            "meta-llama/llama-3.2-3b-instruct:free"
         ];
 
         // Apenas modelos gratuitos
@@ -1562,9 +1565,11 @@ class KeyRotationEngine {
         }
 
         if (hasMedia) {
-            // Multimodal: prioriza modelos gratuitos com suporte a visão
+            // Multimodal: prioriza modelos com suporte a visão
             const multimodalModels = [
-                "google/gemini-2.5-flash:free"
+                "nvidia/nemotron-nano-12b-v2-vl:free",
+                "openai/gpt-oss-120b:free",
+                "poolside/laguna-m.1:free"
             ];
             const filtered = list.filter(m => multimodalModels.includes(m));
             if (filtered.length > 0) {
@@ -1576,11 +1581,12 @@ class KeyRotationEngine {
                 return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
             });
         } else if (isCoding) {
-            // Programação: prefere modelos de raciocínio gratuitos
+            // Programação: prefere modelos especializados em código
             const codingModels = [
-                "deepseek/deepseek-r1:free",
-                "qwen/qwen-2.5-72b-instruct:free",
-                "google/gemini-2.5-flash:free"
+                "qwen/qwen3-coder:free",
+                "openai/gpt-oss-120b:free",
+                "poolside/laguna-m.1:free",
+                "nousresearch/hermes-3-llama-3.1-405b:free"
             ];
             list.sort((a, b) => {
                 const aVal = codingModels.includes(a) ? codingModels.indexOf(a) : 99;
@@ -1588,11 +1594,12 @@ class KeyRotationEngine {
                 return aVal - bVal;
             });
         } else if (hasTools) {
-            // Function Calling: modelos gratuitos com melhor suporte a tools
+            // Function Calling: modelos com melhor suporte a tools
             const eliteToolsModels = [
-                "google/gemini-2.5-flash:free",
+                "poolside/laguna-m.1:free",
                 "meta-llama/llama-3.3-70b-instruct:free",
-                "qwen/qwen-2.5-72b-instruct:free"
+                "openai/gpt-oss-120b:free",
+                "nousresearch/hermes-3-llama-3.1-405b:free"
             ];
             list.sort((a, b) => {
                 const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
@@ -1603,10 +1610,10 @@ class KeyRotationEngine {
             // Conversação geral
             const talkModels = [
                 "meta-llama/llama-3.3-70b-instruct:free",
-                "google/gemini-2.5-flash:free",
-                "qwen/qwen-2.5-72b-instruct:free",
-                "google/gemma-2-9b-it:free",
-                "deepseek/deepseek-r1:free"
+                "nousresearch/hermes-3-llama-3.1-405b:free",
+                "google/gemma-4-31b-it:free",
+                "openai/gpt-oss-120b:free",
+                "meta-llama/llama-3.2-3b-instruct:free"
             ];
             list.sort((a, b) => {
                 const aVal = talkModels.includes(a) ? talkModels.indexOf(a) : 99;
