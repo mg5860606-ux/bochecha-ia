@@ -1316,14 +1316,12 @@ class KeyRotationEngine {
     constructor() {
         // Modelos GRATUITOS: apenas modelos estáveis e confiáveis
         this.freeModels = [
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "google/gemma-4-31b-it:free",
-            "nousresearch/hermes-3-llama-3.1-405b:free",
-            "openai/gpt-oss-120b:free",
-            "qwen/qwen3-coder:free",
             "poolside/laguna-m.1:free",
-            "nvidia/nemotron-nano-12b-v2-vl:free",
-            "meta-llama/llama-3.2-3b-instruct:free"
+            "qwen/qwen3-coder:free",
+            "meta-llama/llama-3.2-3b-instruct:free",
+            "openai/gpt-oss-120b:free",
+            "google/gemma-4-31b-it:free",
+            "nvidia/nemotron-nano-12b-v2-vl:free"
         ];
 
         // Apenas modelos gratuitos
@@ -1585,8 +1583,7 @@ class KeyRotationEngine {
             const codingModels = [
                 "qwen/qwen3-coder:free",
                 "openai/gpt-oss-120b:free",
-                "poolside/laguna-m.1:free",
-                "nousresearch/hermes-3-llama-3.1-405b:free"
+                "poolside/laguna-m.1:free"
             ];
             list.sort((a, b) => {
                 const aVal = codingModels.includes(a) ? codingModels.indexOf(a) : 99;
@@ -1597,9 +1594,7 @@ class KeyRotationEngine {
             // Function Calling: modelos com melhor suporte a tools
             const eliteToolsModels = [
                 "poolside/laguna-m.1:free",
-                "meta-llama/llama-3.3-70b-instruct:free",
-                "openai/gpt-oss-120b:free",
-                "nousresearch/hermes-3-llama-3.1-405b:free"
+                "openai/gpt-oss-120b:free"
             ];
             list.sort((a, b) => {
                 const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
@@ -1609,8 +1604,7 @@ class KeyRotationEngine {
         } else {
             // Conversação geral
             const talkModels = [
-                "meta-llama/llama-3.3-70b-instruct:free",
-                "nousresearch/hermes-3-llama-3.1-405b:free",
+                "poolside/laguna-m.1:free",
                 "google/gemma-4-31b-it:free",
                 "openai/gpt-oss-120b:free",
                 "meta-llama/llama-3.2-3b-instruct:free"
@@ -1858,6 +1852,13 @@ class KeyRotationEngine {
                         continue; // Próximo modelo, mesma chave
                     }
 
+                    // ═══ ERRO 429: Rate limit ═══
+                    if (httpStatus === 429 || msg.includes("429") || msg.includes("rate limit") || msg.includes("quota")) {
+                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} rate-limited (429). Cooldown de 5min.`);
+                        this.cooldowns.set(activeKey, Date.now() + this.cooldownDuration);
+                        break; // Pula a chave inteira
+                    }
+
                     // ═══ ERRO 502/503/upstream: Provedor caiu ═══
                     if (httpStatus === 502 || httpStatus === 503 || msg.includes("Provider returned error") || msg.includes("upstream") || msg.includes("502") || msg.includes("503")) {
                         Logger.warn("KeyRotationEngine", `Provedor do modelo ${modelName} caiu! Pulando para o próximo modelo (Fallback).`);
@@ -1875,13 +1876,6 @@ class KeyRotationEngine {
                         const freeResult = await this._tryFreeModelsOnly(history, prompt, tools, systemInstruction, activeKey);
                         if (freeResult) return freeResult;
                         break; // Gratuitos também falharam — pula para próxima chave
-                    }
-
-                    // ═══ ERRO 429: Rate limit ═══
-                    if (httpStatus === 429 || msg.includes("429") || msg.includes("rate limit") || msg.includes("quota")) {
-                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} rate-limited (429). Cooldown de 5min.`);
-                        this.cooldowns.set(activeKey, Date.now() + this.cooldownDuration);
-                        break; // Pula a chave inteira
                     }
 
                     // ═══ ERRO 401/403: Chave inválida/banida ═══
@@ -2027,6 +2021,13 @@ class KeyRotationEngine {
                 const httpStatus = e.httpStatus || 0;
                 const msg = String(e.message || e);
                 Logger.warn("KeyRotationEngine", `[FREE] Falha em ${modelName}: ${msg.substring(0, 100)}`);
+                
+                if (httpStatus === 429 || msg.includes("429") || msg.includes("rate limit") || msg.includes("quota")) {
+                    Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} rate-limited (429) em modelo gratuito. Pulando chave.`);
+                    this.cooldowns.set(activeKey, Date.now() + this.cooldownDuration);
+                    break; // Pula os outros modelos nesta chave rate-limited
+                }
+
                 if (httpStatus === 404 || msg.includes("404") || msg.includes("No endpoints")) {
                     this.deadModels.add(modelName);
                 }

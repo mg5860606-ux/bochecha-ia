@@ -391,8 +391,8 @@ ${fileContent}
         
         const healModels = [
             "qwen/qwen3-coder:free",
-            "nousresearch/hermes-3-llama-3.1-405b:free",
-            "meta-llama/llama-3.3-70b-instruct:free",
+            "poolside/laguna-m.1:free",
+            "openai/gpt-oss-120b:free",
             "google/gemma-4-31b-it:free"
         ];
 

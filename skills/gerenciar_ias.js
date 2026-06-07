@@ -7,37 +7,30 @@ const SETTINGS_PATH = path.join(__dirname, '..', 'settings.json');
 
 // Mapeamento de apelidos para IDs gratuitos do OpenRouter
 const MODEL_ALIASES = {
-    // Llama 3.3 70B
-    'llama': 'meta-llama/llama-3.3-70b-instruct:free',
-    'llama3': 'meta-llama/llama-3.3-70b-instruct:free',
-
-    // Gemma 4 31B
-    'gemma': 'google/gemma-4-31b-it:free',
-    'gemma4': 'google/gemma-4-31b-it:free',
-
-    // Hermes 3 Llama 3.1 405B
-    'hermes': 'nousresearch/hermes-3-llama-3.1-405b:free',
-    'hermes405': 'nousresearch/hermes-3-llama-3.1-405b:free',
-
-    // GPT-OSS 120B
-    'gpt': 'openai/gpt-oss-120b:free',
-    'gpt-oss': 'openai/gpt-oss-120b:free',
+    // Poolside Laguna
+    'poolside': 'poolside/laguna-m.1:free',
+    'laguna': 'poolside/laguna-m.1:free',
 
     // Qwen 3 Coder
     'coder': 'qwen/qwen3-coder:free',
     'qwen3-coder': 'qwen/qwen3-coder:free',
 
-    // Poolside Laguna
-    'poolside': 'poolside/laguna-m.1:free',
-    'laguna': 'poolside/laguna-m.1:free',
+    // Llama 3.2 3B
+    'llama': 'meta-llama/llama-3.2-3b-instruct:free',
+    'llama32': 'meta-llama/llama-3.2-3b-instruct:free',
+    'fast': 'meta-llama/llama-3.2-3b-instruct:free',
+
+    // GPT-OSS 120B
+    'gpt': 'openai/gpt-oss-120b:free',
+    'gpt-oss': 'openai/gpt-oss-120b:free',
+
+    // Gemma 4 31B
+    'gemma': 'google/gemma-4-31b-it:free',
+    'gemma4': 'google/gemma-4-31b-it:free',
 
     // Nemotron Nano VL
     'nemotron': 'nvidia/nemotron-nano-12b-v2-vl:free',
     'vision': 'nvidia/nemotron-nano-12b-v2-vl:free',
-
-    // Llama 3.2 3B
-    'llama32': 'meta-llama/llama-3.2-3b-instruct:free',
-    'fast': 'meta-llama/llama-3.2-3b-instruct:free',
 
     // Auto (roteamento automático do OpenRouter)
     'auto': 'openrouter/free',
@@ -46,14 +39,12 @@ const MODEL_ALIASES = {
 
 // Nomes amigáveis para exibição
 const FRIENDLY_NAMES = {
-    'meta-llama/llama-3.3-70b-instruct:free': 'Llama 3.3 70B 🦙 (Fluido & Humano)',
-    'google/gemma-4-31b-it:free': 'Gemma 4 31B 🌟 (Modelo Google SOTA)',
-    'nousresearch/hermes-3-llama-3.1-405b:free': 'Hermes 3 405B 🧠 (Raciocínio & Conhecimento Gigante)',
+    'poolside/laguna-m.1:free': 'Poolside Laguna 🏊 (Tools, Rápido & Estável)',
+    'qwen/qwen3-coder:free': 'Qwen 3 Coder 💻 (Especialista em Código)',
+    'meta-llama/llama-3.2-3b-instruct:free': 'Llama 3.2 3B ⚡ (Super Rápido & Fluido)',
     'openai/gpt-oss-120b:free': 'GPT-OSS 120B 🤖 (Open Source da OpenAI)',
-    'qwen/qwen3-coder:free': 'Qwen 3 Coder 💻 (Novo Especialista em Código)',
-    'poolside/laguna-m.1:free': 'Poolside Laguna 🏊 (Tools & Agentes)',
+    'google/gemma-4-31b-it:free': 'Gemma 4 31B 🌟 (Modelo Google SOTA)',
     'nvidia/nemotron-nano-12b-v2-vl:free': 'Nemotron Nano VL 👁️ (Visão & Imagens)',
-    'meta-llama/llama-3.2-3b-instruct:free': 'Llama 3.2 3B ⚡ (Super Rápido)',
     'openrouter/free': 'OpenRouter Auto 🔄 (Roteamento Automático)'
 };
 
@@ -106,34 +97,25 @@ module.exports = {
                         `   🌌 *CÉREBROS NEURAIS DO BOCHECHA* 🌌\n` +
                         `╚═══════════════════════════════╝\n\n` +
                         `Todos os modelos abaixo são *100% GRATUITOS* via OpenRouter 🆓\n\n` +
-                        `🧠 *[1] DeepSeek-R1*\n` +
-                        `  ↳ Apelido: *r1* ou *deepseek*\n` +
-                        `  ↳ Especialidade: Raciocínio profundo, matemática e lógica extrema.\n\n` +
-                        `⚡ *[2] DeepSeek V4 Flash*\n` +
-                        `  ↳ Apelido: *flash* ou *v4*\n` +
-                        `  ↳ Especialidade: Velocidade + qualidade, ótimo para conversação.\n\n` +
-                        `🌟 *[3] Gemini 2.5 Flash*\n` +
-                        `  ↳ Apelido: *gemini* ou *gemini-flash*\n` +
-                        `  ↳ Especialidade: Multimodal, rápido, suporte a imagens.\n\n` +
-                        `💎 *[4] Gemini 2.5 Pro*\n` +
-                        `  ↳ Apelido: *gemini-pro* ou *pro*\n` +
-                        `  ↳ Especialidade: Análise de contexto gigante (2M tokens).\n\n` +
-                        `🤖 *[5] GPT-OSS 120B*\n` +
-                        `  ↳ Apelido: *gpt* ou *gpt-oss*\n` +
-                        `  ↳ Especialidade: Open Source da OpenAI, tools avançadas.\n\n` +
-                        `🏊 *[6] Poolside Laguna*\n` +
+                        `🏊 *[1] Poolside Laguna*\n` +
                         `  ↳ Apelido: *poolside* ou *laguna*\n` +
-                        `  ↳ Especialidade: Agentes e function calling.\n\n` +
-                        `🦙 *[7] Llama 3.3 70B*\n` +
-                        `  ↳ Apelido: *llama*\n` +
-                        `  ↳ Especialidade: Papo fluido, linguagem natural e gírias.\n\n` +
-                        `🔮 *[8] Qwen 2.5 72B*\n` +
-                        `  ↳ Apelido: *qwen*\n` +
-                        `  ↳ Especialidade: Alta qualidade geral, multilíngue.\n\n` +
-                        `💻 *[9] Qwen 2.5 Coder*\n` +
-                        `  ↳ Apelido: *coder* ou *qwen-coder*\n` +
-                        `  ↳ Especialidade: Escrita de código e automações.\n\n` +
-                        `🔄 *[10] OpenRouter Auto*\n` +
+                        `  ↳ Especialidade: Muito rápido, tools, agentes e lógica.\n\n` +
+                        `💻 *[2] Qwen 3 Coder*\n` +
+                        `  ↳ Apelido: *coder*\n` +
+                        `  ↳ Especialidade: Escrita de código, programação e automações.\n\n` +
+                        `🦙 *[3] Llama 3.2 3B*\n` +
+                        `  ↳ Apelido: *llama* ou *fast*\n` +
+                        `  ↳ Especialidade: Super rápido, conversação geral e fluido.\n\n` +
+                        `🤖 *[4] GPT-OSS 120B*\n` +
+                        `  ↳ Apelido: *gpt* ou *gpt-oss*\n` +
+                        `  ↳ Especialidade: Open Source da OpenAI, raciocínio avançado.\n\n` +
+                        `🌟 *[5] Gemma 4 31B*\n` +
+                        `  ↳ Apelido: *gemma* ou *gemma4*\n` +
+                        `  ↳ Especialidade: Google SOTA, alta qualidade.\n\n` +
+                        `👁️ *[6] Nemotron Nano VL*\n` +
+                        `  ↳ Apelido: *nemotron* ou *vision*\n` +
+                        `  ↳ Especialidade: Análise e reconhecimento de imagens/visão.\n\n` +
+                        `🔄 *[7] OpenRouter Auto*\n` +
                         `  ↳ Apelido: *auto* ou *free*\n` +
                         `  ↳ Especialidade: Roteamento automático pelo melhor disponível.\n\n` +
                         `*───────────────────────────────*\n` +
@@ -142,7 +124,7 @@ module.exports = {
                         `*───────────────────────────────*\n\n` +
                         `⚠️ *Como alterar o cérebro:* (Apenas Criador Marcos)\n` +
                         `Digite: */setia [apelido]*\n` +
-                        `Exemplo: */setia r1* ou */setia gemini*\n\n` +
+                        `Exemplo: */setia poolside* ou */setia llama*\n\n` +
                         `> *BOCHECHA AGENTIC ENGINE v4.2 — 100% FREE* 🛸🥀💀`;
 
             if (isCommand) {
