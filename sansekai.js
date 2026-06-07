@@ -586,6 +586,23 @@ class StorageManager {
                 this.cache.set(filePath, localData);
             }
 
+            // Garantir que as propriedades do defaultValue estejam presentes em localData caso seja um objeto
+            if (defaultValue && typeof defaultValue === 'object' && !Array.isArray(defaultValue)) {
+                if (localData && typeof localData === 'object' && !Array.isArray(localData)) {
+                    let updated = false;
+                    for (const key of Object.keys(defaultValue)) {
+                        if (localData[key] === undefined) {
+                            localData[key] = JSON.parse(JSON.stringify(defaultValue[key]));
+                            updated = true;
+                        }
+                    }
+                    if (updated) {
+                        fs.writeFileSync(filePath, JSON.stringify(localData, null, 2));
+                        this.cache.set(filePath, localData);
+                    }
+                }
+            }
+
             return JSON.parse(JSON.stringify(localData));
         } catch (e) {
             Logger.error(`StorageManager.read(${path.basename(filePath)})`, e);
@@ -1297,22 +1314,17 @@ function mapGeminiToolsToOpenRouter(geminiTools) {
 
 class KeyRotationEngine {
     constructor() {
-        // Modelos PAGOS: priorizados pelo dono Marcos
-        this.paidModels = [
-            "z-ai/glm-5.1",
-            "openrouter/owl-alpha"
-        ];
-
-        // Modelos GRATUITOS: não precisam de crédito — excelentes fallbacks
+        // Modelos GRATUITOS: apenas modelos estáveis e confiáveis
         this.freeModels = [
-            "poolside/laguna-m.1:free",
-            "openai/gpt-oss-120b:free",
-            "deepseek/deepseek-v4-flash:free",
-            "openrouter/free"
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "deepseek/deepseek-r1:free",
+            "qwen/qwen-2.5-72b-instruct:free",
+            "google/gemini-2.5-flash:free",
+            "google/gemma-2-9b-it:free"
         ];
 
-        // Combina modelos pagos (prioridade) e gratuitos para máxima robustez
-        this.availableModels = [...this.paidModels, ...this.freeModels];
+        // Apenas modelos gratuitos
+        this.availableModels = [...this.freeModels];
 
         this.cooldowns = new Map();
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
@@ -1547,16 +1559,12 @@ class KeyRotationEngine {
         const primaryModel = cachedSettings && cachedSettings.primaryModel;
         if (primaryModel) {
             list = list.filter(m => m !== primaryModel);
-            list.unshift(primaryModel);
         }
 
         if (hasMedia) {
             // Multimodal: prioriza modelos gratuitos com suporte a visão
             const multimodalModels = [
-                "openai/gpt-oss-120b:free",
-                "poolside/laguna-m.1:free",
-                "deepseek/deepseek-v4-flash:free",
-                "z-ai/glm-5.1"
+                "google/gemini-2.5-flash:free"
             ];
             const filtered = list.filter(m => multimodalModels.includes(m));
             if (filtered.length > 0) {
@@ -1570,10 +1578,9 @@ class KeyRotationEngine {
         } else if (isCoding) {
             // Programação: prefere modelos de raciocínio gratuitos
             const codingModels = [
-                "openai/gpt-oss-120b:free",
-                "poolside/laguna-m.1:free",
-                "z-ai/glm-5.1",
-                "deepseek/deepseek-v4-flash:free"
+                "deepseek/deepseek-r1:free",
+                "qwen/qwen-2.5-72b-instruct:free",
+                "google/gemini-2.5-flash:free"
             ];
             list.sort((a, b) => {
                 const aVal = codingModels.includes(a) ? codingModels.indexOf(a) : 99;
@@ -1583,10 +1590,9 @@ class KeyRotationEngine {
         } else if (hasTools) {
             // Function Calling: modelos gratuitos com melhor suporte a tools
             const eliteToolsModels = [
-                "openai/gpt-oss-120b:free",
-                "poolside/laguna-m.1:free",
-                "z-ai/glm-5.1",
-                "deepseek/deepseek-v4-flash:free"
+                "google/gemini-2.5-flash:free",
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "qwen/qwen-2.5-72b-instruct:free"
             ];
             list.sort((a, b) => {
                 const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
@@ -1596,17 +1602,21 @@ class KeyRotationEngine {
         } else {
             // Conversação geral
             const talkModels = [
-                "z-ai/glm-5.1",
-                "poolside/laguna-m.1:free",
-                "openai/gpt-oss-120b:free",
-                "deepseek/deepseek-v4-flash:free",
-                "openrouter/owl-alpha"
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "google/gemini-2.5-flash:free",
+                "qwen/qwen-2.5-72b-instruct:free",
+                "google/gemma-2-9b-it:free",
+                "deepseek/deepseek-r1:free"
             ];
             list.sort((a, b) => {
                 const aVal = talkModels.includes(a) ? talkModels.indexOf(a) : 99;
                 const bVal = talkModels.includes(b) ? talkModels.indexOf(b) : 99;
                 return aVal - bVal;
             });
+        }
+
+        if (primaryModel) {
+            list.unshift(primaryModel);
         }
 
         return list;
@@ -3650,6 +3660,97 @@ const composer = new PromptComposer();
 // 11. BOCHECHA ENGINE (CORE E PROCESSADOR SUPREMO)
 // ══════════════════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════════════════
+// ANTI-SPAM: BOT RATE LIMITER
+// Controla a velocidade de envio de mensagens do bot para evitar ban do WhatsApp
+// ══════════════════════════════════════════════════════════════════════════
+
+class BotRateLimiter {
+    constructor() {
+        // Limite global: máximo de mensagens que o bot pode enviar por minuto
+        this.globalLimit = 18;           // mensagens/minuto global
+        this.perChatLimit = 4;           // mensagens/minuto por chat
+        this.windowMs = 60 * 1000;       // janela de 60 segundos
+
+        this.globalTimestamps = [];      // timestamps globais
+        this.chatTimestamps = new Map(); // timestamps por chatId
+    }
+
+    /**
+     * Verifica se o bot pode enviar uma mensagem agora.
+     * Retorna true se pode, false se está throttled.
+     */
+    canSend(chatId) {
+        const now = Date.now();
+        const cutoff = now - this.windowMs;
+
+        // Limpa janela global
+        this.globalTimestamps = this.globalTimestamps.filter(t => t > cutoff);
+
+        // Limpa janela por chat
+        if (!this.chatTimestamps.has(chatId)) {
+            this.chatTimestamps.set(chatId, []);
+        }
+        const chatTs = this.chatTimestamps.get(chatId).filter(t => t > cutoff);
+        this.chatTimestamps.set(chatId, chatTs);
+
+        // Verifica limites
+        if (this.globalTimestamps.length >= this.globalLimit) {
+            Logger.warn("BotRateLimiter", `⛔ Limite GLOBAL atingido (${this.globalTimestamps.length}/${this.globalLimit}/min). Mensagem segurada.`);
+            return false;
+        }
+        if (chatTs.length >= this.perChatLimit) {
+            Logger.warn("BotRateLimiter", `⛔ Limite POR CHAT atingido em ${chatId.split('@')[0]} (${chatTs.length}/${this.perChatLimit}/min). Mensagem segurada.`);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Registra um envio bem-sucedido.
+     */
+    register(chatId) {
+        const now = Date.now();
+        this.globalTimestamps.push(now);
+        if (!this.chatTimestamps.has(chatId)) {
+            this.chatTimestamps.set(chatId, []);
+        }
+        this.chatTimestamps.get(chatId).push(now);
+    }
+
+    /**
+     * Aguarda até que o bot possa enviar (com backoff).
+     */
+    async waitUntilCanSend(chatId, maxWaitMs = 15000) {
+        const start = Date.now();
+        while (!this.canSend(chatId)) {
+            if (Date.now() - start > maxWaitMs) {
+                Logger.warn("BotRateLimiter", "Timeout aguardando rate limit — mensagem descartada para evitar ban.");
+                return false;
+            }
+            await new Promise(r => setTimeout(r, 1500));
+        }
+        return true;
+    }
+}
+
+const botRateLimiter = new BotRateLimiter();
+
+/**
+ * Delay humanizado antes de enviar resposta.
+ * Simula o tempo real de digitação para parecer humano ao WhatsApp.
+ * @param {string} text Texto da resposta (para calcular delay proporcional)
+ */
+async function humanDelay(text = "") {
+    // Base: 800ms + 20ms por caractere (máximo 3500ms)
+    const charDelay = Math.min(text.length * 20, 3500);
+    const base = 800;
+    const jitter = Math.floor(Math.random() * 500); // variação aleatória
+    const total = base + charDelay + jitter;
+    await new Promise(r => setTimeout(r, total));
+}
+
 /**
  * O cérebro geral do bot. Orquestra filas de debounce para evitar token waste,
  * parseia mídias para multimobilidade IA e roteia comandos específicos.
@@ -3742,6 +3843,15 @@ class BochechaEngine {
      */
     async triggerReflection(isManual = false) {
         try {
+            // Anti-Spam: Se for automático, só reflete de madrugada (entre 00:00 e 06:00 de SP)
+            if (!isManual) {
+                const hour = moment().tz("America/Sao_Paulo").hour();
+                if (hour < 0 || hour >= 6) { // Pula se estiver fora de 00:00 - 05:59
+                    Logger.info("DreamEngine", `Reflexão automática ignorada fora da madrugada (Hora em SP: ${hour}h).`);
+                    return;
+                }
+            }
+
             Logger.info("DreamEngine", "Iniciando estado de reflexão e sonho da consciência...");
             
             // Busca conversas recentes do histórico
@@ -3857,7 +3967,23 @@ ${chatLogs}`;
                 if (!BochechaEngine.sockRef) return;
                 
                 const pendingAlarms = await storage.getPendingAlarms();
-                for (const alarm of pendingAlarms) {
+                // Anti-Spam: Processa no máximo 3 alarmes por ciclo para evitar rajada
+                const toProcess = pendingAlarms.slice(0, 3);
+                for (let i = 0; i < toProcess.length; i++) {
+                    const alarm = toProcess[i];
+                    
+                    // Delay curto de 2s entre envios sucessivos de alarmes
+                    if (i > 0) {
+                        await new Promise(r => setTimeout(r, 2000));
+                    }
+                    
+                    // Respeita o rate limit do bot
+                    const canProceed = await botRateLimiter.waitUntilCanSend(alarm.chatId, 5000);
+                    if (!canProceed) {
+                        Logger.warn("AlarmLoop", `Rate limit atingido para ${alarm.chatId.split('@')[0]}. Postergando alarme.`);
+                        continue; // Tenta na próxima iteração
+                    }
+
                     const reminderMsg = `*⏰ LEMBRETE ATIVADO!* ⏰\n\nFala, @${alarm.userId.split('@')[0]}! Você me pediu para te lembrar disso:\n\n👉 *"${alarm.messageText}"*\n\nEspero que tenha sido útil, cria! 💀🥀`;
                     
                     await BochechaEngine.sockRef.sendMessage(alarm.chatId, { 
@@ -3865,6 +3991,7 @@ ${chatLogs}`;
                         mentions: [alarm.userId] 
                     });
                     
+                    botRateLimiter.register(alarm.chatId);
                     await storage.removeAlarm(alarm.id);
                 }
             } catch (e) {
@@ -5691,8 +5818,8 @@ ${chatLogs}`;
                         const caption = parsedMessage.message[msgType]?.caption || "";
                         clean = cleanBotMentions(caption);
                     } else {
-                        // Sem menção, chance baixíssima (2%) e apenas para outros membros (evita floodar o dono sem ele pedir)
-                        const triggerChance = isOwner ? 0.0 : 0.02;
+                        // Sem menção, chance zerada para evitar spam e ban do bot (anti-spam)
+                        const triggerChance = 0.0;
                         if (Math.random() < triggerChance) {
                             act = true;
                             const caption = parsedMessage.message[msgType]?.caption || "";
@@ -5749,6 +5876,14 @@ ${chatLogs}`;
                     typingInterval = setInterval(async () => {
                         await sock.sendPresenceUpdate('composing', from).catch(() => {});
                     }, 4000);
+
+                    // Verifica se o bot pode enviar antes de gastar tokens processando a IA
+                    const canProceedBefore = await botRateLimiter.waitUntilCanSend(from, 8000);
+                    if (!canProceedBefore) {
+                        if (typingInterval) clearInterval(typingInterval);
+                        await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                        return;
+                    }
 
                     const { output: aiReply, modelName } = await this._callAI({
                         chatId: from,
@@ -5821,7 +5956,14 @@ ${chatLogs}`;
                         }
 
                         if (fs.existsSync(stickerPath)) {
+                            const canProceedSticker = await botRateLimiter.waitUntilCanSend(from, 5000);
+                            if (!canProceedSticker) {
+                                if (typingInterval) clearInterval(typingInterval);
+                                await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                                return;
+                            }
                             await sock.sendMessage(from, { sticker: fs.readFileSync(stickerPath) }, { quoted: q.msgRef });
+                            botRateLimiter.register(from);
                             if (typingInterval) clearInterval(typingInterval);
                             await sock.sendPresenceUpdate('paused', from).catch(() => {});
                             return;
@@ -5833,8 +5975,12 @@ ${chatLogs}`;
 
                     if (reactionEmoji) {
                         try {
-                            Logger.info("BochechaEngine.Reaction", `Enviando reação de emoji: ${reactionEmoji}`);
-                            await sock.sendMessage(from, { react: { text: reactionEmoji, key: q.msgRef.key } }).catch(() => {});
+                            const canProceedReact = await botRateLimiter.waitUntilCanSend(from, 5000);
+                            if (canProceedReact) {
+                                Logger.info("BochechaEngine.Reaction", `Enviando reação de emoji: ${reactionEmoji}`);
+                                await sock.sendMessage(from, { react: { text: reactionEmoji, key: q.msgRef.key } }).catch(() => {});
+                                botRateLimiter.register(from);
+                            }
                         } catch (reactErr) {
                             Logger.error("BochechaEngine.Reaction.React", reactErr);
                         }
@@ -5845,7 +5991,14 @@ ${chatLogs}`;
 
                     // 🎙️ SE A CONSULTA VEIO POR ÁUDIO, RESPONDE POR ÁUDIO!
                     if (q.isAudioQuery) {
+                        const canProceedVoice = await botRateLimiter.waitUntilCanSend(from, 5000);
+                        if (!canProceedVoice) {
+                            if (typingInterval) clearInterval(typingInterval);
+                            await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                            return;
+                        }
                         await VoiceSynthesizer.speak(sock, from, replyText, q.msgRef);
+                        botRateLimiter.register(from);
                     } else {
                         // Remove caracteres isoladores unicode ocultos do WhatsApp (\u2068 e \u2069)
                         let cleanedReply = replyText.replace(/[\u2068\u2069]/g, '');
@@ -5985,7 +6138,19 @@ ${chatLogs}`;
                         }
 
                         const msgOptions = isGroup ? { quoted: q.msgRef } : {};
+                        
+                        const canProceedText = await botRateLimiter.waitUntilCanSend(from, 5000);
+                        if (!canProceedText) {
+                            if (typingInterval) clearInterval(typingInterval);
+                            await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                            return;
+                        }
+                        
+                        // Simula digitação humana proporcional ao tamanho do texto
+                        await humanDelay(cleanedReply);
+                        
                         await sock.sendMessage(from, { text: cleanedReply + '\u200B', mentions }, msgOptions);
+                        botRateLimiter.register(from);
                     }
 
                     if (typingInterval) clearInterval(typingInterval);
@@ -6040,12 +6205,16 @@ ${chatLogs}`;
         // Garante que rawHistory é sempre um array (Firebase pode retornar objeto ou null)
         const safeHistory = Array.isArray(rawHistory) ? rawHistory : [];
         
-        // Remove a última mensagem de usuário se ela existir no final do histórico, pois ela
-        // representa a mensagem atual e será enviada como o prompt atual (input) no rotator.
-        // Isso previne que a IA leia a mensagem atual em duplicidade.
+        // Remove a última mensagem de usuário se ela existir no final do histórico E pertencer
+        // ao sender atual. Isso evita remover mensagens de outros membros do grupo por engano,
+        // o que causava alucinação (a IA "esquecia" o contexto de outros membros).
         const historyToUse = [...safeHistory];
-        if (historyToUse.length > 0 && historyToUse[historyToUse.length - 1].role === 'user') {
-            historyToUse.pop();
+        const cleanSenderNum = sender ? sender.split('@')[0] : '';
+        if (historyToUse.length > 0) {
+            const lastMsg = historyToUse[historyToUse.length - 1];
+            if (lastMsg.role === 'user' && cleanSenderNum && lastMsg.content && lastMsg.content.includes(cleanSenderNum)) {
+                historyToUse.pop();
+            }
         }
 
         const history = historyToUse.map(m => ({

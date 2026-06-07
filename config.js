@@ -20,8 +20,7 @@ function _d(hex) {
 //  Para adicionar um dono novo, só colocar o número aqui.
 // ─────────────────────────────────────────────
 const OWNER_NUMBERS = [
-    "551420370026",   // Marcos (número principal)
-    "169497243697274", // Marcos (conta Business LID / Mano B)
+    "216716214853887", // Corvo-br (único dono)
 ];
 
 // ─────────────────────────────────────────────

@@ -280,7 +280,15 @@ async function startBot() {
 			const lastStatus = lastDisconnect?.error?.output?.statusCode ?? lastDisconnect?.error?.status;
 			console.log(chalk.yellow(`[🔌 Conexão Fechada] Status: ${lastStatus} (Tentativa consecutiva: ${consecutiveFailures})`));
 			
+			const isForbidden = lastStatus === 403 || lastStatus === DisconnectReason.forbidden;
 			const isLoggedOut = lastStatus === DisconnectReason.loggedOut || lastStatus === 401;
+
+			if (isForbidden) {
+				console.log(chalk.red(`\n❌ [🚫 BANIMENTO DETECTADO] Esta conta do WhatsApp foi BANIDA/DESCONECTADA (Erro 403 Forbidden).`));
+				console.log(chalk.red(`O reconectador automático foi interrompido para evitar spam. Revise as proteções anti-spam ou troque de número.\n`));
+				return; // Interrompe a reconexão automática
+			}
+
 			const shouldReconnect = !isLoggedOut;
 
 			if (shouldReconnect) {

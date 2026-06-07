@@ -1,8 +1,7 @@
 {
   "owners": [
-    "551420370026",
-    "20723854790881"
+    "216716214853887"
   ],
   "isPublic": true,
-  "primaryModel": "anthropic/claude-3.7-sonnet"
+  "primaryModel": "meta-llama/llama-3.3-70b-instruct:free"
 }
