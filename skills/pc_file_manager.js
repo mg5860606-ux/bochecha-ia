@@ -70,6 +70,10 @@ module.exports = {
                     query: {
                         type: "string",
                         description: "Termo de busca ou nome do arquivo para encontrar."
+                    },
+                    destinationPath: {
+                        type: "string",
+                        description: "Opcional: O caminho absoluto ou relativo da pasta/arquivo no PC onde salvar o arquivo baixado. Se omitido, salva na pasta 'downloads/' do bot."
                     }
                 },
                 required: ["acao"]
@@ -176,13 +180,30 @@ module.exports = {
                     filename += extMap[mediaType] || '.bin';
                 }
 
-                // Cria pasta downloads se não existir
-                const downloadDir = path.join('.', 'downloads');
-                if (!fs.existsSync(downloadDir)) {
-                    fs.mkdirSync(downloadDir, { recursive: true });
+                let destPath;
+                if (args.destinationPath) {
+                    const targetDest = path.resolve(args.destinationPath);
+                    if (fs.existsSync(targetDest) && fs.statSync(targetDest).isDirectory()) {
+                        destPath = path.join(targetDest, filename);
+                    } else {
+                        const parentDir = path.dirname(targetDest);
+                        if (!fs.existsSync(parentDir)) {
+                            fs.mkdirSync(parentDir, { recursive: true });
+                        }
+                        if (path.extname(targetDest) === '') {
+                            fs.mkdirSync(targetDest, { recursive: true });
+                            destPath = path.join(targetDest, filename);
+                        } else {
+                            destPath = targetDest;
+                        }
+                    }
+                } else {
+                    const downloadDir = path.join('.', 'downloads');
+                    if (!fs.existsSync(downloadDir)) {
+                        fs.mkdirSync(downloadDir, { recursive: true });
+                    }
+                    destPath = path.join(downloadDir, filename);
                 }
-
-                const destPath = path.join(downloadDir, filename);
 
                 // Baixa o conteúdo
                 const stream = await downloadContentFromMessage(msgObj[mediaType], mediaType.replace('Message', ''));

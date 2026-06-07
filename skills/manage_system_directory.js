@@ -12,8 +12,8 @@ module.exports = {
                 properties: {
                     action: {
                         type: "string",
-                        description: "Ação a ser executada: 'create' (criar pasta), 'delete' (deletar pasta/arquivo) ou 'rename' (renomear/mover).",
-                        enum: ["create", "delete", "rename"]
+                        description: "Ação a ser executada: 'create' (criar pasta), 'delete' (deletar pasta/arquivo), 'rename' (renomear/mover) ou 'copy' (copiar arquivo/pasta).",
+                        enum: ["create", "delete", "rename", "copy"]
                     },
                     targetPath: {
                         type: "string",
@@ -21,7 +21,7 @@ module.exports = {
                     },
                     destinationPath: {
                         type: "string",
-                        description: "Caminho de destino (obrigatório apenas para a ação 'rename')."
+                        description: "Caminho de destino (obrigatório para as ações 'rename' e 'copy')."
                     }
                 },
                 required: ["action", "targetPath"]
@@ -78,6 +78,48 @@ module.exports = {
                 }
                 fs.renameSync(target, dest);
                 return `Sucesso: '${target}' foi renomeado/movido para '${dest}' com sucesso.`;
+            }
+
+            if (action === "copy") {
+                if (!args.destinationPath) {
+                    return "Erro: O argumento 'destinationPath' é obrigatório para copiar.";
+                }
+                const dest = path.resolve(args.destinationPath);
+                if (!fs.existsSync(target)) {
+                    return `Erro: O caminho de origem '${target}' não existe.`;
+                }
+                const parentDest = path.dirname(dest);
+                if (!fs.existsSync(parentDest)) {
+                    fs.mkdirSync(parentDest, { recursive: true });
+                }
+                
+                const stat = fs.statSync(target);
+                if (stat.isDirectory()) {
+                    if (typeof fs.cpSync === "function") {
+                        fs.cpSync(target, dest, { recursive: true });
+                    } else {
+                        const copyFolderRecursiveSync = (src, targetFolder) => {
+                            if (!fs.existsSync(targetFolder)) {
+                                fs.mkdirSync(targetFolder);
+                            }
+                            const files = fs.readdirSync(src);
+                            files.forEach((file) => {
+                                const curSource = path.join(src, file);
+                                const curTarget = path.join(targetFolder, file);
+                                if (fs.lstatSync(curSource).isDirectory()) {
+                                    copyFolderRecursiveSync(curSource, curTarget);
+                                } else {
+                                    fs.copyFileSync(curSource, curTarget);
+                                }
+                            });
+                        };
+                        copyFolderRecursiveSync(target, dest);
+                    }
+                    return `Sucesso: A pasta '${target}' foi copiada para '${dest}' com sucesso.`;
+                } else {
+                    fs.copyFileSync(target, dest);
+                    return `Sucesso: O arquivo '${target}' foi copiado para '${dest}' com sucesso.`;
+                }
             }
 
             return `Erro: Ação '${action}' desconhecida ou inválida.`;
