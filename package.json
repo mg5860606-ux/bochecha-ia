@@ -5,7 +5,8 @@
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "local": "node local.js"
   },
   "keywords": [
     "whatsapp-bot",

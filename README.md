@@ -120,6 +120,12 @@ Toda a segurança dos grupos foi unificada e integrada ao `StorageManager` centr
    npm start
    ```
 
+4. **Executar em Modo Offline (Sem Conexão WhatsApp):**
+   Caso o WhatsApp esteja desconectado ou queira conversar localmente com o Bochecha direto pelo terminal:
+   ```bash
+   npm run local
+   ```
+
 ---
 
 ## 👥 Colaboradores & Autores
