@@ -3,5 +3,11 @@
     "216716214853887"
   ],
   "isPublic": true,
-  "primaryModel": "poolside/laguna-m.1:free"
+  "primaryModel": "google/gemini-2.5-flash-lite",
+  "voicePreference": {
+    "chance": 0.5,
+    "preset": "francisca",
+    "abTest": true,
+    "abVariants": ["francisca", "duarte"]
+  }
 }

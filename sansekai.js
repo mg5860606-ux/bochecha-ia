@@ -1667,6 +1667,9 @@ class KeyRotationEngine {
         // Modelos que retornaram 404 (endpoint inexistente) — skip global até reinício
         this.deadModels = new Set();
 
+        // Cooldown temporário de modelos por rate-limit (429) do provedor upstream
+        this.modelCooldowns = new Map();
+
         // Circuit breaker global: impede loops quando TODAS as chaves estão mortas
         this._globalFailCount = 0;
         this._globalFailMax = 3; // Após 3 ciclos completos sem sucesso, desiste
@@ -2101,11 +2104,28 @@ class KeyRotationEngine {
             let lastError = null;
             const prioritizedModels = this._getPrioritizedModels(prompt, tools);
 
-            // Filtra modelos que já sabemos que retornam 404 (endpoint morto)
-            const aliveModels = prioritizedModels.filter(m => !this.deadModels.has(m));
+            const nowTime = Date.now();
+            if (this.modelCooldowns) {
+                for (const [m, exp] of this.modelCooldowns.entries()) {
+                    if (exp <= nowTime) {
+                        this.modelCooldowns.delete(m);
+                    }
+                }
+            } else {
+                this.modelCooldowns = new Map();
+            }
+
+            // Filtra modelos que já sabemos que retornam 404 (endpoint morto) ou que estão sob cooldown 429
+            const aliveModels = prioritizedModels.filter(m => {
+                if (this.deadModels.has(m)) return false;
+                const exp = this.modelCooldowns.get(m) || 0;
+                return exp <= nowTime;
+            });
+
             if (aliveModels.length === 0) {
-                Logger.warn("KeyRotationEngine", `Todos os modelos estão marcados como mortos (404). Limpando cache e tentando novamente.`);
+                Logger.warn("KeyRotationEngine", `Todos os modelos estão marcados como mortos ou em cooldown. Limpando cache e tentando novamente.`);
                 this.deadModels.clear();
+                this.modelCooldowns.clear();
             }
             const modelsToTry = aliveModels.length > 0 ? aliveModels : prioritizedModels;
 
@@ -2272,9 +2292,17 @@ class KeyRotationEngine {
 
                     // ═══ ERRO 429: Rate limit ═══
                     if (httpStatus === 429 || msg.includes("429") || msg.includes("rate limit") || msg.includes("quota")) {
-                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} rate-limited (429). Cooldown de 5min.`);
-                        this.cooldowns.set(activeKey, Date.now() + this.cooldownDuration);
-                        break; // Pula a chave inteira
+                        const isProviderError = msg.includes("Provider returned error") || msg.includes("upstream") || msg.includes("model");
+                        if (isProviderError) {
+                            Logger.warn("KeyRotationEngine", `Modelo ${modelName} retornou rate limit do provedor (429). Cooldown de 3min no modelo e tentando próximo.`);
+                            if (!this.modelCooldowns) this.modelCooldowns = new Map();
+                            this.modelCooldowns.set(modelName, Date.now() + 3 * 60 * 1000);
+                            continue; // Tenta o próximo modelo na mesma chave
+                        } else {
+                            Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} rate-limited (429). Cooldown de 5min.`);
+                            this.cooldowns.set(activeKey, Date.now() + this.cooldownDuration);
+                            break; // Pula a chave inteira
+                        }
                     }
 
                     // ═══ ERRO 502/503/upstream: Provedor caiu ═══
@@ -2378,13 +2406,41 @@ class KeyRotationEngine {
      * Estes modelos não consomem crédito — funcionam mesmo com chaves 402.
      */
     async _tryFreeModelsOnly(history, prompt, tools, systemInstruction, activeKey) {
-        const prioritizedFreeModels = this._getPrioritizedModels(prompt, tools).filter(m => this.freeModels.includes(m) && !this.deadModels.has(m));
-        const freeModels = prioritizedFreeModels.length > 0 ? prioritizedFreeModels : this.freeModels.filter(m => !this.deadModels.has(m));
+        const nowTime = Date.now();
+        if (this.modelCooldowns) {
+            for (const [m, exp] of this.modelCooldowns.entries()) {
+                if (exp <= nowTime) {
+                    this.modelCooldowns.delete(m);
+                }
+            }
+        } else {
+            this.modelCooldowns = new Map();
+        }
+
+        const actualFreeModelsList = [
+            ...this.freeModels,
+            "qwen/qwen3-coder:free",
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "z-ai/glm-4.5-air:free",
+            "deepseek/deepseek-r1:free"
+        ];
+
+        const isModelAliveAndClean = m => {
+            if (this.deadModels.has(m)) return false;
+            const exp = this.modelCooldowns.get(m) || 0;
+            return exp <= nowTime;
+        };
+
+        const prioritizedFreeModels = this._getPrioritizedModels(prompt, tools).filter(m => actualFreeModelsList.includes(m) && isModelAliveAndClean(m));
+        let freeModels = prioritizedFreeModels.length > 0 ? prioritizedFreeModels : actualFreeModelsList.filter(isModelAliveAndClean);
+        
         if (freeModels.length === 0) {
-            Logger.warn("KeyRotationEngine", "Todos os modelos fortes estão marcados como mortos. Limpando e retentando.");
-            // Limpa apenas os gratuitos do deadModels
-            for (const m of this.freeModels) this.deadModels.delete(m);
-            freeModels.push(...this.freeModels);
+            Logger.warn("KeyRotationEngine", "Todos os modelos gratuitos estão mortos ou em cooldown. Limpando cache e tentando novamente.");
+            for (const m of actualFreeModelsList) {
+                this.deadModels.delete(m);
+                this.modelCooldowns.delete(m);
+            }
+            freeModels = actualFreeModelsList;
         }
 
         for (const modelName of freeModels) {
@@ -2491,9 +2547,17 @@ class KeyRotationEngine {
                 Logger.warn("KeyRotationEngine", `[STRONG] Falha em ${modelName}: ${msg.substring(0, 100)}`);
                 
                 if (httpStatus === 429 || msg.includes("429") || msg.includes("rate limit") || msg.includes("quota")) {
-                    Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} rate-limited (429) em modelo gratuito. Pulando chave.`);
-                    this.cooldowns.set(activeKey, Date.now() + this.cooldownDuration);
-                    break; // Pula os outros modelos nesta chave rate-limited
+                    const isProviderError = msg.includes("Provider returned error") || msg.includes("upstream") || msg.includes("model");
+                    if (isProviderError) {
+                        Logger.warn("KeyRotationEngine", `[STRONG] Modelo ${modelName} retornou rate limit do provedor (429). Cooldown de 3min no modelo.`);
+                        if (!this.modelCooldowns) this.modelCooldowns = new Map();
+                        this.modelCooldowns.set(modelName, Date.now() + 3 * 60 * 1000);
+                        continue; // Tenta o próximo modelo gratuito na mesma chave
+                    } else {
+                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} rate-limited (429) em modelo gratuito. Pulando chave.`);
+                        this.cooldowns.set(activeKey, Date.now() + this.cooldownDuration);
+                        break; // Pula os outros modelos nesta chave rate-limited
+                    }
                 }
 
                 if (httpStatus === 404 || msg.includes("404") || msg.includes("No endpoints")) {

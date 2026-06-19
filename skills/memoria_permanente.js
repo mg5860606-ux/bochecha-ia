@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const settingsPath = path.join(__dirname, '..', '..', 'settings.json');
+const LTM_SAVE_ENABLED = false;
 let maxLTM = 50;
 try {
   const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
@@ -51,6 +52,10 @@ module.exports = {
             const acao = args.acao;
             const usuarioResolvido = (args.usuario || "desconhecido").toLowerCase().trim();
             const docRef = doc(db, "memories", usuarioResolvido);
+
+            if (!LTM_SAVE_ENABLED && args.acao === "gravar") {
+                return "A memória permanente está desativada no momento; nenhuma gravação será feita.";
+            }
 
             if (args.acao === "gravar") {
   if (!args.fato) return "Erro: É necessário passar o 'fato' para ser gravado.";

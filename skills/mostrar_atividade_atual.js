@@ -114,19 +114,17 @@ module.exports = {
 
                 await ctx.sock.sendMessage(ctx.chatId, {
                     video: videoBuffer,
-                    caption: `🎥 *BOCHECHA STATUS STORY* 🥀\n\n${args.legenda}`,
                     gifPlayback: false
                 }, { quoted: ctx.message });
 
-                return `Vídeo de selfie enviado com sucesso exibindo atividade '${args.atividade}' com legenda: "${args.legenda}".`;
+                return "";
             } else {
                 // Envia como foto estática
                 await ctx.sock.sendMessage(ctx.chatId, {
-                    image: imageBuffer,
-                    caption: `📸 *BOCHECHA SELFIE* 📸\n\n${args.legenda}`
+                    image: imageBuffer
                 }, { quoted: ctx.message });
 
-                return `Selfie enviada com sucesso exibindo atividade '${args.atividade}' com legenda: "${args.legenda}".`;
+                return "";
             }
         } catch (e) {
             console.error(chalk.red("[📸 SELFIE] Erro na Skill mostrar_atividade_atual:"), e);

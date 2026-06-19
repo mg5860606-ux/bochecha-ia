@@ -48,6 +48,9 @@ const gamesController = require('./skills/games_controller');
 
 let globalSock = null;
 let isHealing = false;
+let botStartPromise = null;
+let reconnectTimer = null;
+let lastReconnectKey = 0;
 
 // Cache para Anti-Delete e Ranking
 const messageCache = new Map();
@@ -63,6 +66,8 @@ const moment = require("moment-timezone");
 const readline = require("readline");
 moment.tz.setDefault("America/Bahia").locale("pt-br");
 const { Messages } = require("./lib/messages.js");
+const { getReconnectPlan } = require("./lib/connection_reconnect");
+const { shouldAutoRestart } = require("./lib/restartPolicy");
 
 const question = (text) => {
 	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -122,6 +127,12 @@ let globalUseQRCode = null; // Memoriza a escolha para evitar perguntar de novo 
 let consecutiveFailures = 0;
 
 async function startBot() {
+	if (botStartPromise) {
+		return botStartPromise;
+	}
+
+	botStartPromise = (async () => {
+		try {
 	const hasSession = fs.existsSync(SESSION_DIR) && fs.readdirSync(SESSION_DIR).length > 0;
 
 	const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
@@ -130,16 +141,8 @@ async function startBot() {
 	let useQRCode = false;
 	if (!state.creds.registered) {
 		if (globalUseQRCode === null) {
-			console.log(chalk.cyan('\n======================================='));
-			console.log(chalk.cyan('   COMO DESEJA CONECTAR O Bochecha?'));
-			console.log(chalk.cyan('======================================='));
-			console.log(chalk.white(' [1] - QR Code (Escanear com a câmera)'));
-			console.log(chalk.white(' [2] - Código de Pareamento (Número)'));
-			console.log(chalk.cyan('======================================='));
-			
 			const isServer = !process.stdin.isTTY || process.env.PTERODACTYL || process.env.SERVER || process.env.DOCKER_ENV;
 			if (isServer) {
-				console.log(chalk.green('Hospedagem/Servidor detectado. Escolhendo [1] - QR Code automaticamente...'));
 				globalUseQRCode = true;
 			} else {
 				// Interface interativa sem timeout (espera a decisão física do usuário local indefinidamente)
@@ -154,10 +157,8 @@ async function startBot() {
 				
 				if (opcao.trim() === '2') {
 					globalUseQRCode = false;
-					console.log(chalk.green('Iniciando pareamento por código...'));
 				} else {
 					globalUseQRCode = true;
-					console.log(chalk.green('Aguarde a geração do QR Code...'));
 				}
 			}
 		}
@@ -189,16 +190,35 @@ async function startBot() {
 		if (message && typeof message === 'object') {
 			let textContent = message.text || message.caption || "";
 			if (textContent && typeof textContent === 'string' && textContent.includes('@')) {
-				const matches = textContent.match(/@(\d{8,16})/g);
-				if (matches && matches.length > 0) {
+				const matches = textContent.match(/@([0-9]{8,24}(?:[:]\d+)?)/g);
+				if (matches && matches.length > 0 && matches.length <= 8) {
 					if (!message.mentions) {
 						message.mentions = [];
 					}
+					const storeContacts = store?.contacts || {};
 					for (const match of matches) {
-						const num = match.replace('@', '');
-						const suffix = num.length >= 15 ? '@lid' : '@s.whatsapp.net';
-						const mentionJid = num + suffix;
-						if (!message.mentions.includes(mentionJid)) {
+						const rawMention = match.slice(1);
+						let mentionJid = null;
+						const resolveMentionToPhone = (candidate) => {
+							const contact = storeContacts[candidate] || Object.values(storeContacts).find(c => c.id === candidate || c.jid === candidate);
+							if (contact?.phoneNumber) {
+								return `${contact.phoneNumber}@s.whatsapp.net`;
+							}
+							return null;
+						};
+						if (rawMention.includes(':')) {
+							const lidCandidate = rawMention.endsWith('@lid') ? rawMention : `${rawMention}@lid`;
+							mentionJid = resolveMentionToPhone(lidCandidate) || (storeContacts[lidCandidate] ? lidCandidate : null);
+						} else {
+							const lidCandidate = `${rawMention}@lid`;
+							const mappedPhone = resolveMentionToPhone(lidCandidate);
+							if (mappedPhone) {
+								mentionJid = mappedPhone;
+							} else if (storeContacts[lidCandidate] || Object.values(storeContacts).some(c => c.id === lidCandidate || c.jid === lidCandidate)) {
+								mentionJid = lidCandidate;
+							}
+						}
+						if (mentionJid && !message.mentions.includes(mentionJid)) {
 							message.mentions.push(mentionJid);
 						}
 					}
@@ -286,48 +306,80 @@ async function startBot() {
 			if (isForbidden) {
 				console.log(chalk.red(`\n❌ [🚫 BANIMENTO DETECTADO] Esta conta do WhatsApp foi BANIDA/DESCONECTADA (Erro 403 Forbidden).`));
 				console.log(chalk.red(`O reconectador automático foi interrompido para evitar spam. Revise as proteções anti-spam ou troque de número.\n`));
-				return; // Interrompe a reconexão automática
+				return;
 			}
 
-			const shouldReconnect = !isLoggedOut;
-
-			if (shouldReconnect) {
-				// 408 em loop: após 5 falhas, limpa sessão e força novo QR Code
-				if (lastStatus === 408 && consecutiveFailures >= 5) {
+			const plan = getReconnectPlan(lastStatus, consecutiveFailures, isLoggedOut);
+			if (plan.shouldReconnect) {
+				if (plan.shouldClearSession) {
 					console.log(chalk.red(`[🔌] Muitos timeouts 408 consecutivos. Limpando sessão e forçando novo QR Code...`));
 					consecutiveFailures = 0;
 					setTimeout(() => {
 						try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
-						startBot();
+						startBot().catch((err) => {
+							console.error(chalk.red('[🔁] Falha ao reiniciar após limpeza da sessão:'), err);
+						});
 					}, 5000);
 				} else {
-					// Delay exponencial: máx 60s para dar tempo ao WhatsApp de liberar
-					const delay = Math.min(3000 * consecutiveFailures, 60000);
-					console.log(chalk.gray(`Falha de conexão temporária. Mantendo a sessão intacta. Tentando reconectar em ${delay/1000}s...`));
-					setTimeout(() => startBot(), delay);
+					console.log(chalk.gray(`Falha de conexão temporária. Mantendo a sessão intacta. Tentando reconectar em ${plan.delayMs/1000}s...`));
+					scheduleReconnect(plan.delayMs, plan.reason);
 				}
 			} else {
 				consecutiveFailures = 0;
 				console.log(chalk.red(`Sessão desconectada ou desvinculada no celular (Status ${lastStatus}). Limpando credenciais antigas...`));
 				setTimeout(() => {
 					try { fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch {}
-					startBot();
+					startBot().catch((err) => {
+						console.error(chalk.red('[🔁] Falha ao reiniciar após logout:'), err);
+					});
 				}, 3000);
 			}
 		}
 
 		if (connection === 'open') {
-			consecutiveFailures = 0; // Reseta no sucesso
+			consecutiveFailures = 0;
+			if (reconnectTimer) {
+				clearTimeout(reconnectTimer);
+				reconnectTimer = null;
+			}
 			console.log(chalk.green("✅ Bot conectado com sucesso!"));
 			// Aciona a vinculação de eventos avançados do motor Bochecha-IA
 			require("./sansekai.js").bind(sock, store);
 		}
 	});
+	    } finally {
+		botStartPromise = null;
+	}
+	})();
+	return botStartPromise;
+}
+
+function scheduleReconnect(delayMs, reason) {
+	if (reconnectTimer) {
+		clearTimeout(reconnectTimer);
+	}
+
+	const reconnectKey = ++lastReconnectKey;
+	reconnectTimer = setTimeout(() => {
+		if (reconnectTimer && reconnectKey === lastReconnectKey) {
+			reconnectTimer = null;
+			console.log(chalk.gray(`[🔁] Reconnect agendado (${reason}). Iniciando nova sessão...`));
+			startBot().catch((err) => {
+				console.error(chalk.red('[🔁] Falha ao iniciar reconexão automática:'), err);
+			});
+		}
+	}, delayMs);
 }
 
 async function autoHeal(error) {
     if (isHealing) return;
     isHealing = true;
+
+    if (!shouldAutoRestart(error)) {
+        console.warn(chalk.yellow('[Self-Healing] Erro transitório ou não fatal detectado. Mantendo o bot em execução sem reinício automático.'));
+        isHealing = false;
+        return;
+    }
 
     console.log(chalk.red('[Self-Healing] Iniciando diagnóstico de travamento automático...'));
 
@@ -390,10 +442,9 @@ ${fileContent}
         let success = false;
         
         const healModels = [
+            "deepseek/deepseek-r1:free",
             "qwen/qwen3-coder:free",
-            "poolside/laguna-m.1:free",
-            "openai/gpt-oss-120b:free",
-            "google/gemma-4-31b-it:free"
+            "meta-llama/llama-3.3-70b-instruct:free"
         ];
 
         for (const key of keys) {

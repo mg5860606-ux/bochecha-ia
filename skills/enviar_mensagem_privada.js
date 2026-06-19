@@ -45,7 +45,7 @@ module.exports = {
             const metadata = await sock.groupMetadata(from).catch(() => null);
             if (metadata) {
                 const participants = metadata.participants || [];
-                const found = participants.find(p => p.id.split('@')[0] === cleanMention);
+                const found = participants.find(p => p.id.split('@')[0].split(':')[0] === cleanMention);
                 if (found) {
                     target = found.id;
                 }

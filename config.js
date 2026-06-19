@@ -54,9 +54,10 @@ const API_CONFIG = {
         url: "https://api.openweathermap.org/data/2.5/weather",
     },
 
-    // API de geração de imagem (poluinations.ai - gratuita, sem chave necessária)
+    // API de geração de imagem (usando DeepAI - gratuita e mais robusta)
     imageGen: {
-        url: "https://image.pollinations.ai/prompt/",
+        url: "https://api.deepai.org/api/text2img",
+        key: "skipped", // DeepAI é gratuito, não precisa de chave
     },
 
     // GitHub API (para as skills de github_explorer, release_generator, etc.)

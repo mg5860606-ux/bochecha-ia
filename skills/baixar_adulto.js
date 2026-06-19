@@ -6,6 +6,39 @@ const YtDlpHelper = require("../lib/ytDlpHelper");
 const ROOT_DIR = path.join(__dirname, "..");
 const TEMP_DIR = path.join(ROOT_DIR, "temp");
 
+async function buscarVideosAdultos(query) {
+    const termo = (query || "aleatorio").trim();
+    const encodedQuery = encodeURIComponent(termo || "aleatorio");
+    const endpoints = [
+        `https://api.redtube.com/?data=redtube.Videos.searchVideos&search=${encodedQuery}&output=json`,
+        `https://api.redtube.com/?data=redtube.Videos.searchVideos&search=${encodedQuery}&output=json&page=1`
+    ];
+
+    let lastError;
+    for (const endpoint of endpoints) {
+        try {
+            const response = await axios.get(endpoint, {
+                timeout: 12000,
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+
+            const payload = response?.data;
+            const videos = payload?.videos || payload?.data?.videos || payload?.videosList || [];
+            const normalizedVideos = Array.isArray(videos)
+                ? videos
+                : (Array.isArray(videos?.video) ? videos.video : []);
+
+            if (normalizedVideos.length > 0) {
+                return normalizedVideos;
+            }
+        } catch (err) {
+            lastError = err;
+        }
+    }
+
+    throw new Error(lastError?.message || "Serviço de busca indisponível");
+}
+
 module.exports = {
     definition: {
         function: {
@@ -26,6 +59,7 @@ module.exports = {
         if (!ctx) return "Erro: Contexto inválido.";
 
         const sock = ctx.sock;
+        if (!sock) return "Erro: O contexto de envio do WhatsApp não está disponível.";
         const from = ctx.from || ctx.chatId;
         const isOwner = ctx.isOwner;
         const isGroup = ctx.isGroup;
@@ -59,26 +93,30 @@ module.exports = {
         await sock.sendMessage(from, { text: `🔞 *Bochecha Adult System* 🔞\nBuscando vídeo adulto ${query ? `sobre "${query}"` : "aleatório"}...` });
 
         try {
-            let endpoint = "";
-            if (query) {
-                endpoint = `https://api.redtube.com/?data=redtube.Videos.searchVideos&search=${encodeURIComponent(query)}&output=json`;
-            } else {
-                // Termo aleatório para diversificação hilária de memes adultos/brasileiros/hentai/desenhos
+            let searchTerm = query;
+            if (!searchTerm) {
                 const randomTerms = ["brasileira amador", "casal brasileiro", "hentai", "simpsons parody", "cartoon parody", "anime", "safada", "engraçado"];
-                const rTerm = randomTerms[Math.floor(Math.random() * randomTerms.length)];
-                endpoint = `https://api.redtube.com/?data=redtube.Videos.searchVideos&search=${encodeURIComponent(rTerm)}&output=json`;
+                searchTerm = randomTerms[Math.floor(Math.random() * randomTerms.length)];
             }
 
-            const response = await axios.get(endpoint);
-            const data = response.data;
+            let videosList = [];
+            try {
+                videosList = await buscarVideosAdultos(searchTerm);
+            } catch (apiErr) {
+                console.warn("[baixar_adulto] Falha na API externa:", apiErr.message);
+                return "⚠️ O serviço de busca de vídeos adultos está temporariamente indisponível. Tente novamente em instantes.";
+            }
 
-            if (!data || !data.videos || data.videos.length === 0) {
+            if (!videosList || videosList.length === 0) {
                 return "❌ Nenhum vídeo encontrado para essa descrição. Tente usar outros termos de busca.";
             }
 
-            // Sorteia um vídeo da lista retornada
-            const videosList = data.videos;
-            const randVideo = videosList[Math.floor(Math.random() * videosList.length)].video;
+            const selectedEntry = videosList[Math.floor(Math.random() * videosList.length)];
+            const randVideo = selectedEntry?.video || selectedEntry;
+
+            if (!randVideo?.url) {
+                return "❌ Não foi possível obter um vídeo válido da busca.";
+            }
 
             const videoPageUrl = randVideo.url;
             const videoTitle = randVideo.title || "Vídeo Adulto";
@@ -89,19 +127,24 @@ module.exports = {
             const tempFileName = `adult_${Date.now()}.mp4`;
             const tempFilePath = path.join(TEMP_DIR, tempFileName);
 
-            // Realiza o download via yt-dlp
-            await YtDlpHelper.downloadVideo(videoPageUrl, tempFilePath);
+            let downloadedPath = tempFilePath;
+            try {
+                await YtDlpHelper.downloadVideo(videoPageUrl, tempFilePath);
+            } catch (downloadErr) {
+                console.warn("[baixar_adulto] Falha no download via yt-dlp:", downloadErr.message);
+                return "⚠️ Não foi possível baixar o vídeo no momento. O serviço externo ou o motor de download está indisponível.";
+            }
 
-            if (!fs.existsSync(tempFilePath)) {
+            if (!fs.existsSync(downloadedPath)) {
                 return "❌ Falha no processamento. O motor de download yt-dlp não conseguiu gerar o arquivo.";
             }
 
             // Verifica o tamanho do arquivo para evitar ultrapassar os limites do WhatsApp
-            const stats = fs.statSync(tempFilePath);
+            const stats = fs.statSync(downloadedPath);
             const fileSizeInMegabytes = stats.size / (1024 * 1024);
 
             if (fileSizeInMegabytes > 64) {
-                fs.unlinkSync(tempFilePath);
+                fs.unlinkSync(downloadedPath);
                 return `❌ O vídeo baixado é muito pesado (${fileSizeInMegabytes.toFixed(1)}MB), ultrapassando os limites de envio do WhatsApp (64MB). Tente outro termo de busca.`;
             }
 
@@ -111,13 +154,13 @@ module.exports = {
                                 `🔥 *Pedido por:* ${ctx.pushname || "Membro"} (Dono/Adm)`;
 
             await sock.sendMessage(from, {
-                video: fs.readFileSync(tempFilePath),
+                video: fs.readFileSync(downloadedPath),
                 caption: captionText,
                 mimetype: "video/mp4"
             }, { quoted: ctx.message });
 
             // Remove o arquivo temporário após o envio
-            fs.unlinkSync(tempFilePath);
+            fs.unlinkSync(downloadedPath);
 
             return "Vídeo adulto enviado com sucesso.";
 
