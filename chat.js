@@ -15,7 +15,7 @@ const PORT = 3030;
 
 // Mock do Socket (sem WhatsApp conectado)
 const dummySock = {
-    user: null,
+    user: { id: '551420370026@s.whatsapp.net', name: 'Bochecha-IA Local' },
     sendPresenceUpdate: async () => {},
     sendMessage: async () => ({ key: { id: 'mock_' + Date.now() } }),
     groupMetadata: async (jid) => ({
