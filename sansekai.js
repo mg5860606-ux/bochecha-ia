@@ -1670,6 +1670,9 @@ class KeyRotationEngine {
         // Cooldown temporário de modelos por rate-limit (429) do provedor upstream
         this.modelCooldowns = new Map();
 
+        // Chaves marcadas temporariamente como sem saldo/crédito (erro 402)
+        this.keysWithoutCredits = new Set();
+
         // Circuit breaker global: impede loops quando TODAS as chaves estão mortas
         this._globalFailCount = 0;
         this._globalFailMax = 3; // Após 3 ciclos completos sem sucesso, desiste
@@ -2127,9 +2130,34 @@ class KeyRotationEngine {
                 this.deadModels.clear();
                 this.modelCooldowns.clear();
             }
-            const modelsToTry = aliveModels.length > 0 ? aliveModels : prioritizedModels;
+            let modelsToTry = aliveModels.length > 0 ? aliveModels : prioritizedModels;
+
+            // Se a chave ativa foi marcada como sem créditos (402), tenta apenas modelos gratuitos do OpenRouter
+            if (this.keysWithoutCredits && this.keysWithoutCredits.has(activeKey)) {
+                modelsToTry = modelsToTry.filter(m => m.endsWith(':free') || m.includes(':free'));
+                if (modelsToTry.length === 0) {
+                    const actualFreeModelsList = [
+                        "qwen/qwen3-coder:free",
+                        "meta-llama/llama-3.3-70b-instruct:free",
+                        "z-ai/glm-4.5-air:free",
+                        "deepseek/deepseek-r1:free"
+                    ];
+                    modelsToTry = actualFreeModelsList.filter(m => !this.deadModels.has(m) && (this.modelCooldowns.get(m) || 0) <= nowTime);
+                    if (modelsToTry.length === 0) {
+                        modelsToTry = actualFreeModelsList;
+                    }
+                }
+            }
 
             for (const modelName of modelsToTry) {
+                // Prevenção dinâmica: se a chave ficou sem créditos durante a iteração, ignora modelos pagos
+                if (this.keysWithoutCredits && this.keysWithoutCredits.has(activeKey)) {
+                    const isFree = modelName.endsWith(':free') || modelName.includes(':free');
+                    if (!isFree) {
+                        continue;
+                    }
+                }
+
                 this.metrics.totalRequests++;
                 const startTime = Date.now();
 
@@ -2313,8 +2341,7 @@ class KeyRotationEngine {
 
                     // ═══ ERRO 402: Sem crédito / saldo insuficiente ═══
                     if (httpStatus === 402 || msg.includes("402") || msg.includes("requires more credits") || msg.includes("insufficient")) {
-                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} sem crédito (402). Tentando provedor alternativo antes do fallback local.`);
-                        this.cooldowns.set(activeKey, Date.now() + 10 * 60 * 1000);
+                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} sem crédito (402). Tentando provedor alternativo antes do fallback dinâmico para modelos gratuitos.`);
 
                         if (apiKeyManager.listClaudeKeys().length > 0) {
                             try {
@@ -2338,7 +2365,9 @@ class KeyRotationEngine {
                             }
                         }
 
-                        break;
+                        if (!this.keysWithoutCredits) this.keysWithoutCredits = new Set();
+                        this.keysWithoutCredits.add(activeKey);
+                        continue; // Tenta o próximo modelo (gratuito) na mesma chave
                     }
 
                     // ═══ Limite de tokens / prompt grande ═══
