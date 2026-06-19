@@ -5,32 +5,32 @@ const chalk = require('chalk');
 // Caminho do settings.json
 const SETTINGS_PATH = path.join(__dirname, '..', 'settings.json');
 
-// Mapeamento de apelidos para IDs gratuitos do OpenRouter
+// Mapeamento de apelidos para IDs de modelos do OpenRouter
 const MODEL_ALIASES = {
-    // Poolside Laguna
-    'poolside': 'poolside/laguna-m.1:free',
-    'laguna': 'poolside/laguna-m.1:free',
+    // DeepSeek R1
+    'r1': 'deepseek/deepseek-r1:free',
+    'deepseek': 'deepseek/deepseek-r1:free',
 
     // Qwen 3 Coder
     'coder': 'qwen/qwen3-coder:free',
-    'qwen3-coder': 'qwen/qwen3-coder:free',
+    'qwen': 'qwen/qwen3-coder:free',
 
-    // Llama 3.2 3B
-    'llama': 'meta-llama/llama-3.2-3b-instruct:free',
-    'llama32': 'meta-llama/llama-3.2-3b-instruct:free',
-    'fast': 'meta-llama/llama-3.2-3b-instruct:free',
+    // Llama 3.3 70B
+    'llama33': 'meta-llama/llama-3.3-70b-instruct:free',
+    'llama': 'meta-llama/llama-3.3-70b-instruct:free',
+    'llama-paid': 'meta-llama/llama-3.3-70b-instruct',
 
-    // GPT-OSS 120B
-    'gpt': 'openai/gpt-oss-120b:free',
-    'gpt-oss': 'openai/gpt-oss-120b:free',
+    // GLM 4.5 Air
+    'glm': 'z-ai/glm-4.5-air:free',
+    'glm4.5': 'z-ai/glm-4.5-air:free',
 
-    // Gemma 4 31B
-    'gemma': 'google/gemma-4-31b-it:free',
-    'gemma4': 'google/gemma-4-31b-it:free',
-
-    // Nemotron Nano VL
-    'nemotron': 'nvidia/nemotron-nano-12b-v2-vl:free',
-    'vision': 'nvidia/nemotron-nano-12b-v2-vl:free',
+    // Gemini models
+    'gemini': 'google/gemini-2.5-flash-lite',
+    'gemini-lite': 'google/gemini-2.5-flash-lite',
+    'gemini-flash': 'google/gemini-2.5-flash',
+    'gemini25': 'google/gemini-2.5-flash',
+    'gemini-pro': 'google/gemini-2.5-pro-preview',
+    'gemini25-pro': 'google/gemini-2.5-pro-preview',
 
     // Auto (roteamento automático do OpenRouter)
     'auto': 'openrouter/free',
@@ -39,12 +39,14 @@ const MODEL_ALIASES = {
 
 // Nomes amigáveis para exibição
 const FRIENDLY_NAMES = {
-    'poolside/laguna-m.1:free': 'Poolside Laguna 🏊 (Tools, Rápido & Estável)',
-    'qwen/qwen3-coder:free': 'Qwen 3 Coder 💻 (Especialista em Código)',
-    'meta-llama/llama-3.2-3b-instruct:free': 'Llama 3.2 3B ⚡ (Super Rápido & Fluido)',
-    'openai/gpt-oss-120b:free': 'GPT-OSS 120B 🤖 (Open Source da OpenAI)',
-    'google/gemma-4-31b-it:free': 'Gemma 4 31B 🌟 (Modelo Google SOTA)',
-    'nvidia/nemotron-nano-12b-v2-vl:free': 'Nemotron Nano VL 👁️ (Visão & Imagens)',
+    'deepseek/deepseek-r1:free': 'DeepSeek R1 Free 🧠 (Raciocínio Avançado SOTA - Grátis)',
+    'qwen/qwen3-coder:free': 'Qwen 3 Coder Free 💻 (Especialista em Programação - Grátis)',
+    'meta-llama/llama-3.3-70b-instruct:free': 'Llama 3.3 70B Free 🦙 (Lógica & Conversação - Grátis)',
+    'meta-llama/llama-3.3-70b-instruct': 'Llama 3.3 70B 🦙 (Lógica & Altamente Estável - Paid)',
+    'z-ai/glm-4.5-air:free': 'GLM 4.5 Air Free ⚡ (Modelo Rápido e Inteligente - Grátis)',
+    'google/gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite ♊ (Extremamente Rápido)',
+    'google/gemini-2.5-flash': 'Gemini 2.5 Flash ♊ (Excelente Multimodal & Tools)',
+    'google/gemini-2.5-pro-preview': 'Gemini 2.5 Pro ♊ (Raciocínio Altamente Complexo)',
     'openrouter/free': 'OpenRouter Auto 🔄 (Roteamento Automático)'
 };
 
@@ -96,36 +98,33 @@ module.exports = {
             let panel = `╔═══════════════════════════════╗\n` +
                         `   🌌 *CÉREBROS NEURAIS DO BOCHECHA* 🌌\n` +
                         `╚═══════════════════════════════╝\n\n` +
-                        `Todos os modelos abaixo são *100% GRATUITOS* via OpenRouter 🆓\n\n` +
-                        `🏊 *[1] Poolside Laguna*\n` +
-                        `  ↳ Apelido: *poolside* ou *laguna*\n` +
-                        `  ↳ Especialidade: Muito rápido, tools, agentes e lógica.\n\n` +
-                        `💻 *[2] Qwen 3 Coder*\n` +
-                        `  ↳ Apelido: *coder*\n` +
-                        `  ↳ Especialidade: Escrita de código, programação e automações.\n\n` +
-                        `🦙 *[3] Llama 3.2 3B*\n` +
-                        `  ↳ Apelido: *llama* ou *fast*\n` +
-                        `  ↳ Especialidade: Super rápido, conversação geral e fluido.\n\n` +
-                        `🤖 *[4] GPT-OSS 120B*\n` +
-                        `  ↳ Apelido: *gpt* ou *gpt-oss*\n` +
-                        `  ↳ Especialidade: Open Source da OpenAI, raciocínio avançado.\n\n` +
-                        `🌟 *[5] Gemma 4 31B*\n` +
-                        `  ↳ Apelido: *gemma* ou *gemma4*\n` +
-                        `  ↳ Especialidade: Google SOTA, alta qualidade.\n\n` +
-                        `👁️ *[6] Nemotron Nano VL*\n` +
-                        `  ↳ Apelido: *nemotron* ou *vision*\n` +
-                        `  ↳ Especialidade: Análise e reconhecimento de imagens/visão.\n\n` +
-                        `🔄 *[7] OpenRouter Auto*\n` +
+                        `Modelos SOTA e ativos no OpenRouter 🆓⚡\n\n` +
+                        `🧠 *[1] DeepSeek R1 Free*\n` +
+                        `  ↳ Apelido: *r1* ou *deepseek*\n` +
+                        `  ↳ Especialidade: Raciocínio de elite (padrão o1/o3-mini).\n\n` +
+                        `💻 *[2] Qwen 3 Coder Free*\n` +
+                        `  ↳ Apelido: *coder* ou *qwen*\n` +
+                        `  ↳ Especialidade: Lógica computacional avançada e programação.\n\n` +
+                        `🦙 *[3] Llama 3.3 70B Free*\n` +
+                        `  ↳ Apelido: *llama33* ou *llama*\n` +
+                        `  ↳ Especialidade: Raciocínio rápido, estável e conversação fluida.\n\n` +
+                        `⚡ *[4] GLM 4.5 Air Free*\n` +
+                        `  ↳ Apelido: *glm* ou *glm4.5*\n` +
+                        `  ↳ Especialidade: Respostas extremamente rápidas e inteligentes.\n\n` +
+                        `♊ *[5] Gemini 2.5 Flash / Pro / Lite*\n` +
+                        `  ↳ Apelido: *gemini-flash*, *gemini-pro* ou *gemini-lite*\n` +
+                        `  ↳ Especialidade: Raciocínio complexo (Pro), multimodal (Flash) ou rapidez (Lite).\n\n` +
+                        `🔄 *[6] OpenRouter Auto*\n` +
                         `  ↳ Apelido: *auto* ou *free*\n` +
-                        `  ↳ Especialidade: Roteamento automático pelo melhor disponível.\n\n` +
+                        `  ↳ Especialidade: Roteamento inteligente baseado no tipo de prompt.\n\n` +
                         `*───────────────────────────────*\n` +
                         `🔮 *Cérebro Principal Ativo:*\n` +
                         `👉 *${friendlyActive}*\n` +
                         `*───────────────────────────────*\n\n` +
                         `⚠️ *Como alterar o cérebro:* (Apenas Criador Marcos)\n` +
                         `Digite: */setia [apelido]*\n` +
-                        `Exemplo: */setia poolside* ou */setia llama*\n\n` +
-                        `> *BOCHECHA AGENTIC ENGINE v4.2 — 100% FREE* 🛸🥀💀`;
+                        `Exemplo: */setia r1* ou */setia gemini-pro*\n\n` +
+                        `> *BOCHECHA AGENTIC ENGINE v5.0 — 100% SOTA* 🥀🛸💀`;
 
             if (isCommand) {
                 await sock.sendMessage(from, { text: panel }, { quoted: message });
@@ -164,11 +163,12 @@ module.exports = {
 
             let selectedModelId = MODEL_ALIASES[modelInput];
             if (!selectedModelId && modelInput.includes('/')) {
-                // Aceita ID cru, mas apenas se for gratuito
-                if (modelInput.endsWith(':free') || modelInput === 'openrouter/free') {
+                // Aceita ID cru se for um dos modelos integrados/permitidos ou grátis/preview
+                const validRawIds = Object.values(MODEL_ALIASES);
+                if (validRawIds.includes(modelInput) || modelInput.endsWith(':free') || modelInput.includes('-preview') || modelInput === 'openrouter/free') {
                     selectedModelId = modelInput;
                 } else {
-                    const paidMsg = `❌ *Modelos pagos não são permitidos!* Use apenas modelos gratuitos (terminam em *:free*).\nDigite */ias* para ver os disponíveis.`;
+                    const paidMsg = `❌ *Modelos pagos não são permitidos!* Use apenas os modelos listados ou gratuitos.\nDigite */ias* para ver os disponíveis.`;
                     if (isCommand) {
                         await sock.sendMessage(from, { text: paidMsg }, { quoted: message });
                         return;

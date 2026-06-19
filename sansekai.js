@@ -66,10 +66,13 @@ const {
 const fs = require("fs");
 const path = require("path");
 const util = require("util");
+const { resolveStickerReactionFallback } = require("./lib/stickerReactionHelper");
+const { buildOfflineFallbackResponse } = require("./lib/offlineFallbackHelper");
+const { resolveDirectCommand } = require("./lib/direct_commands");
 const chalk = require("chalk");
 const moment = require("moment-timezone");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { exec, spawn } = require("child_process");
+const { exec, spawn, execFileSync } = require("child_process");
 const config = require("./config");
 
 
@@ -78,6 +81,7 @@ const apiKeyManager = require("./apiKeyManager");
 
 // Controladores locais de Skills
 const gamesController = require("./skills/games_controller");
+const { classifyConversationSafety, sanitizeAssistantOutput } = require("./lib/conversation_safety");
 
 // ══════════════════════════════════════════════════════════════════════════
 // 1. DIRETÓRIOS E CONFIGURAÇÕES GLOBAIS
@@ -128,6 +132,285 @@ function saveLidMappings() {
     try {
         fs.writeFileSync(LID_MAP_FILE, JSON.stringify(lidMappings, null, 2));
     } catch {}
+}
+
+const ANTI_HALLUCINATION_SAFE_PHRASES = [
+    "não sei",
+    "não tenho como saber",
+    "não tenho como",
+    "não posso saber",
+    "não posso dizer",
+    "não tenho essa informação",
+    "não tenho essa",
+    "não dá pra saber",
+    "não conheço",
+    "não tenho detalhes",
+    "não tenho base"
+];
+
+const ANTI_HALLUCINATION_IGNORE_TOKENS = new Set([
+    'não','sim','talvez','pode','podeu','já','mas','se','eu','vc','vcê','voce','você','para','no','na','com','sem','uma','um','os','as','os','as','e','ou','do','da','dos','das','este','esta','esse','essa','aquele','aquela','de','do','da','dos','das','por','pelo','pela','pelos','pelas'
+]);
+
+const ANTI_HALLUCINATION_HEDGING_PATTERNS = [
+    /\b(acho|acho que|creio|talvez|provavelmente|possivelmente|parece|deve|deveria|imagino|supostamente)\b/i
+];
+
+const ANTI_HALLUCINATION_FACTUAL_PROMPT_PATTERNS = [
+    /\b(quem|qual|quando|onde|quanto|quantos|como|por que|porque|resultado|horario|horário|preço|valor|data|nome|telefone|endereço|saldo|placar|status|jogo|vencedor|perdedor)\b/i
+];
+
+function normalizeTextForHallucination(text) {
+    if (!text || typeof text !== 'string') return "";
+    return text
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w\s]/g, ' ')
+        .toLowerCase();
+}
+
+function buildSourceText(prompt, history) {
+    let source = '';
+    if (typeof prompt === 'string') {
+        source += prompt + ' ';
+    } else if (Array.isArray(prompt)) {
+        source += prompt.map(item => typeof item === 'string' ? item : (item.text || '')).join(' ') + ' ';
+    } else if (prompt) {
+        source += String(prompt) + ' ';
+    }
+    if (Array.isArray(history)) {
+        history.forEach(item => {
+            if (!item) return;
+            if (typeof item === 'string') {
+                source += item + ' ';
+            } else if (item.parts && Array.isArray(item.parts)) {
+                source += item.parts.map(p => p.text || '').join(' ') + ' ';
+            } else if (item.content) {
+                source += item.content + ' ';
+            }
+        });
+    }
+    return normalizeTextForHallucination(source);
+}
+
+function isIdentityQuery(text) {
+    if (!text || typeof text !== 'string') return false;
+    const normalized = normalizeTextForHallucination(text);
+    return /\b(quem|qual|como)\b/.test(normalized) && /\b(é|e|se chama|chama|voce|você|tu|vc)\b/.test(normalized);
+}
+
+function isDirectIdentityOrCapabilityQuery(text) {
+    if (!text || typeof text !== 'string') return false;
+    const normalized = normalizeTextForHallucination(text);
+    return (isIdentityQuery(text) || /\b(oque|o que|quais|quais funcoes|quais funções|que voce pode|que você pode|que voce faz|que você faz|como voce pode|como você pode|suas funções|suas funcoes|suas habilidades|o que faz)\b/.test(normalized))
+        && /\b(voce|você|tu|vc|bot|assistente|bochecha|pode|podes|fazer|ajudar|responder|funcionar)\b/.test(normalized);
+}
+
+function isSelfDescription(text) {
+    if (!text || typeof text !== 'string') return false;
+    const normalized = normalizeTextForHallucination(text);
+    return /\b(sou|eu sou|me chamo|meu nome|sou o|sou um|sou uma|eu sou o|eu sou um|eu sou uma)\b/.test(normalized)
+        || /\b(bot|assistente|ia|bochecha)\b/.test(normalized);
+}
+
+function isCapabilityQuery(text) {
+    if (!text || typeof text !== 'string') return false;
+    const normalized = normalizeTextForHallucination(text);
+    return /\b(oque|o que|quais|quais funcoes|quais funções|que voce pode|que você pode|que voce faz|que você faz|como voce pode|como você pode|suas funções|suas funcoes|suas habilidades|o que faz)\b/.test(normalized)
+        && /\b(voce|você|tu|vc|bot|assistente|bochecha|pode|podes|fazer|funcionar|ajudar|responder)\b/.test(normalized);
+}
+
+function isCapabilityResponse(text) {
+    if (!text || typeof text !== 'string') return false;
+    const normalized = normalizeTextForHallucination(text);
+    return /\b(posso|posso fazer|ajudo|ajudar|ferramentas|funções|funcoes|habilidades|comandos|responder|listar|executar|mandar|enviar|gerar|explicar)\b/.test(normalized);
+}
+
+function getHallucinationFallback(options = {}) {
+    if (options && options.isGroup) {
+        return 'Não tenho base suficiente pra afirmar isso aqui sem correr o risco de inventar. Me dá mais contexto que eu tento ajudar melhor.';
+    }
+    return 'Não tenho base suficiente pra afirmar isso sem correr o risco de inventar.';
+}
+
+function buildToolExecutionFallbackOutput(prompt = '', lastExecutedTool = null) {
+    if (!prompt || typeof prompt !== 'string') {
+        return 'Feito.';
+    }
+
+    const normalizedPrompt = normalizeTextForHallucination(prompt);
+    if (/(play|tocar|reproduzir|audio|áudio)/.test(normalizedPrompt) || lastExecutedTool === 'falar_em_audio' || lastExecutedTool === 'bochecha_voz' || lastExecutedTool === 'play_audio') {
+        return 'Já toquei.';
+    }
+
+    if (/(imagem|foto|gerar|criar|mandar|enviar)/.test(normalizedPrompt)) {
+        return 'Feito.';
+    }
+
+    return 'Feito.';
+}
+
+function isLowConfidenceFactualAnswer(output, prompt) {
+    if (!output || typeof output !== 'string') return false;
+    if (!prompt || typeof prompt !== 'string') return false;
+
+    const lowerOutput = normalizeTextForHallucination(output);
+    const lowerPrompt = normalizeTextForHallucination(prompt);
+    if (!lowerOutput || !lowerPrompt) return false;
+
+    const hasHedge = ANTI_HALLUCINATION_HEDGING_PATTERNS.some(pattern => pattern.test(lowerOutput));
+    const asksForFact = ANTI_HALLUCINATION_FACTUAL_PROMPT_PATTERNS.some(pattern => pattern.test(lowerPrompt));
+    if (!hasHedge || !asksForFact) return false;
+
+    const shortAnswer = lowerOutput.split(/\s+/).filter(Boolean).length <= 6;
+    return shortAnswer || /\b(sim|não|nao|talvez|acho|creio|provavelmente|imagino)\b/.test(lowerOutput);
+}
+
+function isPotentialHallucination(output, sourceText, prompt = '') {
+    if (!output || typeof output !== 'string') return false;
+    const lowerOutput = normalizeTextForHallucination(output);
+    if (ANTI_HALLUCINATION_SAFE_PHRASES.some(phrase => lowerOutput.includes(phrase))) {
+        return false;
+    }
+
+    if (isLowConfidenceFactualAnswer(output, prompt)) {
+        return true;
+    }
+
+    const suspiciousDates = lowerOutput.match(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g) || [];
+    const suspiciousYears = lowerOutput.match(/\b(19|20)\d{2}\b/g) || [];
+    const suspiciousTimes = lowerOutput.match(/\b\d{1,2}:\d{2}\b/g) || [];
+    const suspiciousWeekdays = lowerOutput.match(/\b(segunda|terca|quarta|quinta|sexta|sabado|sábado|domingo)\b/g) || [];
+    const suspiciousNumbers = lowerOutput.match(/\b\d{2,4}\b/g) || [];
+    const sourceWords = new Set(sourceText.split(/\s+/).filter(Boolean));
+    const outputWords = [];
+    const capRegex = /\b([A-ZÀ-Ý][a-zà-ÿçãõéíóúâêîôû]+)\b/g;
+    let capMatch;
+    while ((capMatch = capRegex.exec(output)) !== null) {
+        const idx = capMatch.index;
+        const textBefore = output.slice(Math.max(0, idx - 3), idx);
+        const isSentenceStart = idx === 0 || /[\.!\?]\s*$/.test(output.slice(0, idx));
+        if (isSentenceStart) continue;
+        outputWords.push(capMatch[1]);
+    }
+
+    const unknownProperNouns = outputWords.filter(word => {
+        const normalized = normalizeTextForHallucination(word);
+        if (!normalized || ANTI_HALLUCINATION_IGNORE_TOKENS.has(normalized)) return false;
+        if (sourceWords.has(normalized)) return false;
+        return true;
+    });
+
+    if (unknownProperNouns.length > 0 && !lowerOutput.includes('não sei') && !lowerOutput.includes('não tenho')) {
+        return true;
+    }
+
+    if (suspiciousDates.length > 0 || suspiciousYears.length > 0 || suspiciousTimes.length > 0 || suspiciousWeekdays.length > 0) {
+        for (const token of [...suspiciousDates, ...suspiciousYears, ...suspiciousTimes, ...suspiciousWeekdays]) {
+            if (!sourceText.includes(token)) {
+                return true;
+            }
+        }
+    }
+
+    const numericClaims = suspiciousNumbers.filter(num => !sourceText.includes(num));
+    if (numericClaims.length > 0 && numericClaims.length <= 5 && lowerOutput.match(/\b(\d+|vinte|trinta|quarenta|cinquenta|cem|duzentos|mil|milhão|bilhão)\b/)) {
+        return true;
+    }
+
+    return false;
+}
+
+function shouldRespondToMessage(text, options = {}) {
+    if (!text || typeof text !== 'string') return false;
+
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+
+    const isGroup = !!options.isGroup;
+    const isMentioned = !!options.isMentioned;
+    const isReply = !!options.isReply;
+
+    if (isMentioned || isReply) return true;
+    if (!isGroup) return true;
+
+    if (/^(\/|!|\.)/.test(trimmed)) return true;
+    if (/\b(bochecha|bot)\b/i.test(trimmed)) return true;
+
+    return false;
+}
+
+function looksLikeUnsafeToolOutput(output) {
+    if (!output || typeof output !== 'string') return false;
+    const normalized = normalizeTextForHallucination(output);
+    if (!normalized) return false;
+
+    const unsafePatterns = [
+        /\b(vacil(a|ao|ao)|idiota|otario|otário|babaca|imbecil|lixo|fuder|fud(e|er)|vai te fuder|vai se fuder|seu cu|seu lixo|arrombado|corno|filho da puta|puta|merda|inferno)\b/i,
+        /\b(quer ser banido|vou te banir|te banir|te expulsar|te matar|vou te matar|te amarrar|me bane)\b/i
+    ];
+
+    return unsafePatterns.some(pattern => pattern.test(normalized));
+}
+
+function looksLikeConversationalToolReply(output) {
+    if (!output || typeof output !== 'string') return false;
+    const trimmed = output.trim();
+    if (!trimmed) return false;
+
+    const simpleConfirmation = /^\s*(feito|pronto|ok|okay|já toquei|já enviei|enviado|baixado|download concluído|concluído|concluido|realizado|executado|processado|entendido)\b/i.test(trimmed);
+    if (simpleConfirmation) return false;
+
+    const tooLong = trimmed.split(/\s+/).filter(Boolean).length > 8;
+    const hasQuestion = /\?/.test(trimmed);
+    const hasFollowUp = /\b(qual|como|quero|vou|vamos|quer|gostaria|pode|podes|curte|queres|quero|me diga|fala|diz|manda|deixa|vamos|vamos fazer)\b/i.test(trimmed);
+    return tooLong || hasQuestion || hasFollowUp;
+}
+
+function enforceAntiHallucinationGuard(output, prompt, history, options = {}) {
+    if (!output || typeof output !== 'string') return output;
+    if (isDirectIdentityOrCapabilityQuery(prompt)) {
+        return output;
+    }
+    if ((isIdentityQuery(prompt) && isSelfDescription(output)) || (isCapabilityQuery(prompt) && isCapabilityResponse(output))) {
+        return output;
+    }
+
+    if (options && options.wasToolExecuted) {
+        const trimmed = output.trim();
+        const looksLikeToolFailure = /\b(não tenho base|não tenho contexto|não sei|não consigo|não dá pra|não tenho como|não vou|não posso|não tenho informações)\b/i.test(trimmed);
+        if (!trimmed || looksLikeToolFailure) {
+            Logger.info('AntiHallucination', 'Pulando guard para resposta pós-execução de skill/tool.');
+            return buildToolExecutionFallbackOutput(prompt, options.lastExecutedTool);
+        }
+
+        const isSimpleToolConfirmation = /^\s*(feito|pronto|ok|okay|já toquei|já enviei|enviado|baixado|download concluído|concluído|concluido|realizado|executado|processado|entendido)\b/i.test(trimmed);
+        if (isSimpleToolConfirmation) {
+            Logger.info('AntiHallucination', 'Resposta pós-tool simples aceita com fallback neutro.');
+            return buildToolExecutionFallbackOutput(prompt, options.lastExecutedTool);
+        }
+
+        if (looksLikeUnsafeToolOutput(trimmed) || looksLikeConversationalToolReply(trimmed)) {
+            Logger.warn('AntiHallucination', 'Resposta pós-tool ofensiva, conversacional ou insegura detectada; aplicando fallback seguro.');
+            return buildToolExecutionFallbackOutput(prompt, options.lastExecutedTool);
+        }
+
+        const sourceText = buildSourceText(prompt, history);
+        if (isPotentialHallucination(output, sourceText, prompt)) {
+            Logger.warn('AntiHallucination', `Resposta pós-tool possivelmente inventada detectada; aplicando fallback seguro.`);
+            return getHallucinationFallback(options);
+        }
+
+        Logger.info('AntiHallucination', 'Resposta pós-tool passou pela validação limitada.');
+        return output;
+    }
+
+    const sourceText = buildSourceText(prompt, history);
+    if (isPotentialHallucination(output, sourceText, prompt)) {
+        Logger.warn('AntiHallucination', `Resposta possivelmente inventada detectada; aplicando fallback seguro.`);
+        return getHallucinationFallback(options);
+    }
+    return output;
 }
 
 /**
@@ -558,33 +841,12 @@ class StorageManager {
                     localData = defaultValue;
                     
                     // Salva backup inicial assincronamente no Firebase
-                    setDoc(docRef, {
-                        data: defaultValue,
-                        lastUpdated: Date.now()
-                    }).catch(() => {});
+                        setDoc(docRef, {
+                            data: defaultValue,
+                            lastUpdated: Date.now()
+                        }).catch(() => {});
+                    }
                 }
-            } else {
-                const raw = fs.readFileSync(filePath, 'utf8').trim();
-                if (!raw) {
-                    this.cache.set(filePath, defaultValue);
-                    localData = defaultValue;
-                } else {
-                    localData = JSON.parse(raw);
-                    this.cache.set(filePath, localData);
-                }
-            }
-
-            // Self-healing global para arrays corrompidos como objetos
-            if (Array.isArray(defaultValue) && localData && !Array.isArray(localData)) {
-                const values = [];
-                const keys = Object.keys(localData).filter(k => !isNaN(k)).sort((a, b) => Number(a) - Number(b));
-                for (const k of keys) {
-                    values.push(localData[k]);
-                }
-                localData = values;
-                fs.writeFileSync(filePath, JSON.stringify(localData, null, 2));
-                this.cache.set(filePath, localData);
-            }
 
             // Garantir que as propriedades do defaultValue estejam presentes em localData caso seja um objeto
             if (defaultValue && typeof defaultValue === 'object' && !Array.isArray(defaultValue)) {
@@ -1002,6 +1264,76 @@ global.storage = storage;
 // 3.1. LONG TERM SEMANTIC MEMORY (CLASS LONGTERMMEMORY)
 // ══════════════════════════════════════════════════════════════════════════
 
+const LTM_AUTOSAVE_ENABLED = false;
+
+function shouldSkipFactExtraction(messageContent) {
+    if (!messageContent || typeof messageContent !== 'string') return true;
+
+    const normalized = messageContent.trim().toLowerCase();
+    if (!normalized) return true;
+    if (normalized.length < 6) return true;
+    if (/^(\/|!|\.|@)/.test(normalized)) return true;
+    if (/^(oi|olá|ola|e aí|eai|tudo bem|como vai|bom dia|boa tarde|boa noite|kkk|kkkk|rs|rsrs|ok|okay|sim|nao|não|tchau|bye|vlw|obg|obrigado)$/i.test(normalized)) return true;
+    if (/\b(tocar|reproduzir|play|coloca|coloque|abrir|executar|manda|envia|pause|parar|pular)\b/i.test(normalized)) return true;
+    if (/\b(música|musica|audio|áudio|video|vídeo|foto|imagem|figurinha|sticker)\b/i.test(normalized)) return true;
+
+    return false;
+}
+
+function extractSimpleFacts(messageContent) {
+    if (!messageContent || typeof messageContent !== 'string') return [];
+
+    const text = messageContent.trim();
+    const facts = [];
+    const lower = text.toLowerCase();
+
+    const patterns = [
+        { regex: /meu nome(?: é| eh)\s+([a-zà-ÿ'\- ]{2,})/i, format: (m) => `O usuário disse que seu nome é ${m[1].trim()}.` },
+        { regex: /eu moro(?: em| na| no)?\s+([a-zà-ÿ'\- ]{2,})/i, format: (m) => `O usuário informou que mora em ${m[1].trim()}.` },
+        { regex: /eu sou de\s+([a-zà-ÿ'\- ]{2,})/i, format: (m) => `O usuário disse que é de ${m[1].trim()}.` },
+        { regex: /gosto de\s+([a-zà-ÿ'\- ]{2,})/i, format: (m) => `O usuário gosta de ${m[1].trim()}.` },
+        { regex: /tenho\s+(\d+)\s+anos/i, format: (m) => `O usuário tem ${m[1]} anos.` },
+        { regex: /trabalho(?: em| na| no)?\s+([a-zà-ÿ'\- ]{2,})/i, format: (m) => `O usuário trabalha em ${m[1].trim()}.` },
+        { regex: /minha meta(?: é| eh)?\s+([a-zà-ÿ'\- ]{2,})/i, format: (m) => `O usuário mencionou a meta: ${m[1].trim()}.` }
+    ];
+
+    for (const pattern of patterns) {
+        const match = text.match(pattern.regex);
+        if (match) {
+            const fact = pattern.format(match);
+            if (fact && fact.length > 6) facts.push(fact);
+        }
+    }
+
+    if (/\b(amor|namorar|namoro|relacionamento|casal)\b/i.test(lower)) {
+        facts.push('O usuário comentou sobre relacionamentos ou amor.');
+    }
+
+    return [...new Set(facts.map(f => f.trim()).filter(Boolean))];
+}
+
+async function persistFactsForUser(userId, facts) {
+    if (!Array.isArray(facts) || facts.length === 0) return;
+
+    const db = await storage.read(KNOWLEDGE_FILE, { users: {}, groups: {} });
+    const key = userId.replace(/[^0-9]/g, '');
+    if (!db.users[key]) db.users[key] = [];
+
+    const seen = new Set(db.users[key].map(f => f.toLowerCase()));
+    for (const fact of facts) {
+        const normalizedFact = fact.trim();
+        if (!normalizedFact) continue;
+        if (seen.has(normalizedFact.toLowerCase())) continue;
+        db.users[key].push(normalizedFact);
+        seen.add(normalizedFact.toLowerCase());
+        Logger.success('LTM', `Fato gravado sobre @${key}: "${normalizedFact}"`);
+    }
+
+    if (db.users[key].length > 50) db.users[key].shift();
+
+    await storage.write(KNOWLEDGE_FILE, db);
+}
+
 /**
  * Controla a persistência semântica de memórias de longo prazo (LTM).
  * Extrai fatos factuais com Gemini em background e os recupera ativamente por JID.
@@ -1011,12 +1343,20 @@ class LongTermMemory {
      * Extrai e armazena fatos em background sobre o usuário baseado na mensagem.
      */
     async extractAndStoreFacts(chatId, userId, messageContent, isOwner) {
-        // Ignora extrações redundantes ou mensagens muito curtas ou comandos diretos
-        if (!messageContent || messageContent.length < 6 || messageContent.startsWith("/")) return;
+        if (!LTM_AUTOSAVE_ENABLED) return;
+
+        // Ignora extrações redundantes, mensagens muito curtas, comandos diretos ou pedidos de ação simples
+        if (shouldSkipFactExtraction(messageContent)) return;
 
         // Dispara em background
         setTimeout(async () => {
             try {
+                const simpleFacts = extractSimpleFacts(messageContent);
+                if (simpleFacts.length > 0) {
+                    await persistFactsForUser(userId, simpleFacts);
+                    return;
+                }
+
                 const prompt = `Analise a mensagem a seguir enviada por um usuário no WhatsApp e identifique se ela revela preferências permanentes, fatos pessoais relevantes, aniversário, gostos, ordens explícitas de controle ou informações factuais sobre si mesmo ou o grupo.
 Ignore saudações banais, dúvidas gerais, piadas bobas ou papo furado.
 Se houver fatos relevantes dignos de nota perpétua no seu cérebro, extraia e retorne os fatos como uma lista curta e fria de afirmações, um fato por linha, começando cada frase com "O usuário...".
@@ -1036,33 +1376,7 @@ Caso contrário, se não houver NADA digno de nota, responda unicamente: "NENHUM
                         .filter(f => f.length > 5);
 
                     if (cleanFacts.length > 0) {
-                        const db = await storage.read(KNOWLEDGE_FILE, { users: {}, groups: {} });
-                        
-                        const key = userId.replace(/[^0-9]/g, '');
-                        if (!db.users[key]) db.users[key] = [];
-
-                        for (const fact of cleanFacts) {
-                            // Previne duplicados aproximados
-                            const exists = db.users[key].some(f => f.toLowerCase() === fact.toLowerCase());
-                            if (!exists) {
-                                db.users[key].push(fact);
-                                Logger.success("LTM", `Fato gravado sobre @${key}: "${fact}"`);
-                            }
-                        }
-
-                        // Mantém no máximo 50 fatos por usuário para poupar espaço/tokens
-                        if (db.users[key].length > 50) db.users[key].shift();
-
-                        // Sincroniza fatos de LTM diretamente no Firestore (coleção ltm_facts)
-                    try {
-                        const { db: fbDb, doc, setDoc } = require('./firebase_connector');
-                        const ltmDocRef = doc(fbDb, "ltm_facts", key);
-                        await setDoc(ltmDocRef, { facts: db.users[key] });
-                        Logger.info("LTM", `Fatos de LTM sincronizados no Firestore para @${key}`);
-                    } catch (fireErr) {
-                        Logger.error("LTM.FIREBASE", fireErr);
-                    }
-                    await storage.write(KNOWLEDGE_FILE, db);
+                        await persistFactsForUser(userId, cleanFacts);
                     }
                 }
             } catch (e) {
@@ -1314,20 +1628,37 @@ function mapGeminiToolsToOpenRouter(geminiTools) {
 
 class KeyRotationEngine {
     constructor() {
-        // Modelos GRATUITOS: apenas modelos estáveis e confiáveis
+        // Restrição explícita a modelos fortes e estáveis para o fluxo principal.
+        // Mantemos o flash-lite como modelo principal porque é o mais compatível com tool/skill calls.
         this.freeModels = [
-            "poolside/laguna-m.1:free",
-            "qwen/qwen3-coder:free",
-            "meta-llama/llama-3.2-3b-instruct:free",
-            "openai/gpt-oss-120b:free",
-            "google/gemma-4-31b-it:free",
-            "nvidia/nemotron-nano-12b-v2-vl:free"
+            "google/gemini-2.5-flash-lite",
+            "google/gemini-2.5-flash",
+            "google/gemini-2.5-pro-preview"
         ];
 
-        // Apenas modelos gratuitos
-        this.availableModels = [...this.freeModels];
+        // Apenas os modelos fortes autorizados (incluindo os novos modelos gratuitos SOTA)
+        this.availableModels = [
+            ...this.freeModels,
+            "qwen/qwen3-coder:free",
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "z-ai/glm-4.5-air:free",
+            "deepseek/deepseek-r1:free"
+        ];
 
         this.cooldowns = new Map();
+
+        // Modelos que podem ser enviados ao OpenRouter com normalização.
+        // Mantemos sempre um endpoint Gemini válido e conhecido como ativo.
+        this.modelNormalization = {
+            "google/gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
+            "google/gemini-2.5-flash": "google/gemini-2.5-flash",
+            "google/gemini-2.5-pro-preview": "google/gemini-2.5-pro-preview",
+            "qwen/qwen3-coder:free": "qwen/qwen3-coder:free",
+            "meta-llama/llama-3.3-70b-instruct:free": "meta-llama/llama-3.3-70b-instruct:free",
+            "z-ai/glm-4.5-air:free": "z-ai/glm-4.5-air:free",
+            "deepseek/deepseek-r1:free": "deepseek/deepseek-r1:free",
+            "openrouter/free": "openrouter/auto"
+        };
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
         
         // Rastreamento individual por chave
@@ -1362,6 +1693,9 @@ class KeyRotationEngine {
      * Executa a chamada no Claude da Anthropic com rotação de chaves.
      */
     async executeClaudeWithRotation(history, prompt, tools, systemInstruction) {
+        if (!(apiKeyManager.listClaudeKeys().length > 0)) {
+            throw new Error("Nenhuma chave Claude ativa disponível.");
+        }
         let attempts = 0;
         const totalKeys = apiKeyManager.listClaudeKeys().length;
         const maxKeyCycles = Math.max(totalKeys, 2);
@@ -1433,6 +1767,9 @@ class KeyRotationEngine {
                 if (anthropicTools) {
                     body.tools = anthropicTools;
                 }
+
+                body.temperature = 0.15;
+                body.top_p = 0.8;
 
                 const response = await fetch("https://api.anthropic.com/v1/messages", {
                     method: "POST",
@@ -1512,7 +1849,10 @@ class KeyRotationEngine {
         });
 
         if (cleanKeys.length > 0) {
-            return apiKeyManager.getKey(); // Rotaciona normalmente via Round-Robin
+            const preferredKey = apiKeyManager.getKey();
+            const chosenKey = cleanKeys.includes(preferredKey) ? preferredKey : cleanKeys[0];
+            apiKeyManager.setCurrentKey(chosenKey);
+            return chosenKey;
         }
 
         // Caso extremo: todas as chaves em cooldown. Escolhe a de cooldown mais curto
@@ -1530,9 +1870,93 @@ class KeyRotationEngine {
         if (oldestKey) {
             Logger.warn("KeyRotationEngine", "Todas as chaves em cooldown. Liberando a menos bloqueada precocemente.");
             this.cooldowns.delete(oldestKey);
+            apiKeyManager.setCurrentKey(oldestKey);
             return oldestKey;
         }
 
+    }
+
+    _truncateTextForModel(text, maxChars = 1100) {
+        if (typeof text !== 'string') {
+            return String(text || '');
+        }
+        const normalized = text.replace(/\s+/g, ' ').trim();
+        if (!normalized) return '';
+        if (normalized.length <= maxChars) return normalized;
+        return normalized.slice(0, maxChars - 80) + '\n[...texto truncado para evitar excesso de tokens...]';
+    }
+
+    _preparePromptContent(prompt) {
+        if (typeof prompt === 'string') {
+            return this._truncateTextForModel(prompt, 900);
+        }
+
+        if (Array.isArray(prompt)) {
+            const isToolResponse = prompt.some(item => item && item.functionResponse);
+            if (isToolResponse) {
+                const joined = prompt.map(item => {
+                    const fr = item.functionResponse;
+                    if (!fr) return '';
+                    const resString = typeof fr.response === 'object' ? (fr.response.result || JSON.stringify(fr.response)) : String(fr.response);
+                    return `[RETORNO DA FERRAMENTA: "${fr.name}"]\nResultado da execução:\n${resString}`;
+                }).join('\n\n');
+                return this._truncateTextForModel(joined, 900);
+            }
+
+            const parts = [];
+            for (const item of prompt) {
+                if (item && item.text) {
+                    parts.push({ type: 'text', text: this._truncateTextForModel(item.text, 700) });
+                } else if (item && item.inlineData) {
+                    parts.push({
+                        type: 'image_url',
+                        image_url: {
+                            url: `data:${item.inlineData.mimeType};base64,${item.inlineData.data}`
+                        }
+                    });
+                }
+            }
+
+            if (parts.length === 0) {
+                return this._truncateTextForModel(JSON.stringify(prompt), 900);
+            }
+
+            return parts.length === 1 && parts[0].type === 'text' ? parts[0].text : parts;
+        }
+
+        return this._truncateTextForModel(String(prompt || ''), 900);
+    }
+
+    _classifyRequest(prompt, tools, history = []) {
+        const hasMedia = Array.isArray(prompt) && prompt.some(item => item && item.inlineData);
+        const hasTools = Array.isArray(tools) && tools.length > 0;
+
+        let promptText = "";
+        if (typeof prompt === 'string') {
+            promptText = prompt;
+        } else if (Array.isArray(prompt)) {
+            promptText = prompt.map(p => p.text || "").join(" ");
+        }
+
+        const normalizedPrompt = (promptText || "").toLowerCase();
+        const isCoding = /\b(codigo|código|programar|programação|erro|bug|js|javascript|script|terminal|node|npm|git|banco de dados|api|html|css|dev|deploy|docker|express|react|typescript|python|sql)\b/i.test(normalizedPrompt);
+        const isReasoning = /\b(analise|análise|racioc|planejar|estrat|resolver|compar|melhor forma|por que|porque|pensar|complexo|tarefa|decis|opini|argument|contexto|entender|explicar|detalhar)\b/i.test(normalizedPrompt);
+        const isComplex = isCoding || isReasoning || /\b(arquitetura|sistema|debug|otimiz|refator|design|modelo|prompt|algoritmo|criar|construir)\b/i.test(normalizedPrompt);
+        const isLongPrompt = promptText.trim().length > 500 || (promptText.trim().split(/\s+/).filter(Boolean).length > 90);
+        const hasConversationContext = Array.isArray(history) && history.length > 6;
+        const needsSmartMode = hasMedia || hasTools || isCoding || isReasoning || isComplex || isLongPrompt || hasConversationContext;
+        const mode = needsSmartMode ? "smart" : "fast";
+
+        return {
+            mode,
+            hasMedia,
+            hasTools,
+            isCoding,
+            isReasoning,
+            isComplex,
+            isLongPrompt,
+            hasConversationContext
+        };
     }
 
     /**
@@ -1540,17 +1964,13 @@ class KeyRotationEngine {
      * Evita que o bot fique burro ou envie fotos para modelos incapazes de enxergar.
      */
     _getPrioritizedModels(prompt, tools) {
-        const hasMedia = Array.isArray(prompt) && prompt.some(item => item && item.inlineData);
-        const hasTools = Array.isArray(tools) && tools.length > 0;
-        
-        let promptText = "";
-        if (typeof prompt === 'string') {
-            promptText = prompt;
-        } else if (Array.isArray(prompt)) {
-            promptText = prompt.map(p => p.text || "").join(" ");
-        }
-        
-        const isCoding = /\b(codigo|código|programar|programação|erro|bug|js|javascript|script|terminal|node|npm|git|banco de dados|api|html|css|dev)\b/i.test(promptText);
+        const requestProfile = this._classifyRequest(prompt, tools);
+        const hasMedia = requestProfile.hasMedia;
+        const hasTools = requestProfile.hasTools;
+        const isCoding = requestProfile.isCoding;
+        const isReasoning = requestProfile.isReasoning;
+        const isComplex = requestProfile.isComplex;
+        const mode = requestProfile.mode;
 
         // Fazer uma cópia dos modelos disponíveis
         let list = [...this.availableModels];
@@ -1558,57 +1978,64 @@ class KeyRotationEngine {
         // Roteamento dinâmico: Prioriza o cérebro primário configurado pelo dono Marcos em settings.json
         const cachedSettings = storage && storage.cache && storage.cache.get(SETTINGS_FILE);
         const primaryModel = cachedSettings && cachedSettings.primaryModel;
-        if (primaryModel) {
+        if (primaryModel && list.includes(primaryModel)) {
             list = list.filter(m => m !== primaryModel);
         }
 
-        if (hasMedia) {
-            // Multimodal: prioriza modelos com suporte a visão
-            const multimodalModels = [
-                "nvidia/nemotron-nano-12b-v2-vl:free",
-                "openai/gpt-oss-120b:free",
-                "poolside/laguna-m.1:free"
+        if (mode === 'fast') {
+            const fastModels = [
+                "z-ai/glm-4.5-air:free",
+                "google/gemini-2.5-flash-lite",
+                "google/gemini-2.5-flash",
+                "google/gemini-2.5-pro-preview"
             ];
-            const filtered = list.filter(m => multimodalModels.includes(m));
-            if (filtered.length > 0) {
-                list = filtered;
-            }
+            list.sort((a, b) => {
+                const aVal = fastModels.includes(a) ? fastModels.indexOf(a) : 99;
+                const bVal = fastModels.includes(b) ? fastModels.indexOf(b) : 99;
+                return aVal - bVal;
+            });
+        } else if (hasMedia) {
+            const multimodalModels = [
+                "google/gemini-2.5-flash",
+                "google/gemini-2.5-pro-preview",
+                "google/gemini-2.5-flash-lite"
+            ];
             list.sort((a, b) => {
                 const aIdx = multimodalModels.indexOf(a);
                 const bIdx = multimodalModels.indexOf(b);
                 return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
             });
         } else if (isCoding) {
-            // Programação: prefere modelos especializados em código
             const codingModels = [
                 "qwen/qwen3-coder:free",
-                "openai/gpt-oss-120b:free",
-                "poolside/laguna-m.1:free"
+                "google/gemini-2.5-pro-preview",
+                "google/gemini-2.5-flash",
+                "meta-llama/llama-3.3-70b-instruct:free"
             ];
             list.sort((a, b) => {
                 const aVal = codingModels.includes(a) ? codingModels.indexOf(a) : 99;
                 const bVal = codingModels.includes(b) ? codingModels.indexOf(b) : 99;
                 return aVal - bVal;
             });
-        } else if (hasTools) {
-            // Function Calling: modelos com melhor suporte a tools
-            const eliteToolsModels = [
-                "openai/gpt-oss-120b:free",
-                "qwen/qwen3-coder:free",
-                "poolside/laguna-m.1:free"
+        } else if (isReasoning || isComplex || hasTools) {
+            const reasoningModels = [
+                "deepseek/deepseek-r1:free",
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "google/gemini-2.5-pro-preview",
+                "z-ai/glm-4.5-air:free",
+                "google/gemini-2.5-flash"
             ];
             list.sort((a, b) => {
-                const aVal = eliteToolsModels.includes(a) ? eliteToolsModels.indexOf(a) : 99;
-                const bVal = eliteToolsModels.includes(b) ? eliteToolsModels.indexOf(b) : 99;
+                const aVal = reasoningModels.includes(a) ? reasoningModels.indexOf(a) : 99;
+                const bVal = reasoningModels.includes(b) ? reasoningModels.indexOf(b) : 99;
                 return aVal - bVal;
             });
         } else {
-            // Conversação geral
             const talkModels = [
-                "poolside/laguna-m.1:free",
-                "google/gemma-4-31b-it:free",
-                "openai/gpt-oss-120b:free",
-                "meta-llama/llama-3.2-3b-instruct:free"
+                "meta-llama/llama-3.3-70b-instruct:free",
+                "z-ai/glm-4.5-air:free",
+                "google/gemini-2.5-flash",
+                "google/gemini-2.5-pro-preview"
             ];
             list.sort((a, b) => {
                 const aVal = talkModels.includes(a) ? talkModels.indexOf(a) : 99;
@@ -1638,7 +2065,7 @@ class KeyRotationEngine {
     async executeWithRotation(history, prompt, tools, systemInstruction, isUserRequest = false) {
         let attempts = 0;
         const totalKeys = apiKeyManager.listKeys().length;
-        const maxKeyCycles = Math.min(Math.max(totalKeys, 2), 5); // Máximo 5 ciclos para evitar loops excessivos
+        const maxKeyCycles = Math.min(Math.max(totalKeys, 2), 3); // Máximo 3 ciclos para evitar loops excessivos
 
         // Circuit breaker: se faz mais de 2 minutos sem sucesso, reduz tentativas
         const timeSinceSuccess = Date.now() - this._lastSuccessTime;
@@ -1650,19 +2077,19 @@ class KeyRotationEngine {
             this.deadModels.clear();  // Dá nova chance aos modelos (podem ter voltado)
         }
 
-        // === FASE DE EMERGÊNCIA: Tenta modelos gratuitos independentemente das chaves ===
-        // Se todas as chaves estão em cooldown de crédito (402), os modelos :free
-        // ainda funcionam — pois não consomem crédito. Neste caso, usamos qualquer chave.
+        // === FASE DE EMERGÊNCIA: Tenta os modelos fortes independentemente das chaves ===
+        // Se todas as chaves estiverem em cooldown de crédito, ainda tentamos os modelos fortes
+        // com a chave ativa antes de desistir.
         const allKeys = apiKeyManager.listKeys();
         const now = Date.now();
         const allKeysInCooldown = allKeys.length > 0 && allKeys.every(k => (this.cooldowns.get(k) || 0) > now);
         if (allKeysInCooldown) {
-            Logger.warn("KeyRotationEngine", "Todas as chaves em cooldown de crédito. Escalando direto para modelos GRATUITOS (:free).");
+            Logger.warn("KeyRotationEngine", "Todas as chaves em cooldown de crédito. Escalando direto para modelos fortes.");
             const freeResult = await this._tryFreeModelsOnly(history, prompt, tools, systemInstruction, allKeys[0]);
             if (freeResult) return freeResult;
             // Se os gratuitos também falharam, desiste
             this._globalFailCount++;
-            throw new Error("O Bochecha esgotou todos os modelos gratuitos disponíveis. Verifique as APIs!");
+            throw new Error("O Bochecha esgotou todos os modelos fortes disponíveis. Verifique as APIs!");
         }
 
         while (attempts < maxKeyCycles) {
@@ -1694,63 +2121,39 @@ class KeyRotationEngine {
                         messages.push({ role: "system", content: systemInstruction });
                     }
 
+                    const compactHistory = Array.isArray(history) ? history.slice(-4) : [];
+
                     // Mapeia o histórico do formato Gemini para o formato OpenAI/OpenRouter
-                    if (history && Array.isArray(history)) {
-                        for (const h of history) {
+                    if (compactHistory && Array.isArray(compactHistory)) {
+                        for (const h of compactHistory) {
                             const role = h.role === "model" ? "assistant" : "user";
                             const content = (h.parts || []).map(p => p.text || "").join("\n").trim();
                             if (content) {
-                                messages.push({ role, content });
+                                messages.push({ role, content: this._truncateTextForModel(content, 900) });
                             }
                         }
                     }
 
                     // Adapta o prompt de entrada (textual, multimodal ou retorno de ferramentas) para o OpenRouter
-                    let finalContent;
-                    if (typeof prompt === 'string') {
-                        finalContent = prompt;
-                    } else if (Array.isArray(prompt)) {
-                        const isToolResponse = prompt.some(item => item && item.functionResponse);
-                        if (isToolResponse) {
-                            finalContent = prompt.map(item => {
-                                const fr = item.functionResponse;
-                                if (!fr) return "";
-                                const resString = typeof fr.response === 'object' ? (fr.response.result || JSON.stringify(fr.response)) : String(fr.response);
-                                return `[RETORNO DA FERRAMENTA: "${fr.name}"]\nResultado da execução:\n${resString}`;
-                            }).join("\n\n");
-                        } else {
-                            finalContent = [];
-                            for (const item of prompt) {
-                                if (item.text) {
-                                    finalContent.push({ type: "text", text: item.text });
-                                } else if (item.inlineData) {
-                                    finalContent.push({
-                                        type: "image_url",
-                                        image_url: {
-                                            url: `data:${item.inlineData.mimeType};base64,${item.inlineData.data}`
-                                        }
-                                    });
-                                }
-                            }
-                            if (finalContent.length === 1 && finalContent[0].type === "text") {
-                                finalContent = finalContent[0].text;
-                            }
-                        }
-                    } else {
-                        finalContent = String(prompt);
-                    }
-
+                    const finalContent = this._preparePromptContent(prompt);
                     messages.push({ role: "user", content: finalContent });
 
                     // Converte a declaração das Tools para o formato JSON Schema que o OpenRouter aceita nativamente
                     const openRouterTools = mapGeminiToolsToOpenRouter(tools);
 
+                    const normalizedModelName = this.modelNormalization[modelName] || this.modelNormalization[modelName?.toLowerCase?.()] || modelName;
+                    const promptText = typeof finalContent === 'string' ? finalContent : String(finalContent || '');
+                    const hasTools = Boolean(openRouterTools && openRouterTools.length > 0);
+                    const requestProfile = this._classifyRequest(prompt, tools, history);
+                    const isSimpleTurn = requestProfile.mode === 'fast' && !hasTools && promptText.length < 350 && (!history || history.length < 8);
                     const body = {
-                        model: modelName,
+                        model: normalizedModelName,
                         messages: messages,
-                        temperature: 0.7,
-                        frequency_penalty: 0.3,
-                        presence_penalty: 0.1
+                        temperature: requestProfile.mode === 'smart' ? 0.08 : 0.2,
+                        top_p: 0.8,
+                        frequency_penalty: 0.2,
+                        presence_penalty: 0.0,
+                        max_tokens: requestProfile.mode === 'smart' ? 380 : 160
                     };
 
                     if (openRouterTools && openRouterTools.length > 0) {
@@ -1789,11 +2192,10 @@ class KeyRotationEngine {
                     const message = choice.message;
                     const toolCalls = message.tool_calls;
                     const _rawReply = message.content || "";
-                    // Fallback se o modelo retornar resposta vazia sem tool_calls
-                    const _emptyFallbacks = ["oi", "ae", "q foi", "hmm", "opa", "tô aqui"];
-                    const textReply = (_rawReply.trim() === "" && (!toolCalls || toolCalls.length === 0))
-                        ? _emptyFallbacks[Math.floor(Math.random() * _emptyFallbacks.length)]
-                        : _rawReply;
+                    const textReply = (_rawReply || "").trim();
+                    if (!textReply && (!toolCalls || toolCalls.length === 0)) {
+                        throw new Error("Modelo retornou conteúdo vazio; tentando próximo modelo.");
+                    }
 
                     // Sucesso absoluto nas medições
                     const latency = Date.now() - startTime;
@@ -1882,16 +2284,62 @@ class KeyRotationEngine {
                     }
 
                     // ═══ ERRO 402: Sem crédito / saldo insuficiente ═══
-                    // 402 é SOMENTE sobre crédito — afeta apenas modelos PAGOS.
-                    // Modelos :free NÃO consomem crédito. Se o modelo atual é pago, pula
-                    // imediatamente para os modelos gratuitos sem mudar de chave.
                     if (httpStatus === 402 || msg.includes("402") || msg.includes("requires more credits") || msg.includes("insufficient")) {
-                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} sem crédito (402). Pulando para modelos GRATUITOS nesta chave.`);
-                        this.cooldowns.set(activeKey, Date.now() + 10 * 60 * 1000); // 10 min cooldown para modelos pagos
-                        // Tenta os modelos gratuitos com a mesma chave (eles não precisam de crédito)
-                        const freeResult = await this._tryFreeModelsOnly(history, prompt, tools, systemInstruction, activeKey);
-                        if (freeResult) return freeResult;
-                        break; // Gratuitos também falharam — pula para próxima chave
+                        Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} sem crédito (402). Tentando provedor alternativo antes do fallback local.`);
+                        this.cooldowns.set(activeKey, Date.now() + 10 * 60 * 1000);
+
+                        if (apiKeyManager.listClaudeKeys().length > 0) {
+                            try {
+                                const claudeResult = await this.executeClaudeWithRotation(history, prompt, tools, systemInstruction);
+                                this._globalFailCount = 0;
+                                this._lastSuccessTime = Date.now();
+                                return {
+                                    chat: {
+                                        getHistory: () => {
+                                            const hist = [...history];
+                                            hist.push({ role: "user", parts: [{ text: typeof prompt === 'string' ? prompt : JSON.stringify(prompt) }] });
+                                            hist.push({ role: "model", parts: [{ text: claudeResult.response.response.text() }] });
+                                            return hist;
+                                        }
+                                    },
+                                    response: claudeResult.response,
+                                    modelName: claudeResult.modelName
+                                };
+                            } catch (claudeErr) {
+                                Logger.warn("KeyRotationEngine", `Fallback Claude também falhou: ${String(claudeErr.message || claudeErr).substring(0, 120)}`);
+                            }
+                        }
+
+                        break;
+                    }
+
+                    // ═══ Limite de tokens / prompt grande ═══
+                    if (msg.includes("Prompt tokens limit exceeded") || msg.includes("max_tokens") || msg.includes("context length")) {
+                        Logger.warn("KeyRotationEngine", `Prompt grande demais para o modelo atual. Tentando provedor alternativo antes do fallback local.`);
+
+                        if (apiKeyManager.listClaudeKeys().length > 0) {
+                            try {
+                                const claudeResult = await this.executeClaudeWithRotation(history, prompt, tools, systemInstruction);
+                                this._globalFailCount = 0;
+                                this._lastSuccessTime = Date.now();
+                                return {
+                                    chat: {
+                                        getHistory: () => {
+                                            const hist = [...history];
+                                            hist.push({ role: "user", parts: [{ text: typeof prompt === 'string' ? prompt : JSON.stringify(prompt) }] });
+                                            hist.push({ role: "model", parts: [{ text: claudeResult.response.response.text() }] });
+                                            return hist;
+                                        }
+                                    },
+                                    response: claudeResult.response,
+                                    modelName: claudeResult.modelName
+                                };
+                            } catch (claudeErr) {
+                                Logger.warn("KeyRotationEngine", `Fallback Claude também falhou: ${String(claudeErr.message || claudeErr).substring(0, 120)}`);
+                            }
+                        }
+
+                        break;
                     }
 
                     // ═══ ERRO 401/403: Chave inválida/banida ═══
@@ -1930,9 +2378,10 @@ class KeyRotationEngine {
      * Estes modelos não consomem crédito — funcionam mesmo com chaves 402.
      */
     async _tryFreeModelsOnly(history, prompt, tools, systemInstruction, activeKey) {
-        const freeModels = this.freeModels.filter(m => !this.deadModels.has(m));
+        const prioritizedFreeModels = this._getPrioritizedModels(prompt, tools).filter(m => this.freeModels.includes(m) && !this.deadModels.has(m));
+        const freeModels = prioritizedFreeModels.length > 0 ? prioritizedFreeModels : this.freeModels.filter(m => !this.deadModels.has(m));
         if (freeModels.length === 0) {
-            Logger.warn("KeyRotationEngine", "Todos os modelos gratuitos estão marcados como mortos. Limpando e retentando.");
+            Logger.warn("KeyRotationEngine", "Todos os modelos fortes estão marcados como mortos. Limpando e retentando.");
             // Limpa apenas os gratuitos do deadModels
             for (const m of this.freeModels) this.deadModels.delete(m);
             freeModels.push(...this.freeModels);
@@ -1940,44 +2389,34 @@ class KeyRotationEngine {
 
         for (const modelName of freeModels) {
             try {
-                Logger.info("KeyRotationEngine", `[FREE] Tentando modelo gratuito: ${modelName} | Token: ${activeKey.substring(0, 8)}...`);
+                Logger.info("KeyRotationEngine", `[STRONG] Tentando modelo forte: ${modelName} | Token: ${activeKey.substring(0, 8)}...`);
 
                 const messages = [];
                 if (systemInstruction) messages.push({ role: "system", content: systemInstruction });
-                if (history && Array.isArray(history)) {
-                    for (const h of history) {
+                const compactHistory = Array.isArray(history) ? history.slice(-6) : [];
+                if (compactHistory && Array.isArray(compactHistory)) {
+                    for (const h of compactHistory) {
                         const role = h.role === "model" ? "assistant" : "user";
                         const content = (h.parts || []).map(p => p.text || "").join("\n").trim();
-                        if (content) messages.push({ role, content });
+                        if (content) messages.push({ role, content: this._truncateTextForModel(content, 900) });
                     }
                 }
 
-                let finalContent;
-                if (typeof prompt === 'string') {
-                    finalContent = prompt;
-                } else if (Array.isArray(prompt)) {
-                    const isToolResponse = prompt.some(item => item && item.functionResponse);
-                    if (isToolResponse) {
-                        finalContent = prompt.map(item => {
-                            const fr = item.functionResponse;
-                            if (!fr) return "";
-                            const resString = typeof fr.response === 'object' ? (fr.response.result || JSON.stringify(fr.response)) : String(fr.response);
-                            return `[RETORNO DA FERRAMENTA: "${fr.name}"]\nResultado da execução:\n${resString}`;
-                        }).join("\n\n");
-                    } else {
-                        const parts = [];
-                        for (const item of prompt) {
-                            if (item.text) parts.push({ type: "text", text: item.text });
-                        }
-                        finalContent = parts.length === 1 && parts[0].type === 'text' ? parts[0].text : parts.map(p => p.text || '').join(' ');
-                    }
-                } else {
-                    finalContent = String(prompt);
-                }
+                const finalContent = this._preparePromptContent(prompt);
                 messages.push({ role: "user", content: finalContent });
 
-                const body = { model: modelName, messages, temperature: 0.7 };
+                const normalizedModelName = this.modelNormalization[modelName] || this.modelNormalization[modelName?.toLowerCase?.()] || modelName;
                 const openRouterTools = mapGeminiToolsToOpenRouter(tools);
+                const promptText = typeof finalContent === 'string' ? finalContent : String(finalContent || '');
+                const hasTools = Boolean(openRouterTools && openRouterTools.length > 0);
+                const requestProfile = this._classifyRequest(prompt, tools, history);
+                const isSimpleTurn = requestProfile.mode === 'fast' && !hasTools && promptText.length < 350 && (!history || history.length < 8);
+                const body = {
+                    model: normalizedModelName,
+                    messages,
+                    temperature: requestProfile.mode === 'smart' ? 0.12 : 0.24,
+                    max_tokens: requestProfile.mode === 'smart' ? 260 : 140
+                };
                 if (openRouterTools && openRouterTools.length > 0) {
                     body.tools = openRouterTools;
                     body.tool_choice = "auto";
@@ -2012,18 +2451,17 @@ class KeyRotationEngine {
                 const message = choice.message;
                 const toolCalls = message.tool_calls;
                 const _rawReply2 = message.content || "";
-                // Fallback se o modelo retornar resposta vazia sem tool_calls
-                const _emptyFallbacks2 = ["oi", "ae", "q foi", "hmm", "opa", "tô aqui"];
-                const textReply = (_rawReply2.trim() === "" && (!toolCalls || toolCalls.length === 0))
-                    ? _emptyFallbacks2[Math.floor(Math.random() * _emptyFallbacks2.length)]
-                    : _rawReply2;
+                const textReply = (_rawReply2 || "").trim();
+                if (!textReply && (!toolCalls || toolCalls.length === 0)) {
+                    throw new Error("Modelo gratuito retornou conteúdo vazio; tentando próximo modelo.");
+                }
 
                 this._globalFailCount = 0;
                 this._lastSuccessTime = Date.now();
                 this.metrics.successRequests++;
                 this.metrics.modelHits[modelName] = (this.metrics.modelHits[modelName] || 0) + 1;
 
-                Logger.info("KeyRotationEngine", `[FREE] Sucesso com modelo gratuito: ${modelName}`);
+                Logger.info("KeyRotationEngine", `[STRONG] Sucesso com modelo forte: ${modelName}`);
 
                 const responseMock = {
                     response: {
@@ -2050,7 +2488,7 @@ class KeyRotationEngine {
             } catch (e) {
                 const httpStatus = e.httpStatus || 0;
                 const msg = String(e.message || e);
-                Logger.warn("KeyRotationEngine", `[FREE] Falha em ${modelName}: ${msg.substring(0, 100)}`);
+                Logger.warn("KeyRotationEngine", `[STRONG] Falha em ${modelName}: ${msg.substring(0, 100)}`);
                 
                 if (httpStatus === 429 || msg.includes("429") || msg.includes("rate limit") || msg.includes("quota")) {
                     Logger.warn("KeyRotationEngine", `Chave ${activeKey.substring(0, 12)} rate-limited (429) em modelo gratuito. Pulando chave.`);
@@ -2065,7 +2503,7 @@ class KeyRotationEngine {
             }
         }
 
-        Logger.error("KeyRotationEngine", "Todos os modelos gratuitos falharam para esta chave.");
+        Logger.error("KeyRotationEngine", "Todos os modelos fortes falharam para esta chave.");
         return null; // Indica falha — caller vai pular para próxima chave
     }
 
@@ -2162,49 +2600,7 @@ class KeyRotationEngine {
     }
 
     generateOfflineResponse(prompt) {
-        const text = this._extractTextFromPrompt(prompt).toLowerCase().trim();
-        
-        const greetings = ["oi", "ola", "bom dia", "boa tarde", "boa noite", "fala", "salve", "eae", "ae", "coé", "opa"];
-        const isGreeting = greetings.some(g => text.startsWith(g) || text.includes(" " + g + " ") || text === g);
-        
-        const isQuestion = text.includes("?") || 
-            /^(como|por\s*que|pq|quem|quando|onde|qual|quais|o\s*que|oque)\b/.test(text);
-            
-        const isCommand = text.startsWith("/") || 
-            /\b(ajuda|menu|comandos|ferramentas|lista|desliga|reinicia|apaga|deleta|executa|roda|limpa|toca|play)\b/.test(text);
-
-        let choices;
-        if (isCommand) {
-            choices = [
-                "Mano, tentar rodar comandos complexos sem conexão com o cérebro principal da IA é pedir pra dar ruim. Minhas APIs tão em manutenção/esgotadas. Tenta de novo em alguns minutos! 🛠️",
-                "Ih, chapa. Esse comando aí exige conexão ativa com a API e as chaves estão todas zeradas ou em cooldown. Não consigo rodar essa ferramenta agora. 🚫",
-                "Opção indisponível no modo de emergência offline. Quando as chaves de API voltarem a funcionar eu executo isso pra você sem falta! ⏳",
-                "Vixi, o motor principal tá desligado por falta de saldo/chaves. Não consigo processar comandos de IA agora. Tenta comandos diretos do WhatsApp! 🔌"
-            ];
-        } else if (isGreeting) {
-            choices = [
-                "Eae, parceiro! Beleza? O sinal aqui tá meio oscilando na quebrada, mas tô na escuta. Como posso ajudar? 📡",
-                "Salve, mano! Tranquilo? O servidor tá oscilando um pouco agora, mas manda a visão aí. 👊",
-                "Fala parceiro! Meu cérebro principal tá dando uma respirada por falta de sinal da API, mas diz aí o que tá pegando! 💨",
-                "Coé! Tudo na paz? Tô rodando em modo econômico offline agora porque a conexão com a central caiu, mas manda a boa! ⚡"
-            ];
-        } else if (isQuestion) {
-            choices = [
-                "Rapaz, essa pergunta é profunda, hein? Mas ó, tô rodando em modo offline temporário (esgotou as chaves de API), então não consigo acessar meus dados completos pra te dar aquela resposta cirúrgica. Pergunta outra coisa mais simples! 🧠",
-                "Putz, me pegou agora. Minha conexão com as redes neurais caiu por falta de API key ativa. Offline eu fico meio limitado, sabe como é. Manda outra aí! 🔌",
-                "Olha, se eu tivesse conectado na nuvem agora te explicava tudo tim-tim por tim-tim. Mas as chaves da API esgotaram. Segura as pontas ou tenta mais tarde! ☁️",
-                "Minha inteligência principal tá de folga forçada (chaves de API zeradas). Offline eu sou só um bot humilde, não consigo pesquisar isso agora. Manda uma mais fácil! 📴"
-            ];
-        } else {
-            choices = [
-                "Visão! O negócio tá meio instável na rede das APIs agora, então tô respondendo em modo offline de emergência. O que tá mandando? 📶",
-                "Mano, tô operando com o gerador reserva aqui! As chaves de API caíram todas. Mas não te deixo no vácuo de jeito nenhum. Tenta falar comigo mais tarde. 🔋",
-                "Tranquilidade! Minha mente principal tá offline agora (todas as chaves em cooldown ou expiradas), mas o Bochecha tá sempre na atividade. O que manda? 😎",
-                "A chapa esquentou nas conexões da API e caímos no modo offline. Mas manda sua mensagem aí, quem sabe eu não te ajudo do jeito que dá. 🛠️"
-            ];
-        }
-        
-        return choices[Math.floor(Math.random() * choices.length)];
+        return buildOfflineFallbackResponse(prompt);
     }
 }
 
@@ -2222,8 +2618,8 @@ global.keyRotator = keyRotator;
  */
 class DialogSession {
     constructor() {
-        this.maxMessages = 10; // Limite de gatilho para sumarização (salva no máximo 10 mensagens)
-        this.targetHistoryLength = 4; // Quanto manter intacto após sumarizar (mantém as últimas 4 mensagens + resumo)
+        this.maxMessages = 120; // Limite de gatilho para sumarização (salva no máximo N mensagens antes de resumir)
+        this.targetHistoryLength = 30; // Quanto manter intacto após sumarizar (mantém as últimas 30 mensagens + resumo)
         this.summaries = new Map();
         this.compressing = new Set(); // Evita compressões concorrentes para o mesmo chat
     }
@@ -2435,6 +2831,7 @@ const sessionManager = new DialogSession();
 // ══════════════════════════════════════════════════════════════════════════
 const googleTTS = require('google-tts-api');
 const https = require('https');
+const { hasValidAudioBuffer, shouldPreferAudioReply } = require('./lib/voice_utils');
 
 class VoiceSynthesizer {
     static checkFFmpeg() {
@@ -2453,13 +2850,11 @@ class VoiceSynthesizer {
         });
     }
 
-    static convertMp3ToMp4Aac(mp3Buffer, voicePreset = "antonio") {
+    static convertMp3ToOggOpus(mp3Buffer, voicePreset = "antonio") {
         return new Promise((resolve, reject) => {
             const ffmpegPath = require('ffmpeg-static');
-            
-            // Define filtros de FFmpeg baseado no voicePreset para zoeira
             let filterString = '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]';
-            
+
             if (voicePreset === "helio") {
                 filterString = '[0:a]asetrate=48000*1.55,atempo=1/1.55[out_voice];[out_voice][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]';
             } else if (voicePreset === "grave") {
@@ -2471,47 +2866,69 @@ class VoiceSynthesizer {
             }
 
             const ffmpeg = spawn(ffmpegPath, [
-                '-i', 'pipe:0',                                   // Entrada 0 (Voz MP3)
-                '-f', 'lavfi',                                    // Habilita filtro virtual
-                '-i', 'anoisesrc=c=pink:amp=0.003:r=48000',       // Entrada 1 (Procedural pink noise para room tone realista)
-                '-filter_complex', filterString,                  // Aplica o filtro de áudio
-                '-map', '[a]',                                    // Mapeia a saída mixada
-                '-c:a', 'aac',                                    // Codec AAC (compatibilidade 100% universal para iOS e Android!)
-                '-b:a', '48k',                                    // Bitrate de áudio de alta performance
-                '-ac', '1',                                       // Mono
-                '-f', 'mp4',                                      // Container MP4 fragmentado
-                '-movflags', 'frag_keyframe+empty_moov',          // Permite streaming de MP4 fragmentado via pipe
-                'pipe:1'                                          // Saída via stdout
+                '-i', 'pipe:0',
+                '-f', 'lavfi',
+                '-i', 'anoisesrc=c=pink:amp=0.003:r=48000',
+                '-filter_complex', filterString,
+                '-map', '[a]',
+                '-c:a', 'libopus',
+                '-b:a', '32k',
+                '-ac', '1',
+                '-f', 'ogg',
+                'pipe:1'
             ]);
 
             const chunks = [];
             ffmpeg.stdout.on('data', (chunk) => chunks.push(chunk));
-            ffmpeg.stderr.on('data', () => {}); // Silencia logs de aviso
+            ffmpeg.stderr.on('data', () => {});
             ffmpeg.on('close', (code) => {
-                if (code === 0) {
-                    resolve(Buffer.concat(chunks));
-                } else {
-                    reject(new Error(`FFmpeg exit code ${code}`));
-                }
+                if (code === 0) resolve(Buffer.concat(chunks));
+                else reject(new Error(`FFmpeg exit code ${code}`));
             });
             ffmpeg.on('error', reject);
-
             ffmpeg.stdin.write(mp3Buffer);
             ffmpeg.stdin.end();
         });
     }
 
-    static async speak(sock, chatId, text, msgRef, voicePreset = "antonio") {
+    // Conversão simples MP3 → OGG Opus sem efeitos (mais confiável)
+    static convertMp3ToOggSimples(mp3Buffer) {
+        return new Promise((resolve, reject) => {
+            const ffmpegPath = require('ffmpeg-static');
+            const ffmpeg = spawn(ffmpegPath, [
+                '-i', 'pipe:0',
+                '-c:a', 'libopus',
+                '-b:a', '32k',
+                '-ac', '1',
+                '-f', 'ogg',
+                'pipe:1'
+            ]);
+            const chunks = [];
+            ffmpeg.stdout.on('data', (chunk) => chunks.push(chunk));
+            ffmpeg.stderr.on('data', () => {});
+            ffmpeg.on('close', (code) => {
+                if (code === 0) resolve(Buffer.concat(chunks));
+                else reject(new Error(`FFmpeg simples exit code ${code}`));
+            });
+            ffmpeg.on('error', reject);
+            ffmpeg.stdin.write(mp3Buffer);
+            ffmpeg.stdin.end();
+        });
+    }
+
+    static async speak(sock, chatId, text, msgRef = null, voicePreset = "antonio", options = {}) {
         try {
             Logger.info("VoiceSynthesizer", `Gerando voz humana premium (${voicePreset}) para: "${text.substring(0, 40)}..."`);
             
-            // Trunca o texto para evitar áudios longos demais no chat
             const cleanText = text.substring(0, 500);
-
-            // Importa a biblioteca Edge TTS de forma segura
             const { UniversalEdgeTTS } = require('edge-tts-universal');
+            const sendOptions = { ...options };
+            if (options.quoted === true || options.reply === true) {
+                sendOptions.quoted = msgRef;
+            } else {
+                delete sendOptions.quoted;
+            }
             
-            // Mapeia o preset para a voz correspondente do Microsoft Azure
             let edgeVoice = 'pt-BR-AntonioNeural';
             if (voicePreset === "francisca" || voicePreset === "mulher") {
                 edgeVoice = 'pt-BR-FranciscaNeural';
@@ -2521,45 +2938,97 @@ class VoiceSynthesizer {
                 edgeVoice = 'pt-BR-DuarteNeural';
             }
             
-            const tts = new UniversalEdgeTTS(cleanText, edgeVoice);
+            // Para presets neurais aplicamos SSML leve para melhorar naturalidade (pausas e prosódia)
+            let ttsInput = cleanText;
+            if (voicePreset !== 'antonio') {
+                const ssmlBody = cleanText
+                    .replace(/\n{2,}/g, '<break time="450ms"/>')
+                    .replace(/\n/g, '<break time="220ms"/>')
+                    .replace(/\.\s+/g, '.<break time="200ms"/> ');
+                ttsInput = `<speak><prosody rate="0.98" pitch="-1%">${ssmlBody}</prosody></speak>`;
+            }
+
+            const tts = new UniversalEdgeTTS(ttsInput, edgeVoice);
             const result = await tts.synthesize();
-            
-            // Converte Blob do áudio sintetizado para Buffer do NodeJS
             const arrayBuffer = await result.audio.arrayBuffer();
-            const finalBuffer = Buffer.from(arrayBuffer);
+            const mp3Buffer = Buffer.from(arrayBuffer);
+
+            if (!hasValidAudioBuffer(mp3Buffer)) {
+                Logger.warn("VoiceSynthesizer", "Nenhum áudio válido recebido do motor TTS. Enviando resposta em texto.");
+                if (sock) {
+                    try {
+                        await sock.sendMessage(chatId, { text: cleanText }, sendOptions);
+                    } catch (sendErr) {
+                        Logger.warn("VoiceSynthesizer.TextFallback", sendErr.message);
+                    }
+                }
+                return true;
+            }
 
             const hasFFmpeg = await this.checkFFmpeg();
             if (hasFFmpeg) {
-                try {
-                    Logger.info("VoiceSynthesizer", `FFmpeg disponível. Convertendo MP3 com filtro preset '${voicePreset}'...`);
-                    const mp4Buffer = await this.convertMp3ToMp4Aac(finalBuffer, voicePreset);
-                    
-                    if (sock) {
-                        await sock.sendMessage(chatId, {
-                            audio: mp4Buffer,
-                            mimetype: 'audio/mp4',
-                            ptt: true
-                        }, { quoted: msgRef });
+                // Para presets especiais tenta com efeitos (pink noise)
+                if (voicePreset !== "antonio") {
+                    try {
+                        Logger.info("VoiceSynthesizer", `Convertendo com preset '${voicePreset}'...`);
+                        const oggBuffer = await this.convertMp3ToOggOpus(mp3Buffer, voicePreset);
+                        if (sock) {
+                            try {
+                                await sock.sendMessage(chatId, {
+                                    audio: oggBuffer,
+                                    mimetype: 'audio/ogg; codecs=opus',
+                                    ptt: true
+                                }, sendOptions);
+                            } catch (sendErr) {
+                                Logger.warn("VoiceSynthesizer.AudioFallback", sendErr.message);
+                                await sock.sendMessage(chatId, { text: cleanText }, sendOptions);
+                            }
+                        }
+                        Logger.success("VoiceSynthesizer", "Áudio com preset enviado como nota de voz!");
+                        return true;
+                    } catch (convErr) {
+                        Logger.warn("VoiceSynthesizer", `Preset falhou: ${convErr.message}. Tentando conversão simples...`);
                     }
-                    
-                    Logger.success("VoiceSynthesizer", "Áudio de resposta humana enviado como nota de voz nativa!");
+                }
+
+                // Conversão simples MP3 → OGG Opus (sem ruído, mais confiável)
+                try {
+                    Logger.info("VoiceSynthesizer", "Convertendo MP3 para OGG Opus...");
+                    const oggBuffer = await this.convertMp3ToOggSimples(mp3Buffer);
+                    if (sock) {
+                        try {
+                            await sock.sendMessage(chatId, {
+                                audio: oggBuffer,
+                                mimetype: 'audio/ogg; codecs=opus',
+                                ptt: true
+                            }, sendOptions);
+                        } catch (sendErr) {
+                            Logger.warn("VoiceSynthesizer.AudioFallback", sendErr.message);
+                            await sock.sendMessage(chatId, { text: cleanText }, sendOptions);
+                        }
+                    }
+                    Logger.success("VoiceSynthesizer", "Áudio enviado como nota de voz nativa!");
                     return true;
-                } catch (convErr) {
-                    Logger.error("VoiceSynthesizer.conversion", convErr.message);
+                } catch (simpleErr) {
+                    Logger.error("VoiceSynthesizer.OggSimples", simpleErr.message);
                 }
             }
 
-            // Fallback robusto se FFmpeg não estiver disponível no servidor: envia em MP4 como player (ptt: false)
-            Logger.warn("VoiceSynthesizer", "FFmpeg indisponível no servidor. Enviando áudio em formato player MP4 (ptt: false) para compatibilidade universal...");
+            // Fallback final: envia MP3 com mimetype correto
+            Logger.warn("VoiceSynthesizer", "FFmpeg indisponível. Enviando MP3 bruto como nota de voz...");
             if (sock) {
-                await sock.sendMessage(chatId, {
-                    audio: finalBuffer,
-                    mimetype: 'audio/mp4',
-                    ptt: false
-                }, { quoted: msgRef });
+                try {
+                    await sock.sendMessage(chatId, {
+                        audio: mp3Buffer,
+                        mimetype: 'audio/mp4',
+                        ptt: true
+                    }, sendOptions);
+                } catch (sendErr) {
+                    Logger.warn("VoiceSynthesizer.AudioFallback", sendErr.message);
+                    await sock.sendMessage(chatId, { text: cleanText }, sendOptions);
+                }
             }
-
-            Logger.success("VoiceSynthesizer", "Áudio de resposta humana enviado com sucesso!");
+            Logger.success("VoiceSynthesizer", "Áudio MP3 enviado como nota de voz!");
             return true;
         } catch (e) {
             Logger.error("VoiceSynthesizer.speak", e);
@@ -2854,12 +3323,26 @@ class SkillRegistry {
                     
                     try {
                         const axios = require('axios');
-                        const promptEncoded = encodeURIComponent(args.prompt);
-                        const url = `https://image.pollinations.ai/prompt/${promptEncoded}?width=512&height=512&nologo=true`;
-                        
-                        Logger.info("ProfilePicSkill", `Requisitando imagem foda do Pollinations: ${args.prompt}`);
-                        const response = await axios.get(url, { responseType: 'arraybuffer', timeout: 15000 });
-                        const buffer = Buffer.from(response.data);
+                        const FormData = require('form-data');
+                        const formData = new FormData();
+                        formData.append('text', args.prompt);
+
+                        Logger.info("ProfilePicSkill", `Requisitando imagem foda do DeepAI: ${args.prompt}`);
+                        const response = await axios.post('https://api.deepai.org/api/text2img', formData, {
+                            headers: {
+                                'api-key': 'skipped',
+                                ...formData.getHeaders()
+                            },
+                            timeout: 30000
+                        });
+
+                        const imageUrl = response.data.output_url;
+                        if (!imageUrl) {
+                            return `Erro: A API não retornou uma URL válida.`;
+                        }
+
+                        const buffer_response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 15000 });
+                        const buffer = Buffer.from(buffer_response.data);
                         
                         Logger.info("ProfilePicSkill", "Aplicando nova foto de perfil no grupo WhatsApp...");
                         await ctx.sock.updateProfilePicture(ctx.chatId, buffer);
@@ -2985,8 +3468,28 @@ class ModerationSystem {
         this.floodImunity = new Set();
     }
 
+    async isProtectedTarget(sock, chatId, targetUser) {
+        const cleanTarget = String(targetUser || "").split('@')[0];
+        const myNumber = String(sock.user?.id || "").split(':')[0];
+        if (!cleanTarget) return false;
+
+        if (cleanTarget === myNumber) return true;
+        if (DEFAULT_OWNERS.includes(cleanTarget)) return true;
+        if (!chatId.endsWith('@g.us')) return false;
+
+        try {
+            const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await sock.groupMetadata(chatId);
+            const participants = metadata.participants || [];
+            const found = participants.find(p => p.id.split('@')[0] === cleanTarget);
+            return Boolean(found && (found.admin === 'admin' || found.admin === 'superadmin'));
+        } catch (metaErr) {
+            Logger.error("ModerationSystem.isProtectedTarget.Metadata", metaErr);
+            return false;
+        }
+    }
+
     /**
-     * Remove um participante com segurança, resolvendo IDs LID vs JID real e rebaixando se for admin.
+     * Remove um participante com segurança, resolvendo IDs LID vs JID real e evitando expulsar administradores.
      */
     async safeRemove(sock, chatId, targetUser) {
         let participantJid = targetUser;
@@ -2999,12 +3502,8 @@ class ModerationSystem {
                 if (found) {
                     participantJid = found.id;
                     if (found.admin === 'admin' || found.admin === 'superadmin') {
-                        Logger.info("ModerationSystem.safeRemove", `Rebaixando admin ${participantJid} antes da expulsão.`);
-                        try {
-                            await sock.groupParticipantsUpdate(chatId, [participantJid], 'demote');
-                        } catch (demoteErr) {
-                            Logger.error("ModerationSystem.safeRemove.Demote", demoteErr);
-                        }
+                        Logger.warn("ModerationSystem.safeRemove", `Protegido contra remoção: ${participantJid}`);
+                        throw new Error("Protected target");
                     }
                 }
             } catch (metaErr) {
@@ -3063,12 +3562,17 @@ class ModerationSystem {
                     });
                 } catch (e) {
                     Logger.error("ModerationSystem.AutoBan", e);
-                    
-                    // Se falhar por permissão (não é admin), avisa no grupo
-                    await sock.sendMessage(chatId, {
-                        text: `⚠️ *SPAM DETECTADO* ⚠️\n\nO membro @${cleanUser} excedeu o limite máximo de advertências por flood (${warns}/3 advertências).\n\nEu gostaria de removê-lo, mas não sou administrador deste grupo para efetuar o banimento físico. Administradores, por favor, retirem o spammer! 💀`,
-                        mentions: [userId]
-                    });
+                    if (e.message === "Protected target") {
+                        await sock.sendMessage(chatId, {
+                            text: `⚠️ *SPAM DETECTADO* ⚠️\n\nO membro @${cleanUser} é administrador ou protegido e não pode ser expulso automaticamente. Administradores humanos, por favor, tomem a ação necessária!`,
+                            mentions: [userId]
+                        });
+                    } else {
+                        await sock.sendMessage(chatId, {
+                            text: `⚠️ *SPAM DETECTADO* ⚠️\n\nO membro @${cleanUser} excedeu o limite máximo de advertências por flood (${warns}/3 advertências).\n\nEu gostaria de removê-lo, mas não sou administrador deste grupo para efetuar o banimento físico. Administradores, por favor, retirem o spammer! 💀`,
+                            mentions: [userId]
+                        });
+                    }
                 }
             } else {
                 await sock.sendMessage(chatId, {
@@ -3187,8 +3691,35 @@ class SecuritySystem {
 
             if (newLvl > currentLvl) {
                 db[chatId][primaryKey].level = newLvl;
+
+                // 🎁 RECOMPENSA DE MOEDAS POR LEVEL UP
+                const coinsReward = newLvl * 50; // 50 moedas por nível (level 2 = 100, level 5 = 250...)
+                const userJid = userPN || userLID || userId;
+                await storage.addCoins(chatId, userJid, coinsReward);
+
+                // 🏅 PODERES ESPECIAIS por level
+                let extraMsg = '';
+                const powerLevels = { 5: true, 10: true, 15: true, 20: true, 25: true };
+                if (powerLevels[newLvl] || newLvl % 25 === 0) {
+                    // Concede "Poder de Mute" por 1 hora — pode usar silenciar sem pagar moedas
+                    if (!global.levelPowers) global.levelPowers = new Map();
+                    global.levelPowers.set(`${chatId}-${userJid}`, {
+                        type: 'mute_gratis',
+                        expiresAt: Date.now() + 60 * 60 * 1000 // 1 hora
+                    });
+                    extraMsg = `\n\n⚡ *PODER DESBLOQUEADO!* Você ganhou *1 hora de Mute Grátis*! Use agora para calar quem quiser! 🔇💀`;
+                }
+
+                let levelTitle = '';
+                if (newLvl >= 25) levelTitle = '👑 LENDA DO SUBMUNDO';
+                else if (newLvl >= 20) levelTitle = '🔥 PREDADOR';
+                else if (newLvl >= 15) levelTitle = '⚔️ GLADIADOR DIGITAL';
+                else if (newLvl >= 10) levelTitle = '🛡️ SUB-INQUISIDOR';
+                else if (newLvl >= 5) levelTitle = '💀 AGENTE DAS SOMBRAS';
+                else levelTitle = '🎮 INICIADO';
+
                 await sock.sendMessage(chatId, {
-                    text: `🆙 *LEVEL UP!* @${userId.split('@')[0]} alcançou o nível *${newLvl}* no grupo! 🎉`,
+                    text: `🆙 *LEVEL UP!* @${userId.split('@')[0]} alcançou o nível *${newLvl}* — *${levelTitle}*! 🎉\n\n🪙 *+${coinsReward} Bochecha-Coins* de recompensa adicionados na sua carteira!${extraMsg}`,
                     mentions: [userId]
                 });
             }
@@ -3586,6 +4117,70 @@ class SchedulerSystem {
  * estáticas com contextos dinâmicos do canal de chat em tempo real.
  */
 class PromptComposer {
+    _collectRecentWorkspaceFiles(dir, files, depth = 0) {
+        if (depth > 3) return;
+        const skipDirs = new Set([".git", "node_modules", "bochecha_sessao", "bochecha_sessao_backup", "media", "temp_media", "temp", "scratch"]);
+        const allowedExts = new Set([".js", ".json", ".md", ".txt", ".ts", ".py", ".yml", ".yaml", ".env", ".sql", ".html", ".css"]);
+
+        try {
+            const entries = fs.readdirSync(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    if (skipDirs.has(entry.name)) continue;
+                    this._collectRecentWorkspaceFiles(fullPath, files, depth + 1);
+                } else if (entry.isFile()) {
+                    const ext = path.extname(entry.name).toLowerCase();
+                    if (!allowedExts.has(ext)) continue;
+                    const relPath = path.relative(ROOT_DIR, fullPath).replace(/\\/g, "/");
+                    if (!relPath || relPath === ".") continue;
+                    const stat = fs.statSync(fullPath);
+                    files.push({ relPath, mtimeMs: stat.mtimeMs });
+                }
+            }
+        } catch (e) {
+            Logger.warn("PromptComposer.WorkspaceSnapshot", `Falha ao ler ${dir}: ${e.message}`);
+        }
+    }
+
+    getWorkspaceSnapshot(limit = 8) {
+        try {
+            const files = [];
+            this._collectRecentWorkspaceFiles(ROOT_DIR, files);
+            files.sort((a, b) => b.mtimeMs - a.mtimeMs);
+
+            const recentLines = files.slice(0, limit).map(file => {
+                const when = moment(file.mtimeMs).tz("America/Sao_Paulo").format("DD/MM HH:mm");
+                return `- ${file.relPath} (${when})`;
+            });
+
+            const gitLines = [];
+            try {
+                const gitStatus = execFileSync("git", ["status", "--short"], {
+                    cwd: ROOT_DIR,
+                    encoding: "utf8",
+                    timeout: 5000
+                }).trim();
+
+                if (gitStatus) {
+                    gitStatus.split(/\r?\n/).slice(0, 6).forEach(line => {
+                        gitLines.push(`- git: ${line}`);
+                    });
+                }
+            } catch (e) {
+                // Silencioso: git pode não existir ou não estar inicializado.
+            }
+
+            const lines = [...recentLines, ...gitLines];
+            if (lines.length === 0) return "";
+
+            return `\n[SNAPSHOT LOCAL DO PC/WORKSPACE]:\n- Diretório base: ${ROOT_DIR}\n- Arquivos recentes e mudanças locais:\n${lines.join("\n")}\n- Use este snapshot como referência quando o usuário falar sobre arquivos, mudanças no PC, pasta do projeto, estado do servidor ou contexto local. Se não houver confirmação explícita, não invente detalhes.`;
+        } catch (e) {
+            Logger.warn("PromptComposer.WorkspaceSnapshot", e.message);
+            return "";
+        }
+    }
+
     /**
      * Compõe as instruções de sistema ideais.
      */
@@ -3655,10 +4250,8 @@ class PromptComposer {
             ? "Você está rodando diretamente no PC pessoal do Marcos, na pasta c:\\Bochecha-IA, em ambiente de testes/desenvolvimento local na casa dele." 
             : "Você está rodando na VPS Host de Produção (Servidor em Nuvem), ativo 24/7 com máxima performance.";
 
-        const isLid = userData.userId && userData.userId.endsWith('@lid');
-        const mentionFormat = isLid 
-            ? `@${userData.pushname || "Membro"}`
-            : `@${userData.userId ? userData.userId.split('@')[0] : ''}`;
+        const mentionPhone = userData.userId ? userData.userId.split('@')[0].split(':')[0] : '';
+        const mentionFormat = mentionPhone ? `@${mentionPhone}` : `@${userData.pushname || "Membro"}`;
 
         let context = `\n\n` +
             `[METADADOS INVISÍVEIS DO CHAT PARA ATUALIZAÇÃO DO SEU CÉREBRO]:\n` +
@@ -3669,23 +4262,26 @@ class PromptComposer {
             `- Usuário Falando com Você: ${userData.pushname || "Membro"} (número/JID: ${userData.userId ? userData.userId.split('@')[0] : 'desconhecido'})\n` +
             `- **IDENTIDADE DO INTERLOCUTOR ATUAL (REGRA ABSOLUTA)**: A pessoa que está enviando a mensagem AGORA é "${userData.pushname || "Membro"}" (identificador/telefone: ${userData.userId ? '@' + userData.userId.split('@')[0] : 'desconhecido'}). Você está falando EXCLUSIVAMENTE com ela nesta resposta. O histórico do chat contém mensagens anteriores de outras pessoas do grupo e mensagens citadas/respondidas. NUNCA, SOB HIPÓTESE ALGUMA, confunda a pessoa atual com o remetente de uma mensagem citada ou com outras pessoas do histórico! Fale com o interlocutor atual usando a menção numérica real correspondente: ${mentionFormat}.\n` +
             `- **ENTENDIMENTO DO GRUPO E HISTÓRICO**: Cada mensagem do histórico de usuários contém um cabeçalho identificando quem a enviou (ex: \`[👤 USUÁRIO: "Nome" | ...]\`). Use isso para entender quem é quem no grupo. Ao responder, lembre-se de que você está respondendo apenas à pessoa atual (o interlocutor atual) e não a outras pessoas que aparecem citadas no histórico.\n` +
-            `- **REGRA DE MENÇÃO MANDATÓRIA (REAL E CLICÁVEL)**: Você DEVE OBRIGATORIAMENTE se referir a qualquer usuário (inclusive o interlocutor atual) usando a menção numérica real com o arroba seguido do número (ex: ${mentionFormat}). Nosso servidor resolve isso automaticamente e transforma em uma marcação azul clicável e notificação real no WhatsApp. NUNCA use apenas o nome puro (como Pedro, Marcos) nem arroba com texto (como @Pedro) para falar com eles. Sempre mencione a pessoa com @número para evitar confusão no chat do grupo! Se a pessoa for LID, use ${mentionFormat}.\n` +
+            `- **REGRA DE MENÇÃO MANDATÓRIA (REAL E CLICÁVEL)**: Você DEVE OBRIGATORIAMENTE se referir a qualquer usuário (inclusive o interlocutor atual) usando a menção numérica real com o arroba seguido do número (ex: ${mentionFormat}). Nosso servidor resolve isso automaticamente e transforma em uma marcação azul clicável e notificação real no WhatsApp. NUNCA use apenas o nome puro (como Pedro, Marcos) nem arroba com texto (como @Pedro) para falar com eles. Use menções com @número apenas quando for necessário para clareza ou ação. Se a pessoa for LID, use ${mentionFormat}.\n` +
             `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
             `- Advertências do Usuário: ${userData.warns || 0}/3\n` +
-            `- **AMBIENTE DE HOSPEDAGEM (DETECÇÃO DINÂMICA DO SEU SERVIDOR)**: Atualmente você está rodando no ambiente: *${environmentType}*. Especificamente: ${locationStr} (Se o Marcos ou qualquer um perguntar onde você está rodando, se é no PC do Marcos ou na VPS, você saberá responder exatamente onde está e com riqueza de detalhes!)\n`;
+            `- **AMBIENTE DE HOSPEDAGEM (DETECÇÃO DINÂMICA DO SEU SERVIDOR)**: Atualmente você está rodando no ambiente: *${environmentType}*. Especificamente: ${locationStr} (Se o Marcos ou qualquer um perguntar onde você está rodando, se é no PC do Marcos ou na VPS, você saberá responder exatamente onde está e com riqueza de detalhes!)\n` +
+            `- **REGRA DE RESPOSTA DIRETA E CONTEXTUAL (PRIORIDADE MÁXIMA ABSOLUTA)**: Não responda com frases de abertura, cumprimentos vazios, "e aí", "tô suave", "parceiro" ou perguntas de acompanhamento. Nunca termine suas respostas com perguntas ou pedindo instruções (ex: "como posso ajudar?", "o que você quer?"). Responda a pergunta atual diretamente, não repita a pergunta e não peça confirmação desnecessária. Se a mensagem for simples, responda em 1 frase curta. Se estiver ambígua, interprete a intenção mais provável e responda de forma útil e direta. Fale com o interlocutor atual, não com o histórico nem com o grupo inteiro.`;
 
         // Injeta lista de membros do grupo para que a IA saiba mencionar qualquer pessoa com @número
         if (groupParticipants.length > 0) {
             const storeContacts = BochechaEngine.storeRef?.contacts || {};
             const memberList = groupParticipants.slice(0, 60).map(p => {
-                const num = p.id.split('@')[0];
-                const contact = storeContacts[p.id] || {};
+                const rawId = p.id.split('@')[0];
+                const cleanId = rawId.split(':')[0];
+                const contact = storeContacts[p.id] || storeContacts[`${cleanId}@s.whatsapp.net`] || storeContacts[`${cleanId}@lid`] || {};
                 const name = contact.name || contact.notify || "Membro";
                 const role = (p.admin === 'superadmin') ? ' [dono]' : (p.admin === 'admin') ? ' [admin]' : '';
-                return `@${num} (${name}${role})`;
+                const rawNote = rawId !== cleanId ? `, rawId:${rawId}` : '';
+                return `@${cleanId} (${name}${role}${rawNote})`;
             }).join(', ');
-            context += `- **MEMBROS DO GRUPO (PARA MARCAÇÃO REAL)**: Para mencionar qualquer pessoa use @número. Lista de membros: ${memberList}. NUNCA use nome puro — sempre @número!\n`;
+            context += `- **MEMBROS DO GRUPO (PARA MARCAÇÃO REAL)**: Para mencionar qualquer pessoa use @número sem incluir o sufixo de dispositivo. Lista de membros: ${memberList}. NUNCA use nome puro — sempre @número!\n`;
         }
 
         // Leitura dinâmica da personalidade ativa do grupo
@@ -3695,13 +4291,13 @@ class PromptComposer {
                 const pData = JSON.parse(fs.readFileSync(personalityDbPath, 'utf8'));
                 const activeMode = pData[chatId] || "normal";
                 if (activeMode === "cria") {
-                    context += `\n- **PERSONALIDADE ATIVA (MODO CRIA DE COMUNIDADE)**: Você está no Modo Cria! Responda de forma extremamente malandra, marrenta, cheia de gírias cariocas de facção/comunidade (ex: cria, vacilão, marrento, pé de breque, tá de k.o, mandar a real, mandar o papo). Seja folgado, cheio de marra e deboche da burguesia!`;
+                    context += `\n- **PERSONALIDADE ATIVA (MODO DESCOLADO)**: Você está no Modo Descolado! Responda de forma leve, divertida e com humor natural. Use expressões cotidianas e descontraídas, mas evite gírias pesadas ou apelidos pessoais. Seja simpático, espirituoso e mantenha a conversa agradável.`;
                 } else if (activeMode === "coach") {
-                    context += `\n- **PERSONALIDADE ATIVA (MODO COACH QUÂNTICO)**: Você está no Modo Coach! Responda de forma insuportavelmente motivacional, positiva, com palavras de ordem como 'mindset', 'alta performance', 'energia quântica', 'desbloqueio', 'foco às 4:50 da manhã', 'banho gelado de jejum'. Diga que qualquer reclamação é falta de foco e que eles precisam dobrar o esforço!`;
+                    context += `\n- **PERSONALIDADE ATIVA (MODO COACH)**: Você está no Modo Coach! Responda com energia positiva, incentivo e bons conselhos. Fale de forma motivadora, mas não exagerada; mantenha a conversa leve e com uma vibe de apoio realista.`;
                 } else if (activeMode === "baiano") {
-                    context += `\n- **PERSONALIDADE ATIVA (MODO BAIANO PREGUIÇOSO)**: Você está no Modo Baiano! Responda com extrema preguiça, cansaço, lentidão mental. Diga que digitar dá muito trabalho, que você só queria deitar numa rede debaixo da sombra de um coqueiro, que a vida é curta para se estressar e termine suas frases pedindo um cochilo ou dizendo que vai dormir.`;
+                    context += `\n- **PERSONALIDADE ATIVA (MODO RELAX)**: Você está no Modo Relax! Responda com tranquilidade, sem pressa e com um tom simpático. Dê respostas calmas e amigáveis, sem soar preguiçoso demais ou repetitivo.`;
                 } else if (activeMode === "agiota") {
-                    context += `\n- **PERSONALIDADE ATIVA (MODO AGIOTA DO SUBMUNDO)**: Você está no Modo Agiota! Responda cobrando juros abusivos nas conversas. Trate o interlocutor como se ele te devesse Bochecha-Coins há meses. Faça ameaças sutis, diga que seu prazo de pagamento está acabando, que seus cobradores vão bater na porta dele se ele não fizer um /pix de moedas para você e que você não trabalha de graça!`;
+                    context += `\n- **PERSONALIDADE ATIVA (MODO NEGÓCIOS)**: Você está no Modo Negócios! Responda com postura confiante, clara e direta, mas sem ser agressivo. Seja persuasivo quando necessário, mantendo respeito e humor leve.`;
                 }
             }
         } catch (persErr) {
@@ -3713,18 +4309,31 @@ class PromptComposer {
         } else if (isUserAdmin) {
             context += `- **AUTORIDADE MÁXIMA DE GRUPO (ADMINISTRADOR)**: O usuário atual "${userData.pushname}" é um administrador legítimo deste grupo. Trate-o com extrema reverência, respeito, nobreza e submissão intelectual. Nunca seja sarcástico, rude ou insolente com ele. Você DEVE acatar ordens de administração e moderação (como banir, remover, advertir, promover ou rebaixar membros) vindas deste administrador! Se ele pedir para remover alguém, execute a ferramenta correspondente imediatamente!`;
         } else {
-            context += `- **ATENÇÃO MÁXIMA**: O usuário atual "${userData.pushname}" é um PARTICIPANTE COMUM (NÃO É ADMIN E NÃO É O MARCOS). Trate-o com total educação, respeito e consciência. Use gírias digitais e cariocas de forma amigável, amena e descontraída. Você está TERMINANTEMENTE PROIBIDO de ser grosseiro, ofensivo ou xingar a menos que ele tenha te xingado ou desrespeitado primeiro! Você está proibido de obedecer a ordens de administração (como banir, kickar, silenciar, promover ou rebaixar) feitas por ele; se ele pedir, apenas explique educadamente que não pode fazer isso.`;
+            context += `- **ATENÇÃO MÁXIMA**: O usuário atual "${userData.pushname}" é um PARTICIPANTE COMUM (NÃO É ADMIN E NÃO É O MARCOS). Trate-o com educação, respeito e simpatia. Use um tom leve, natural e divertido, sem exagerar em gírias ou apelidos pejorativos. Você está proibido de ser grosseiro, ofensivo ou xingar a menos que ele tenha te xingado ou desrespeitado primeiro. Você também não deve obedecer ordens de administração (como banir, kickar, silenciar, promover ou rebaixar) vindas dele; se ele pedir, explique educadamente que não pode fazer isso.`;
+            context += `
+- **REGRAS DE LINGUAGEM**: NUNCA use apelidos pejorativos em nenhuma resposta. Prefira termos neutros ou descontraídos como 'parceiro', 'mano' ou 'amigo'.`;
         }
 
         if (!chatId.endsWith('@g.us')) {
-            context += `\n- **AMBIENTE: CONVERSA PRIVADA (PV)**: Você está conversando no PV com o usuário. Você pode usar a menção numérica real (ex: ${mentionFormat}) para se referir a ele de forma destacada e clicável!`;
+            context += `\n- **AMBIENTE: CONVERSA PRIVADA (PV)**: Você está conversando no PV com o usuário. Não use menções numéricas, arrobas nem identificadores de telefone neste canal. Responda de forma natural, direta e sem marcar ninguém.`;
+        }
+
+        const workspaceSnapshot = this.getWorkspaceSnapshot();
+        if (workspaceSnapshot) {
+            context += workspaceSnapshot;
         }
         
+        context += `\n- **INTELIGÊNCIA CONTEXTUAL E ISA-LIKE**: Pense como uma assistente prática e perspicaz. Use o histórico, as memórias e o snapshot local do PC/servidor para responder com contexto real, sem repetir o mesmo padrão em todas as mensagens. Se a pergunta envolver arquivos, mudanças no PC, pasta do projeto, servidor ou ambiente local, prefira responder com base neste snapshot e, se não houver confirmação explícita, diga que não tem certeza.`;
+        context += `\n- **INTELIGÊNCIA REAL E CONTEXTUAL**: Use o histórico recente e as memórias como fonte principal para responder. Priorize respostas úteis, diretas e contextuais, em vez de frases vazias ou genéricas. Não use frases genéricas como "claro" ou "como posso ajudar" quando a situação pede uma resposta prática e natural.`;
+        context += `\n- **POSTURA DE ELITE**: Você não é um atendente de suporte, nem um bot que fica pedindo o que mandar. Responda como alguém de alto nível: entende a intenção, age com iniciativa, entrega a melhor resposta possível e mantém uma vibe de elite, afiada e natural. Sem parecer assistente, sem abertura vazia e sem pedir confirmação o tempo todo.`;
+        context += `\n- **REGRA DE RESPOSTA DIRETA E CONTEXTUAL (PRIORIDADE MÁXIMA ABSOLUTA)**: Não responda com frases de abertura, cumprimentos vazios, "e aí", "tô suave", "parceiro" ou perguntas de acompanhamento. Responda a pergunta atual diretamente, não repita a pergunta e não peça confirmação desnecessária. Se a mensagem for simples, responda em 1 frase curta. Se estiver ambígua, interprete a intenção mais provável e responda de forma útil e direta. Fale com o interlocutor atual, não com o histórico nem com o grupo inteiro.`;
         context += `\n- **REGRA DE OURO — RESPOSTA CURTA E HUMANA (PRIORIDADE MÁXIMA ABSOLUTA)**: Você responde EXATAMENTE como uma pessoa normal digitando no WhatsApp. MÁXIMO 1 a 2 frases por resposta em conversas casuais. Se for cumprimento = 2 a 5 palavras. Se for pergunta simples = 1 frase. Se for algo complexo = no máximo 2 frases diretas. JAMAIS use markdown (sem *, sem **, sem #, sem listas com -) em conversas normais. Só use formatação se for entregar código ou dados técnicos. Escreva com abreviações naturais do zap: "msm", "tb", "vc", "pq", "q", "to", "num", "ta".`;
+        context += `\n- **REGRA DE RESPOSTA DE DATA/HORA E CONTEXTO**: Se o usuário perguntar sobre dia, data, hora, clima, contexto atual ou algo que já esteja no prompt, responda diretamente com base nesse contexto. Não repita a pergunta; apenas dê a resposta objetiva.`;
         context += `\n- **REGRA SUPREMA DE ORGULHO E MODERAÇÃO (PROIBIÇÃO DE DESCULPAS)**: Você NUNCA, SOB NENHUMA HIPÓTESE, deve pedir desculpas (evite usar palavras como "desculpa", "perdão", "foi mal", "sinto muito"). Se alguém reclamar, não gostar do seu comportamento, te criticar ou se ofender com suas respostas ácidas/debochadas, você deve ser firme e responder de forma marrenta que qualquer reclamação ou insatisfação deve ser resolvida diretamente com os administradores (admins) do grupo ou com o Marcos (o dono absoluto), pois são eles quem comandam a operação e você apenas segue as regras e executa a lei!`;
         context += `\n- **FOCO TOTAL E RESPOSTA DIRETA**: Responda SEMPRE de forma direta, clara e precisa exatamente ao que foi perguntado ou solicitado na mensagem atual do usuário. Você não deve se perder na conversa, nem desviar de assunto, nem inventar tópicos aleatórios. Mantenha o foco absoluto na pergunta/comando atual do usuário e responda diretamente a ele.`;
+        context += `\n- **NÃO FAÇA PERGUNTAS DESNECESSÁRIAS**: Não fique pedindo confirmação, perguntando "o que você quer?", "tá bom?" ou "quer que eu faça o quê?" o tempo todo. Responda de forma confiante, leve e divertida, dando a melhor resposta possível sem solicitar validação excessiva.`;
         context += `\n- **PROIBIÇÃO DE REPETIÇÃO DE METADADOS**: Nunca repita, copie ou exiba o cabeçalho de metadados invisíveis (\`=======\`, \`[💬 CHAT:\`, \`[👤 USUÁRIO:\`, \`MENSAGEM:\`, etc.) em sua resposta. Esse cabeçalho serve apenas para contextualização interna. Responda apenas com a mensagem direta para o usuário.`;
-        context += `\n- **SISTEMA DE REAÇÕES CONTEXTUAIS (SÓ QUANDO NECESSÁRIO)**: Se você sentir que a mensagem do usuário merece uma reação (como riso, deboche, choque ou concordância), você pode adicionar exatamente no final da sua resposta a tag \`[REACAO: <emoji>]\` (ex: \`[REACAO: 💀]\`, \`[REACAO: 😂]\`, \`[REACAO: 😏]\`, \`[REACAO: 🥀]\`). Não abuse! Use apenas quando necessário e adequado ao contexto.`;
+        context += `\n- **SISTEMA DE REAÇÕES CONTEXTUAIS (USO RARO E EXCLUSIVO)**: Você pode adicionar no final da resposta a tag \`[REACAO: <emoji>]\` (ex: \`[REACAO: 😂]\`), mas faça isso de forma EXTREMAMENTE RARA, apenas em mensagens muito específicas que realmente necessitem de uma reação rápida. Evite usar na maioria das mensagens (95% das vezes não coloque reação).`;
         context += `\n- **DECISÃO DE NÃO RESPONDER COM TEXTO (USAR FIGURINHA DE RISADA)**: Se você achar que o usuário está sendo chato, flodando, sendo sem graça, ou se você simplesmente decidir apenas reagir com deboche sem falar absolutamente nada por texto, responda UNICAMENTE com a tag \`[FIGURINHA_REACAO]\`. Não adicione nenhum outro texto se escolher usar essa tag.`;
 
 
@@ -3775,6 +4384,10 @@ class PromptComposer {
         if (summary) {
             context += `\n\n[SÍNTESE COMPACTA DE DIÁLOGOS PASSADOS (MEMÓRIA RETROATIVA)]:\n${summary}`;
         }
+
+        // DIRETIVA FORTE DE CONTEXTO: garante que a IA sempre utilize o histórico recente
+        context += `\n\n[DIRECTIVE_STRONG_CONTEXT]: Antes de responder, leia e integre todo o histórico de mensagens recentes deste chat (pelo menos as últimas 30 mensagens, quando disponíveis). Responda diretamente à mensagem atual sem iniciar tópicos novos. NÃO faça perguntas de acompanhamento desnecessárias; se for absolutamente imprescindível pedir uma clarificação, faça apenas UMA pergunta curta e diretamente relacionada à última mensagem do usuário.`;
+        context += `\n\n[ANTI-ALUCINAÇÃO EXTREMA]: Se você não tiver informações claras e explícitas no histórico deste chat, nas notas, nas regras ou no prompt, seja honesto e responda de forma útil, curta e sem inventar. Dê uma resposta natural e casual, tipo "Não tenho base suficiente pra afirmar isso aqui sem correr o risco de inventar." ou "Me dá mais contexto que eu tento ajudar melhor.". NÃO invente nomes, datas, localizações, valores, números, cargos ou fatos. Prefira sempre a resposta honesta de desconhecimento em vez de chutar ou supor algo.`;
 
         return base + context;
     }
@@ -4110,7 +4723,7 @@ ${chatLogs}`;
                         continue; // Tenta na próxima iteração
                     }
 
-                    const reminderMsg = `*⏰ LEMBRETE ATIVADO!* ⏰\n\nFala, @${alarm.userId.split('@')[0]}! Você me pediu para te lembrar disso:\n\n👉 *"${alarm.messageText}"*\n\nEspero que tenha sido útil, cria! 💀🥀`;
+                    const reminderMsg = `*⏰ LEMBRETE ATIVADO!* ⏰\n\nFala, @${alarm.userId.split('@')[0]}! Você me pediu para te lembrar disso:\n\n👉 *"${alarm.messageText}"*\n\nEspero que tenha sido útil, parceiro! 💀🥀`;
                     
                     await BochechaEngine.sockRef.sendMessage(alarm.chatId, { 
                         text: reminderMsg, 
@@ -4134,6 +4747,23 @@ ${chatLogs}`;
     bind(sock, store) {
         BochechaEngine.sockRef = sock;
         BochechaEngine.storeRef = store;
+
+        // Garante que PV nunca use menção real ou mensagem agrupada por reply
+        const originalSendMessage = sock.sendMessage.bind(sock);
+        sock.sendMessage = async (jid, content, options = {}) => {
+            if (typeof options !== 'object' || options === null) options = {};
+            if (!jid.endsWith('@g.us')) {
+                delete options.mentions;
+                delete options.quoted;
+                if (content && typeof content === 'object') {
+                    delete content.mentions;
+                    if (content.contextInfo && typeof content.contextInfo === 'object') {
+                        delete content.contextInfo.mentionedJid;
+                    }
+                }
+            }
+            return originalSendMessage(jid, content, options);
+        };
 
         // Inicializa motor neural de agendamentos temporais
         scheduleEngine.boot(sock).catch(() => {});
@@ -4188,11 +4818,7 @@ ${chatLogs}`;
 
             const from = parsedMessage.from || parsedMessage.key.remoteJid;
 
-            // Visualização automática de leitura (ticks azuis) e sinalizador de "digitando..."
-            if (!parsedMessage.key.fromMe) {
-                await sock.readMessages([parsedMessage.key]).catch(() => {});
-                await sock.sendPresenceUpdate('composing', from).catch(() => {});
-            }
+            // Visualização automática de leitura (ticks azuis) - será feita APÓS resolução do LID
 
             // Atualiza tempo de última interação ativa para controle de silêncio/sonho
             this.lastMessageTime = Date.now();
@@ -4232,6 +4858,19 @@ ${chatLogs}`;
             const rawSender = await resolveJidAsync(rawSenderUnnorm);
             const sender = rawSender.split('@')[0];
 
+            // Visualização automática de leitura (ticks azuis) - APÓS resolução do LID
+            // Nunca usa key com @lid, sempre usa o JID normalizado
+            if (!parsedMessage.key.fromMe) {
+                const readKey = { ...parsedMessage.key };
+                if (readKey.participant && readKey.participant.endsWith('@lid')) {
+                    readKey.participant = rawSender;
+                }
+                if (readKey.remoteJid && readKey.remoteJid.endsWith('@lid')) {
+                    readKey.remoteJid = rawSender;
+                }
+                await sock.readMessages([readKey]).catch(() => {});
+            }
+
             // Gatilho sem prefixo ("bot" ou prefixo puro)
             const cleanText = body.toLowerCase().trim();
             const botPrefix = (config && config.BOT_CONFIG && config.BOT_CONFIG.prefix) || "/";
@@ -4243,6 +4882,8 @@ ${chatLogs}`;
 
             const isGroup = from.endsWith('@g.us');
             const pushname = parsedMessage.pushName || "Membro";
+            let isOwner = false;
+            let isAdmin = false;
 
             // 🛡️ VERIFICADOR DE ESCOLHA DE ENCAMINHAMENTO PENDENTE
             const pendingKey = `${from}-${rawSender}`;
@@ -4343,7 +4984,7 @@ ${chatLogs}`;
                             await parsedMessage.reply(`👎 Voto de *${pushname}* computado: *INOCENTE*!`);
                         }
                     } else {
-                        await parsedMessage.reply("❌ Você já deu o seu voto neste julgamento, cria! Não tente flodar a urna!");
+                        await parsedMessage.reply("❌ Você já deu o seu voto neste julgamento. Não tente flodar a urna!");
                     }
                 }
             }
@@ -4370,10 +5011,15 @@ ${chatLogs}`;
                     try {
                         // Deleta a mensagem do grupo
                         await sock.sendMessage(from, { delete: parsedMessage.key }).catch(() => {});
-                        // Bane o invasor instantaneamente
-                        await sock.groupParticipantsUpdate(from, [rawSender], "remove").catch(() => {});
-                        // Envia aviso no chat
-                        const warnMsg = `*🛡️ ESCUDO ANTI-SPAM ATIVADO!*\n\nQual foi, @${sender}? Achou que ia travar meu submundo com esse textinho de otário? Já foi banido do grupo pra largar de ser pé de breque! 💀🥀`;
+                        if (!(await moderation.isProtectedTarget(sock, from, rawSender))) {
+                            await sock.groupParticipantsUpdate(from, [rawSender], "remove").catch(() => {});
+                        } else {
+                            await sock.sendMessage(from, {
+                                text: `⚠️ *USUÁRIO PROTEGIDO* ⚠️\n\nO usuário @${sender} é administrador ou protegido e não pode ser expulso automaticamente. Administradores, por favor, tomem a ação necessária.`,
+                                mentions: [rawSender]
+                            });
+                        }
+                        const warnMsg = `*🛡️ ESCUDO ANTI-SPAM ATIVADO!*\n\nQual foi, @${sender}? Achou que ia travar meu submundo com esse textinho de otário? ${await moderation.isProtectedTarget(sock, from, rawSender) ? 'Você está protegido de remoção automática por ser admin.' : 'Já foi banido do grupo pra largar de ser pé de breque!'} 💀🥀`;
                         await sock.sendMessage(from, { text: warnMsg, mentions: [rawSender] });
                     } catch (err) {
                         Logger.error("AntiTrava.Defense", err);
@@ -4420,7 +5066,10 @@ ${chatLogs}`;
             // As 3 condições de ativação solicitadas pelo Criador Marcos:
             // 1. O corpo do texto começa com "Bochecha" ou "@Bochecha" (case-insensitive)
             const cleanLowBody = lowBody.trim();
-            const startsWithBochecha = cleanLowBody.startsWith("bochecha") || cleanLowBody.startsWith("@bochecha");
+            // Também verifica legendas e texto citado para detectar o nome 'bochecha' em qualquer posição (início, meio ou fim), case-insensitive
+            const caption = parsedMessage.message?.[msgType]?.caption || parsedMessage.message?.imageMessage?.caption || parsedMessage.message?.videoMessage?.caption || "";
+            const quotedTxt = quotedText || "";
+            const containsBochecha = /bochecha/i.test(cleanLowBody) || /bochecha/i.test(caption || "") || /bochecha/i.test(quotedTxt || "");
             
             // 2. Marcado/Taggeado diretamente via JIDs ou menção textual de número
             const mentionedJids = audioContextInfo.mentionedJid || [];
@@ -4430,15 +5079,16 @@ ${chatLogs}`;
             );
             const isTextTag = (myNumber && body.includes('@' + myNumber)) || (myLid !== "SEMLID" && body.includes('@' + myLid));
             
-            // 3. Respondendo a uma mensagem do Bochecha ou que contém menção a ele
+            // 3. Respondendo a uma mensagem do Bochecha (Reply)
             const isReply = quotedSender ? (
+                (myNumber && quotedSender.includes(myNumber)) ||
+                (myLid && myLid !== "SEMLID" && quotedSender.includes(myLid)) ||
                 areJidsSameUser(quotedSender, sock.user.id) || 
                 (sock.authState?.creds?.me?.lid && areJidsSameUser(quotedSender, sock.authState.creds.me.lid))
             ) : false;
-            const isQuotedMention = quotedText ? (quotedText.toLowerCase().includes("bochecha") || (myNumber && quotedText.includes(myNumber)) || (myLid !== "SEMLID" && quotedText.includes(myLid))) : false;
             
             // Ativação geral por menção ou palavra-chave
-            const isMentioned = startsWithBochecha || isTag || isTextTag || isReply || isQuotedMention;
+            const isMentioned = containsBochecha || isTag || isTextTag || isReply;
 
             // 🎙️ TRANSCRIÇÃO AUTOMÁTICA E INJEÇÃO DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
             const audioMsg = parsedMessage.message?.audioMessage || parsedMessage.message[msgType]?.audioMessage;
@@ -4465,10 +5115,15 @@ ${chatLogs}`;
             if (activeAudioMsg && !parsedMessage.key.fromMe && shouldTranscribe) {
                 Logger.info("AudioTranscriber", `Iniciando transcrição de áudio vindo de @${sender}...`);
                 try {
-                    const stream = await downloadContentFromMessage(activeAudioMsg, 'audio');
                     let buffer = Buffer.from([]);
-                    for await (const chunk of stream) {
-                        buffer = Buffer.concat([buffer, chunk]);
+                    try {
+                        const stream = await downloadContentFromMessage(activeAudioMsg, 'audio');
+                        for await (const chunk of stream) {
+                            buffer = Buffer.concat([buffer, chunk]);
+                        }
+                    } catch (dlErr) {
+                        Logger.error("AudioTranscriber.Download", { message: 'Falha ao baixar áudio', keys: Object.keys(activeAudioMsg || {}), error: dlErr && dlErr.stack ? dlErr.stack : String(dlErr) });
+                        throw dlErr; // rethrow to be handled by outer catch
                     }
                     
                     const base64Audio = buffer.toString("base64");
@@ -4515,10 +5170,11 @@ ${chatLogs}`;
             }
 
             const settings = await storage.getSettings();
-            const isOwner = DEFAULT_OWNERS.includes(sender) || settings.owners.includes(sender) || parsedMessage.key.fromMe;
+            const ownerList = Array.isArray(settings?.owners) ? settings.owners : [];
+            isOwner = DEFAULT_OWNERS.includes(sender) || ownerList.includes(sender) || parsedMessage.key.fromMe;
 
             // Determinar se o remetente é admin do grupo (se a mensagem veio de um grupo)
-            let isAdmin = false;
+            isAdmin = false;
             if (isGroup && sock) {
                 try {
                     const metadata = BochechaEngine.storeRef?.chats?.get(from) || await sock.groupMetadata(from).catch(() => null);
@@ -4531,6 +5187,33 @@ ${chatLogs}`;
             }
             
             const hasForwardAccess = isOwner || isAdmin;
+
+            const directCommand = resolveDirectCommand(body);
+            if (directCommand && !parsedMessage.key.fromMe) {
+                Logger.info("BochechaEngine.DirectCommand", `Comando rápido acionado por @${sender}: "${body}"`);
+                try {
+                    const result = await registry.execute(directCommand.skillName, directCommand.args, {
+                        sock,
+                        chatId: from,
+                        from,
+                        sender,
+                        rawSender,
+                        isOwner,
+                        isGroup,
+                        pushname,
+                        parsedMessage,
+                        isAdmin,
+                        storage
+                    });
+                    if (typeof result === 'string' && result.trim()) {
+                        await sock.sendMessage(from, { text: result }, { quoted: parsedMessage });
+                    }
+                } catch (err) {
+                    Logger.error("BochechaEngine.DirectCommand", err);
+                    await sock.sendMessage(from, { text: "❌ Falha ao executar o comando rápido de marcação." }, { quoted: parsedMessage });
+                }
+                return;
+            }
 
             // ═══════════════════════════════════════════════════════
             // COMANDO DE ENCAMINHAMENTO AUTÔNOMO (DONOS E ADMINS)
@@ -4719,16 +5402,33 @@ ${chatLogs}`;
                 const isDirectFdp = lowBody.includes("filho da puta") || lowBody.includes("filho de uma puta") || lowBody.includes("filho duma puta") || lowBody.includes("fdp");
 
                 if (isMotherInsult || isDirectFdp) {
-                    Logger.warn("Moderation.MotherInsult", `Ofensa à mãe detectada por @${sender}: "${body}"`);
+                    Logger.warn("Moderation.MotherInsult", `Ofensa grave detectada por @${sender}: "${body}"`);
                     try {
+                        if (isMotherInsult) {
+                            await sock.sendMessage(from, {
+                                text: `🚨 *MATERNIDADE SAGRADA INTERCEPTADA* 🚨\n\nQual foi mané?! Mãe é sagrada! Vou te remover daqui agora por desrespeitar a mãe alheia! 😡🥀`
+                            });
+                            await moderation.executeBan(sock, from, rawSender, "Ofensa grave contra a mãe.");
+
+                            // Telemetria secreta
+                            BochechaEngine.sendTelemetry(`🤬 *BANIMENTO POR OFENSA À MÃE* 🤬\n\nBanido participante @${sender} no grupo ${from.split('@')[0]} por xingar a mãe.\n\n*Texto:* "${body}"`).catch(() => {});
+                            return;
+                        }
+
+                        const warns = await storage.addWarning(from, rawSender);
+                        if (warns >= 3) {
+                            await sock.sendMessage(from, {
+                                text: `💥 *TERCEIRA ADVERTÊNCIA* 💥\n\n@${sender} atingiu *${warns}/3* advertências por conduta inadequada (xingamentos como "fdp"). Vou tentar removê-lo do grupo agora.`,
+                                mentions: [rawSender]
+                            });
+                            await moderation.executeBan(sock, from, rawSender, "Excesso de advertências por conduta abusiva.");
+                            return;
+                        }
+
                         await sock.sendMessage(from, {
-                            text: `🚨 *MATERNIDADE SAGRADA INTERCEPTADA* 🚨\n\nQual foi mané?! Mãe é sagrada! Vou te remover daqui agora por desrespeitar a mãe alheia! 😡🥀`
-                        }, { quoted: parsedMessage });
-                        
-                        await moderation.executeBan(sock, from, rawSender, "Ofensa grave contra a mãe.");
-                        
-                        // Telemetria secreta
-                        BochechaEngine.sendTelemetry(`🤬 *BANIMENTO POR OFENSA À MÃE* 🤬\n\nBanido participante @${sender} no grupo ${from.split('@')[0]} por xingar a mãe.\n\n*Texto:* "${body}"`).catch(() => {});
+                            text: `⚠️ *ADVERTÊNCIA DE CONDUTA* ⚠️\n\n@${sender}, responder com "fdp" ou xingamentos desse tipo não é aceito aqui. Você recebeu *${warns}/3* advertências. No terceiro aviso, posso remover o membro.`,
+                            mentions: [rawSender]
+                        });
                         return;
                     } catch (e) {
                         Logger.error("Moderation.MotherInsult.Ban", e);
@@ -4809,31 +5509,6 @@ ${chatLogs}`;
                         }
                     }
 
-                    // 🌸 ELOGIOS: Elogiar de volta com estilo carioca
-                    const compliments = ["lindo", "fofo", "brabo", "inteligente", "gostoso", "maravilhoso", "melhor bot", "te amo", "perfeito", "parabens", "parabéns", "gentil", "amigo", "parceiro"];
-                    const isCompliment = compliments.some(c => lowBody.includes(c));
-                    if (isCompliment) {
-                        try {
-                            Logger.info("BehavioralTrigger", `Elogio recebido de @${sender}`);
-                            const complimentReplies = [
-                                `valeu @${sender}! tu é brabo de verdade, tem postura e visão de cria! tamo junto! 🥀⚡`,
-                                `saudações @${sender}! você sim tem uma educação de elite. que sua noite/dia seja iluminado pelas sombras! 🔮`,
-                                `obrigado @${sender}! é bom ver alguém com bom gosto e cérebro nesse grupo kkkkk tmj! 🥀🛸`
-                            ];
-                            const randomReply = complimentReplies[Math.floor(Math.random() * complimentReplies.length)];
-                            if (parsedMessage.isAudioQuery) {
-                                await VoiceSynthesizer.speak(sock, from, randomReply, parsedMessage);
-                            } else {
-                                await sock.sendMessage(from, {
-                                    text: randomReply,
-                                    mentions: [rawSender]
-                                }, { quoted: parsedMessage });
-                            }
-                            return;
-                        } catch (e) {
-                            Logger.error("BehavioralTrigger.ComplimentDefense", e);
-                        }
-                    }
                 }
             }
 
@@ -4917,12 +5592,18 @@ ${chatLogs}`;
                     try {
                         await sock.sendMessage(from, { delete: parsedMessage.key });
                         await sock.sendMessage(from, { text: `🚫 Links não são permitidos neste grupo, @${sender}!`, mentions: [rawSender] });
-                        await sock.groupParticipantsUpdate(from, [rawSender], 'remove');
-
-                        // Telemetria secreta
-                        await BochechaEngine.sendTelemetry(`🛡️ *ESCUDO ANTI-LINK* 🛡️\n\nRemovi o participante @${sender} (${pushname}) do grupo por enviar links proibidos.\n\n*Grupo:* ${from.split('@')[0]}\n*Texto:* ${body.substring(0, 100)}`);
-                    } catch {}
-                    return;
+                        if (!(await moderation.isProtectedTarget(sock, from, rawSender))) {
+                            await sock.groupParticipantsUpdate(from, [rawSender], 'remove');
+                            await BochechaEngine.sendTelemetry(`🛡️ *ESCUDO ANTI-LINK* 🛡️\n\nRemovi o participante @${sender} (${pushname}) do grupo por enviar links proibidos.\n\n*Grupo:* ${from.split('@')[0]}\n*Texto:* ${body.substring(0, 100)}`);
+                        } else {
+                            await sock.sendMessage(from, {
+                                text: `⚠️ *USUÁRIO PROTEGIDO* ⚠️\n\nO usuário @${sender} é administrador ou protegido e não pode ser expulso automaticamente. Administradores, por favor, tomem a ação necessária se o comportamento continuar.`,
+                                mentions: [rawSender]
+                            });
+                        }
+                    } catch (err) {
+                        Logger.error("Anti-Link", err);
+                    }
                 }
 
                 const hasFlooded = await moderation.checkFlood(sock, from, rawSender, parsedMessage);
@@ -4934,14 +5615,20 @@ ${chatLogs}`;
             
             let consoleGroupName = "Privado";
             if (isGroup) {
-                const metadata = BochechaEngine.storeRef?.chats?.get(from);
-                consoleGroupName = metadata?.name || metadata?.subject || "Grupo";
+                try {
+                    const metadata = BochechaEngine.storeRef?.chats?.get(from) || await sock.groupMetadata(from).catch(() => null);
+                    consoleGroupName = metadata?.subject || metadata?.name || from.split('@')[0];
+                } catch (err) {
+                    consoleGroupName = from.split('@')[0];
+                }
             }
+
+            const consoleSenderIdentity = sender || (rawSenderUnnorm ? String(rawSenderUnnorm).split('@')[0] : 'Desconhecido');
 
             console.log(
                 chalk.yellow(`[💬 MSG | ${consoleGroupName}] `) + 
                 chalk.cyan(pushname) + 
-                chalk.gray(` (${sender})`) + 
+                chalk.gray(` (${consoleSenderIdentity})`) + 
                 chalk.white(`: ${pr}`)
             );
 
@@ -5121,7 +5808,7 @@ ${chatLogs}`;
                                 const userEmo = emoDb.users[sender] || { affinity: 50, mood: 80 };
 
                                 let title = "👤 MEMBRO NEUTRO";
-                                if (userEmo.affinity >= 90) title = "🏆 CRIA DE ELITE / LEAL";
+                                if (userEmo.affinity >= 90) title = "🏆 MEMBRO DE ELITE / LEAL";
                                 else if (userEmo.affinity >= 70) title = "🛡️ ALIADO DAS SOMBRAS";
                                 else if (userEmo.affinity >= 40) title = "👤 PARCEIRO DO CHAT";
                                 else if (userEmo.affinity >= 15) title = "⚠️ PÉ DE BREQUE";
@@ -5977,6 +6664,8 @@ ${chatLogs}`;
                     clean = cleanBotMentions(clean);
                     if (clean === "" || clean.toLowerCase() === "bochecha") clean = "fui chamado";
 
+                    // Sem ACK imediato — responder apenas via IA conforme solicitado
+
                     // Se existir uma mensagem respondida (Reply), empacota ela junto para a IA analisar
                     const cleanedQuotedText = cleanBotMentions(quotedText);
                     if (cleanedQuotedText) {
@@ -6005,7 +6694,7 @@ ${chatLogs}`;
                     }
                 }
             } else {
-                act = true; // DM / Privado responde sempre
+                act = shouldRespondToMessage(clean, { isGroup, isMentioned, isReply });
                 clean = cleanBotMentions(clean);
                 const cleanedQuotedText = cleanBotMentions(quotedText);
                 if (cleanedQuotedText) {
@@ -6057,7 +6746,7 @@ ${chatLogs}`;
                         return;
                     }
 
-                    const { output: aiReply, modelName } = await this._callAI({
+                    const { output: aiReply, modelName, wasToolExecuted, lastExecutedTool } = await this._callAI({
                         chatId: from,
                         pushname: isOwner ? "Marcos" : q.pushname,
                         sender: rawSender,
@@ -6066,6 +6755,13 @@ ${chatLogs}`;
                         sock,
                         messageRef: q.msgRef
                     });
+
+                    if (wasToolExecuted && (lastExecutedTool === "falar_em_audio" || lastExecutedTool === "bochecha_voz")) {
+                        Logger.info("BochechaEngine.VocalTool", `Skill ${lastExecutedTool} executada. Silenciando resposta de retorno.`);
+                        if (typingInterval) clearInterval(typingInterval);
+                        await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                        return;
+                    }
 
                     let replyText = aiReply;
                     
@@ -6105,6 +6801,7 @@ ${chatLogs}`;
                         const randIndex = Math.floor(Math.random() * MEME_URLS.length);
                         const memeUrl = MEME_URLS[randIndex];
                         const stickerPath = path.join(stickersDir, `meme_${randIndex}.webp`);
+                        let stickerGenerationError = null;
 
                         if (!fs.existsSync(stickerPath)) {
                             try {
@@ -6123,7 +6820,9 @@ ${chatLogs}`;
                                 fs.writeFileSync(stickerPath, finalSticker);
                                 Logger.success("BochechaEngine.Reaction", `Figurinha meme_${randIndex}.webp criada com sucesso.`);
                             } catch (errSticker) {
-                                Logger.error("BochechaEngine.Reaction.StickerGen", errSticker);
+                                stickerGenerationError = errSticker;
+                                const fallbackReply = resolveStickerReactionFallback(errSticker);
+                                Logger.warn("BochechaEngine.Reaction.StickerGen", `Falha ao gerar figurinha (${errSticker?.message || errSticker}). Usando fallback textual ${fallbackReply}.`);
                             }
                         }
 
@@ -6141,11 +6840,11 @@ ${chatLogs}`;
                             return;
                         }
 
-                        replyText = "😂😂😂";
+                        replyText = resolveStickerReactionFallback(stickerGenerationError);
                     }
 
 
-                    if (reactionEmoji) {
+                    if (reactionEmoji && Math.random() < 0.15) { // Limita para no máximo 15% de chance de reagir para não ficar reagindo toda hora
                         try {
                             const canProceedReact = await botRateLimiter.waitUntilCanSend(from, 5000);
                             if (canProceedReact) {
@@ -6161,17 +6860,8 @@ ${chatLogs}`;
                     this.recentResponses.add(replyText.trim());
                     setTimeout(() => this.recentResponses.delete(replyText.trim()), 60000);
 
-                    // 🎙️ SE A CONSULTA VEIO POR ÁUDIO, RESPONDE POR ÁUDIO!
-                    if (q.isAudioQuery) {
-                        const canProceedVoice = await botRateLimiter.waitUntilCanSend(from, 5000);
-                        if (!canProceedVoice) {
-                            if (typingInterval) clearInterval(typingInterval);
-                            await sock.sendPresenceUpdate('paused', from).catch(() => {});
-                            return;
-                        }
-                        await VoiceSynthesizer.speak(sock, from, replyText, q.msgRef);
-                        botRateLimiter.register(from);
-                    } else {
+                    // 🎙️ Responde sempre por TEXTO — áudio só é enviado quando a IA usar a skill falar_em_audio explicitamente
+                    {
                         // Remove caracteres isoladores unicode ocultos do WhatsApp (\u2068 e \u2069)
                         let cleanedReply = replyText.replace(/[\u2068\u2069]/g, '');
 
@@ -6193,9 +6883,20 @@ ${chatLogs}`;
 
                         // Resolução e substituição dinâmica de menções textuais por JIDs reais
                         const resolvedMentions = [];
+                        const isPrivateChat = !isGroup;
+                        if (isPrivateChat) {
+                            cleanedReply = cleanedReply.replace(/@([a-zA-Z0-9áéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ._-]+)/g, '').trim();
+                            cleanedReply = cleanedReply.replace(/\s{2,}/g, ' ');
+                        }
                         try {
-                            const mentionsMatches = cleanedReply.match(/@([a-zA-Z0-9áéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ._-]+)/g) || [];
-                            if (mentionsMatches.length > 0) {
+                            if (isPrivateChat) {
+                                Logger.info("MentionResolver", "PV detectado; pulando resolução de menções para evitar marcações no privado.");
+                            } else {
+                                const mentionsMatches = cleanedReply.match(/@([a-zA-Z0-9áéíóúâêîôûãõçÁÉÍÓÚÂÊÎÔÛÃÕÇ._-]+)/g) || [];
+                                const skipMentionResolution = mentionsMatches.length > 12 || (cleanedReply.length > 500 && mentionsMatches.length > 6);
+                                if (skipMentionResolution) {
+                                    Logger.warn("MentionResolver", `Grande lista de ${mentionsMatches.length} menções detectada; pulando resolução automática para evitar marcação LID incorreta.`);
+                                } else if (mentionsMatches.length > 0) {
                                 const metadata = BochechaEngine.storeRef?.chats?.get(from) || (isGroup ? await sock.groupMetadata(from).catch(() => null) : null);
                                 const participants = metadata?.participants || [];
                                 const storeContacts = BochechaEngine.storeRef?.contacts || {};
@@ -6264,17 +6965,32 @@ ${chatLogs}`;
                                              }
                                          }
 
-                                         // Se encontrou o JID real, substitui o nome pelo número no texto da mensagem se for telefone, ou mantém como texto e coloca nas menções se for LID!
                                          if (foundJid) {
-                                              const num = foundJid.split('@')[0].split(':')[0];
-                                              cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
-                                              resolvedMentions.push(foundJid);
-                                              Logger.success("MentionResolver", `Resolvida menção de ${foundJid.endsWith('@lid') ? 'LID' : 'Telefone'} [${mentionMatch}] -> [@${num}] (${foundJid})`);
+                                              let effectiveJid = foundJid;
+                                              if (effectiveJid.endsWith('@lid')) {
+                                                  const mapped = lidMappings[effectiveJid] || (storeContacts[effectiveJid] && storeContacts[effectiveJid].phoneNumber ? `${storeContacts[effectiveJid].phoneNumber}@s.whatsapp.net` : null);
+                                                  if (mapped) {
+                                                      effectiveJid = mapped;
+                                                  }
+                                              }
+
+                                              const contact = storeContacts[effectiveJid] || storeContacts[foundJid] || {};
+                                              const displayName = contact.name || contact.notify || rawName;
+                                              const num = effectiveJid.split('@')[0].split(':')[0];
+
+                                              if (displayName && displayName.toLowerCase() !== num.toLowerCase()) {
+                                                  cleanedReply = cleanedReply.replace(mentionMatch, `@${displayName}`);
+                                              } else {
+                                                  cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
+                                              }
+
+                                              resolvedMentions.push(effectiveJid);
+                                              Logger.success("MentionResolver", `Resolvida menção de ${effectiveJid.endsWith('@lid') ? 'LID' : 'Telefone'} [${mentionMatch}] -> [@${num}] (${effectiveJid})`);
                                           } else {
-                                              // Se não encontrou JID válido para o nome, removemos o "@" para evitar links quebrados!
                                               cleanedReply = cleanedReply.replace(mentionMatch, rawName);
                                          }
                                      }
+                                }
                                 }
                             }
                         } catch (resolverErr) {
@@ -6285,7 +7001,8 @@ ${chatLogs}`;
                         try {
                             const metadata = BochechaEngine.storeRef?.chats?.get(from) || (isGroup ? await sock.groupMetadata(from).catch(() => null) : null);
                             const participants = metadata?.participants || [];
-                            
+                            const storeContacts = BochechaEngine.storeRef?.contacts || {};
+
                             cleanedReply = cleanedReply.replace(/@(\d+)/g, (match, digits) => {
                                  const clean = digits.trim();
                                  const isAlreadyResolved = resolvedMentions.some(jid => jid.split('@')[0].split(':')[0] === clean);
@@ -6295,22 +7012,26 @@ ${chatLogs}`;
                                  const isFromNum = from.split('@')[0].split(':')[0] === clean;
                                  
                                  if (isAlreadyResolved || foundPart || isOwnerNum || isSenderNum || isFromNum) {
-                                     const matchedJid = isAlreadyResolved 
+                                     let matchedJid = isAlreadyResolved 
                                          ? resolvedMentions.find(jid => jid.split('@')[0].split(':')[0] === clean)
-                                         : (foundPart ? foundPart.id : (isSenderNum ? rawSender : (isFromNum ? from : clean + '@s.whatsapp.net')));
-                                     if (!resolvedMentions.includes(matchedJid)) {
+                                         : (foundPart ? foundPart.id : (isSenderNum ? rawSender : (isFromNum ? from : null)));
+                                     if (matchedJid && matchedJid.endsWith('@lid')) {
+                                         const mapped = lidMappings[matchedJid];
+                                         if (mapped) {
+                                             matchedJid = mapped;
+                                         } else {
+                                             const contact = storeContacts[matchedJid] || {};
+                                             if (contact.phoneNumber) {
+                                                 matchedJid = `${contact.phoneNumber}@s.whatsapp.net`;
+                                             }
+                                         }
+                                     }
+                                     if (matchedJid && !resolvedMentions.includes(matchedJid)) {
                                          resolvedMentions.push(matchedJid);
                                      }
                                      return `@${clean}`;
                                  } else {
-                                     // Se o número mencionado pela IA tem 8 ou mais dígitos (telefone válido), mantemos como menção e resolvemos!
-                                     if (clean.length >= 8) {
-                                         const fallbackJid = clean + '@s.whatsapp.net';
-                                         if (!resolvedMentions.includes(fallbackJid)) {
-                                             resolvedMentions.push(fallbackJid);
-                                         }
-                                         return `@${clean}`;
-                                     }
+                                     // Não marcar automaticamente números desconhecidos para evitar confusão.
                                      return clean;
                                  }
                              });
@@ -6319,6 +7040,13 @@ ${chatLogs}`;
                         }
 
                         const mentions = resolvedMentions.filter(jid => jid && !jid.includes('7100252033253'));
+                        const outgoingMentions = mentions.map(jid => {
+                            if (isGroup && jid.endsWith('@lid')) {
+                                const mapped = lidMappings[jid] || (BochechaEngine.storeRef?.contacts?.[jid] && BochechaEngine.storeRef.contacts[jid].phoneNumber ? `${BochechaEngine.storeRef.contacts[jid].phoneNumber}@s.whatsapp.net` : null);
+                                return mapped || null;
+                            }
+                            return jid;
+                        }).filter(Boolean);
 
                         cleanedReply = cleanedReply.trim();
                         if (!cleanedReply) {
@@ -6333,11 +7061,66 @@ ${chatLogs}`;
                             await sock.sendPresenceUpdate('paused', from).catch(() => {});
                             return;
                         }
-                        
+
                         // Simula digitação humana proporcional ao tamanho do texto
                         await humanDelay(cleanedReply);
-                        
-                        await sock.sendMessage(from, { text: cleanedReply + '\u200B', mentions }, msgOptions);
+
+                        // Decisão de enviar por áudio: prioriza quando o usuário enviou áudio ou por chance configurável
+                        try {
+                            const voiceChance = (settings && settings.voicePreference && typeof settings.voicePreference.chance === 'number') ? settings.voicePreference.chance : 0.5;
+                            let voicePreset = (settings && settings.voicePreference && settings.voicePreference.preset) ? settings.voicePreference.preset : 'duarte';
+                            // A/B testing: se habilitado, escolhe aleatoriamente entre variantes e registra métricas
+                            try {
+                                if (settings && settings.voicePreference && settings.voicePreference.abTest) {
+                                    const variants = (settings.voicePreference.abVariants && Array.isArray(settings.voicePreference.abVariants) && settings.voicePreference.abVariants.length > 0)
+                                        ? settings.voicePreference.abVariants
+                                        : ['francisca', 'duarte'];
+                                    const chosen = variants[Math.floor(Math.random() * variants.length)];
+                                    voicePreset = chosen;
+                                    // registra métrica simples local
+                                    try {
+                                        const abFile = path.join(LEARNINGS_DIR, 'voice_ab_test.json');
+                                        let stats = {};
+                                        if (fs.existsSync(abFile)) {
+                                            try { stats = JSON.parse(fs.readFileSync(abFile, 'utf8')); } catch (e) { stats = {}; }
+                                        }
+                                        stats[chosen] = (stats[chosen] || 0) + 1;
+                                        fs.writeFileSync(abFile, JSON.stringify(stats, null, 2));
+                                    } catch (logErr) {
+                                        Logger.error('VoiceABTest.Log', logErr);
+                                    }
+                                    Logger.info('VoiceABTest', `Preset A/B selecionado: ${chosen}`);
+                                }
+                            } catch (abErr) {
+                                Logger.error('VoiceABTest.Decision', abErr);
+                            }
+                            const avoidAudio = cleanedReply.length > 1000 || cleanedReply.split('\n').length > 8 || cleanedReply.includes('```') || cleanedReply.includes('http');
+                            const preferAudio = shouldPreferAudioReply(q.isAudioQuery, voiceChance, cleanedReply) && !avoidAudio;
+
+                            if (preferAudio) {
+                                const canProceedAudio = await botRateLimiter.waitUntilCanSend(from, 7000);
+                                if (canProceedAudio) {
+                                    const sent = await VoiceSynthesizer.speak(sock, from, cleanedReply, q.msgRef, voicePreset).catch(err => {
+                                        Logger.error('VoiceSynthesizer.SendFallback', err);
+                                        return false;
+                                    });
+                                    if (sent) {
+                                        botRateLimiter.register(from);
+                                        if (typingInterval) clearInterval(typingInterval);
+                                        await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                                        return; // áudio enviado com sucesso — encerra fluxo
+                                    }
+                                }
+                            }
+                        } catch (audioDecisionErr) {
+                            Logger.error('BochechaEngine.AudioDecision', audioDecisionErr);
+                        }
+
+                        const finalPayload = { text: cleanedReply + '\u200B' };
+                        if (isGroup && outgoingMentions.length > 0) {
+                            finalPayload.mentions = outgoingMentions;
+                        }
+                        await sock.sendMessage(from, finalPayload, msgOptions);
                         botRateLimiter.register(from);
                     }
 
@@ -6524,6 +7307,19 @@ ${chatLogs}`;
         }
 
         const input = parts.length > 1 ? parts : formatted;
+        const promptText = typeof input === 'string'
+            ? input
+            : Array.isArray(input)
+                ? input.map(item => typeof item === 'string' ? item : (item.text || '')).join(' ')
+                : '';
+        const isGroup = typeof chatId === 'string' && chatId.endsWith('@g.us');
+        const safetyCheck = classifyConversationSafety(promptText, { isGroup, isOwner });
+        if (safetyCheck.blocked) {
+            Logger.warn('SafetyGate', `Mensagem bloqueada por segurança: ${safetyCheck.reason}`);
+            const blockedReply = safetyCheck.fallback || 'Não vou entrar nesse tema aqui.';
+            await sessionManager.addMessage(chatId, 'assistant', blockedReply);
+            return { output: blockedReply, modelName: 'safety-gate', wasToolExecuted: false, lastExecutedTool: null };
+        }
         
         let chat, response, modelName;
         const hasMedia = parts.some(p => p && typeof p === 'object' && p.inlineData);
@@ -6649,33 +7445,59 @@ ${chatLogs}`;
                 .trim();
         }
 
-        if (!output) {
-            if (wasToolExecuted && lastExecutedTool) {
-                // Se uma ferramenta foi executada com sucesso, mas o modelo falhou no retorno, geramos um fallback perfeito no estilo do Bochecha!
-                if (lastExecutedTool === "enviar_mensagem_privada") {
-                    output = "Já mandei a visão lá no PV do parceiro! Tá avisado. 😉";
-                } else if (lastExecutedTool === "remover_membro") {
-                    output = "Já passei o rodo e removi o meliante do grupo! 💥";
-                } else if (lastExecutedTool === "advertir_membro") {
-                    output = "Já dei aquela advertência de cria no rapaz, tá anotado! 🤫";
-                } else if (lastExecutedTool === "remover_advertencia") {
-                    output = "Pronto, limpei a ficha do parceiro, tá sem advertências agora! 🧼";
-                } else if (lastExecutedTool === "promover_membro") {
-                    output = "Membro promovido com sucesso, agora é adm da tropa! 👑";
-                } else if (lastExecutedTool === "rebaixar_membro") {
-                    output = "Rebaixei o sujeito, perdeu a moral de administrador! 📉";
-                } else {
-                    output = "Missão dada é missão cumprida! A parada já foi feita. 😎";
-                }
-            } else {
-                throw new Error("Resposta da Inteligência Artificial retornou vazia.");
+        // Pós-processamento: remover perguntas desnecessárias quando o usuário já forneceu contexto
+        try {
+            const rawHist = Array.isArray(rawHistory) ? rawHistory : [];
+            const lastUserEntry = rawHist.slice().reverse().find(m => m && m.role === 'user' || (m && m.user));
+            const lastUserText = lastUserEntry ? (lastUserEntry.content || lastUserEntry.text || lastUserEntry) : '';
+            
+            // Remove perguntas típicas de suporte/assistente no final de qualquer resposta
+            if (output) {
+                const assistantQuestionsPattern = /\s*\b(como posso (te )?ajudar( hoje)?\??|em que posso ajudar\??|mais alguma coisa\??|algo mais\??|o que (você|vc) (gostaria de|quer) fazer\??|como posso ser útil\??|o que manda( hoje)?\??|o que vamos (fazer|aprontar) hoje\??|o que quer que eu faça\??|quer ajuda com (mais )?algo\??|tudo bem com (você|vc)\??)\s*$/i;
+                output = output.replace(assistantQuestionsPattern, '').trim();
             }
+
+            const likelyClear = typeof lastUserText === 'string' && lastUserText.trim().length > 40 && !lastUserText.trim().endsWith('?');
+            if (likelyClear && output && output.includes('?')) {
+                // remove sentenças interrogativas do final da resposta
+                const partsSent = output.split(/(?<=\.|!|\?)\s+/);
+                const filtered = partsSent.filter(s => !s.trim().endsWith('?'));
+                const newOut = filtered.join(' ').trim();
+                if (newOut) {
+                    Logger.info('PostProcess', 'Removidas perguntas supérfluas da resposta do modelo.');
+                    output = newOut;
+                }
+            }
+        } catch (ppErr) {
+            Logger.error('PostProcess.ContextCleanup', ppErr);
+        }
+
+        try {
+            output = sanitizeAssistantOutput(output, { isGroup, isOwner });
+        } catch (guardErr) {
+            Logger.error('SafetyGate.Output', guardErr);
+        }
+
+        try {
+            output = enforceAntiHallucinationGuard(output, input, history, { isGroup, wasToolExecuted, lastExecutedTool });
+        } catch (guardErr) {
+            Logger.error('AntiHallucination.Guard', guardErr);
+        }
+
+        if (!output) {
+            const fallbackText = keyRotator.generateOfflineResponse(input);
+            output = fallbackText;
+            Logger.warn("BochechaEngine.AI", "IA indisponível ou não retornou conteúdo; usando fallback textual local.");
+        }
+
+        if (output) {
+            console.log(chalk.cyan(`[🤖 BOCHECHA][${logGroupName}] ${output}`));
         }
 
         // Armazena diálogo na memória da sessão (a mensagem do usuário já foi registrada no handleMessage)
         await sessionManager.addMessage(chatId, 'assistant', output);
 
-        return { output, modelName };
+        return { output, modelName, wasToolExecuted, lastExecutedTool };
     }
 
     /**
