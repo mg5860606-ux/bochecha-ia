@@ -442,9 +442,9 @@ ${fileContent}
         let success = false;
         
         const healModels = [
-            "deepseek/deepseek-r1:free",
-            "qwen/qwen3-coder:free",
-            "meta-llama/llama-3.3-70b-instruct:free"
+            "google/gemini-2.5-pro-preview",
+            "google/gemini-2.5-flash",
+            "google/gemini-2.5-flash-lite"
         ];
 
         for (const key of keys) {

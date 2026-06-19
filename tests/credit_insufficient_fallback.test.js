@@ -97,11 +97,11 @@ const setupCode = `
 class KeyRotationEngine {
     constructor() {
         this.freeModels = ['google/gemini-2.5-flash-lite', 'google/gemini-2.5-flash', 'google/gemini-2.5-pro-preview'];
-        this.availableModels = [...this.freeModels, 'qwen/qwen3-coder:free'];
+        this.availableModels = [...this.freeModels];
         this.modelNormalization = {
             'google/gemini-2.5-flash-lite': 'google/gemini-2.5-flash-lite',
-            'google/gemini-2.5-pro-preview': 'google/gemini-2.5-pro-preview',
-            'qwen/qwen3-coder:free': 'qwen/qwen3-coder:free'
+            'google/gemini-2.5-flash': 'google/gemini-2.5-flash',
+            'google/gemini-2.5-pro-preview': 'google/gemini-2.5-pro-preview'
         };
         this.cooldowns = new Map();
         this.modelCooldowns = new Map();
@@ -145,7 +145,7 @@ context.fetch = async (url, options) => {
         throw err;
     }
     
-    // Na segunda chamada (com o modelo gratuito qwen/qwen3-coder:free), deve ter sucesso
+    // Na segunda chamada (com o modelo gemini-2.5-flash-lite), deve ter sucesso
     return {
         ok: true,
         json: async () => ({
@@ -164,7 +164,7 @@ const engine = new KeyRotationEngine();
 // Executa a chamada
 engine.executeWithRotation([], 'Olá', [], null)
   .then(res => {
-      assert.strictEqual(res.modelName, 'qwen/qwen3-coder:free', 'Deveria ter feito fallback para o modelo gratuito Qwen Coder.');
+      assert.strictEqual(res.modelName, 'google/gemini-2.5-flash-lite', 'Deveria ter feito fallback para o modelo gratuito Gemini Flash Lite.');
       assert.strictEqual(fetchCount, 2, 'Deveria ter feito exatamente 2 chamadas fetch.');
       
       // Verifica se a chave foi inserida no keysWithoutCredits

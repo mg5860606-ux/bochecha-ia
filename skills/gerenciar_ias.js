@@ -7,23 +7,6 @@ const SETTINGS_PATH = path.join(__dirname, '..', 'settings.json');
 
 // Mapeamento de apelidos para IDs de modelos do OpenRouter
 const MODEL_ALIASES = {
-    // DeepSeek R1
-    'r1': 'deepseek/deepseek-r1:free',
-    'deepseek': 'deepseek/deepseek-r1:free',
-
-    // Qwen 3 Coder
-    'coder': 'qwen/qwen3-coder:free',
-    'qwen': 'qwen/qwen3-coder:free',
-
-    // Llama 3.3 70B
-    'llama33': 'meta-llama/llama-3.3-70b-instruct:free',
-    'llama': 'meta-llama/llama-3.3-70b-instruct:free',
-    'llama-paid': 'meta-llama/llama-3.3-70b-instruct',
-
-    // GLM 4.5 Air
-    'glm': 'z-ai/glm-4.5-air:free',
-    'glm4.5': 'z-ai/glm-4.5-air:free',
-
     // Gemini models
     'gemini': 'google/gemini-2.5-flash-lite',
     'gemini-lite': 'google/gemini-2.5-flash-lite',
@@ -39,14 +22,9 @@ const MODEL_ALIASES = {
 
 // Nomes amigáveis para exibição
 const FRIENDLY_NAMES = {
-    'deepseek/deepseek-r1:free': 'DeepSeek R1 Free 🧠 (Raciocínio Avançado SOTA - Grátis)',
-    'qwen/qwen3-coder:free': 'Qwen 3 Coder Free 💻 (Especialista em Programação - Grátis)',
-    'meta-llama/llama-3.3-70b-instruct:free': 'Llama 3.3 70B Free 🦙 (Lógica & Conversação - Grátis)',
-    'meta-llama/llama-3.3-70b-instruct': 'Llama 3.3 70B 🦙 (Lógica & Altamente Estável - Paid)',
-    'z-ai/glm-4.5-air:free': 'GLM 4.5 Air Free ⚡ (Modelo Rápido e Inteligente - Grátis)',
-    'google/gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite ♊ (Extremamente Rápido)',
-    'google/gemini-2.5-flash': 'Gemini 2.5 Flash ♊ (Excelente Multimodal & Tools)',
-    'google/gemini-2.5-pro-preview': 'Gemini 2.5 Pro ♊ (Raciocínio Altamente Complexo)',
+    'google/gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite ♂ (Extremamente Rápido)',
+    'google/gemini-2.5-flash': 'Gemini 2.5 Flash ♂ (Excelente Multimodal & Tools)',
+    'google/gemini-2.5-pro-preview': 'Gemini 2.5 Pro ♂ (Raciocínio Altamente Complexo)',
     'openrouter/free': 'OpenRouter Auto 🔄 (Roteamento Automático)'
 };
 
@@ -98,23 +76,17 @@ module.exports = {
             let panel = `╔═══════════════════════════════╗\n` +
                         `   🌌 *CÉREBROS NEURAIS DO BOCHECHA* 🌌\n` +
                         `╚═══════════════════════════════╝\n\n` +
-                        `Modelos SOTA e ativos no OpenRouter 🆓⚡\n\n` +
-                        `🧠 *[1] DeepSeek R1 Free*\n` +
-                        `  ↳ Apelido: *r1* ou *deepseek*\n` +
-                        `  ↳ Especialidade: Raciocínio de elite (padrão o1/o3-mini).\n\n` +
-                        `💻 *[2] Qwen 3 Coder Free*\n` +
-                        `  ↳ Apelido: *coder* ou *qwen*\n` +
-                        `  ↳ Especialidade: Lógica computacional avançada e programação.\n\n` +
-                        `🦙 *[3] Llama 3.3 70B Free*\n` +
-                        `  ↳ Apelido: *llama33* ou *llama*\n` +
-                        `  ↳ Especialidade: Raciocínio rápido, estável e conversação fluida.\n\n` +
-                        `⚡ *[4] GLM 4.5 Air Free*\n` +
-                        `  ↳ Apelido: *glm* ou *glm4.5*\n` +
-                        `  ↳ Especialidade: Respostas extremamente rápidas e inteligentes.\n\n` +
-                        `♊ *[5] Gemini 2.5 Flash / Pro / Lite*\n` +
-                        `  ↳ Apelido: *gemini-flash*, *gemini-pro* ou *gemini-lite*\n` +
-                        `  ↳ Especialidade: Raciocínio complexo (Pro), multimodal (Flash) ou rapidez (Lite).\n\n` +
-                        `🔄 *[6] OpenRouter Auto*\n` +
+                        `Modelos ativos e confirmados ✔️\n\n` +
+                        `♊ *[1] Gemini 2.5 Flash Lite*\n` +
+                        `  ↳ Apelido: *gemini-lite* ou *gemini*\n` +
+                        `  ↳ Especialidade: Extremamente rápido, ideal para respostas instantâneas.\n\n` +
+                        `♊ *[2] Gemini 2.5 Flash*\n` +
+                        `  ↳ Apelido: *gemini-flash* ou *gemini25*\n` +
+                        `  ↳ Especialidade: Multimodal, suporte a tools e conversação fluida.\n\n` +
+                        `♊ *[3] Gemini 2.5 Pro*\n` +
+                        `  ↳ Apelido: *gemini-pro* ou *gemini25-pro*\n` +
+                        `  ↳ Especialidade: Raciocínio complexo de alto nível.\n\n` +
+                        `🔄 *[4] OpenRouter Auto*\n` +
                         `  ↳ Apelido: *auto* ou *free*\n` +
                         `  ↳ Especialidade: Roteamento inteligente baseado no tipo de prompt.\n\n` +
                         `*───────────────────────────────*\n` +
@@ -123,8 +95,8 @@ module.exports = {
                         `*───────────────────────────────*\n\n` +
                         `⚠️ *Como alterar o cérebro:* (Apenas Criador Marcos)\n` +
                         `Digite: */setia [apelido]*\n` +
-                        `Exemplo: */setia r1* ou */setia gemini-pro*\n\n` +
-                        `> *BOCHECHA AGENTIC ENGINE v5.0 — 100% SOTA* 🥀🛸💀`;
+                        `Exemplo: */setia gemini-pro* ou */setia gemini-flash*\n\n` +
+                        `> *BOCHECHA AGENTIC ENGINE v5.0 — 100% GEMINI* 🥀🛸💀`;
 
             if (isCommand) {
                 await sock.sendMessage(from, { text: panel }, { quoted: message });

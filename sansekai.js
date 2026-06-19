@@ -1636,13 +1636,9 @@ class KeyRotationEngine {
             "google/gemini-2.5-pro-preview"
         ];
 
-        // Apenas os modelos fortes autorizados (incluindo os novos modelos gratuitos SOTA)
+        // Modelos ativos confirmados pelos testes
         this.availableModels = [
-            ...this.freeModels,
-            "qwen/qwen3-coder:free",
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "z-ai/glm-4.5-air:free",
-            "deepseek/deepseek-r1:free"
+            ...this.freeModels
         ];
 
         this.cooldowns = new Map();
@@ -1653,10 +1649,6 @@ class KeyRotationEngine {
             "google/gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
             "google/gemini-2.5-flash": "google/gemini-2.5-flash",
             "google/gemini-2.5-pro-preview": "google/gemini-2.5-pro-preview",
-            "qwen/qwen3-coder:free": "qwen/qwen3-coder:free",
-            "meta-llama/llama-3.3-70b-instruct:free": "meta-llama/llama-3.3-70b-instruct:free",
-            "z-ai/glm-4.5-air:free": "z-ai/glm-4.5-air:free",
-            "deepseek/deepseek-r1:free": "deepseek/deepseek-r1:free",
             "openrouter/free": "openrouter/auto"
         };
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
@@ -1990,7 +1982,6 @@ class KeyRotationEngine {
 
         if (mode === 'fast') {
             const fastModels = [
-                "z-ai/glm-4.5-air:free",
                 "google/gemini-2.5-flash-lite",
                 "google/gemini-2.5-flash",
                 "google/gemini-2.5-pro-preview"
@@ -2013,10 +2004,9 @@ class KeyRotationEngine {
             });
         } else if (isCoding) {
             const codingModels = [
-                "qwen/qwen3-coder:free",
                 "google/gemini-2.5-pro-preview",
                 "google/gemini-2.5-flash",
-                "meta-llama/llama-3.3-70b-instruct:free"
+                "google/gemini-2.5-flash-lite"
             ];
             list.sort((a, b) => {
                 const aVal = codingModels.includes(a) ? codingModels.indexOf(a) : 99;
@@ -2025,11 +2015,9 @@ class KeyRotationEngine {
             });
         } else if (isReasoning || isComplex || hasTools) {
             const reasoningModels = [
-                "deepseek/deepseek-r1:free",
-                "meta-llama/llama-3.3-70b-instruct:free",
                 "google/gemini-2.5-pro-preview",
-                "z-ai/glm-4.5-air:free",
-                "google/gemini-2.5-flash"
+                "google/gemini-2.5-flash",
+                "google/gemini-2.5-flash-lite"
             ];
             list.sort((a, b) => {
                 const aVal = reasoningModels.includes(a) ? reasoningModels.indexOf(a) : 99;
@@ -2038,9 +2026,8 @@ class KeyRotationEngine {
             });
         } else {
             const talkModels = [
-                "meta-llama/llama-3.3-70b-instruct:free",
-                "z-ai/glm-4.5-air:free",
                 "google/gemini-2.5-flash",
+                "google/gemini-2.5-flash-lite",
                 "google/gemini-2.5-pro-preview"
             ];
             list.sort((a, b) => {
@@ -2132,28 +2119,17 @@ class KeyRotationEngine {
             }
             let modelsToTry = aliveModels.length > 0 ? aliveModels : prioritizedModels;
 
-            // Se a chave ativa foi marcada como sem créditos (402), tenta apenas modelos gratuitos do OpenRouter
+            // Se a chave ativa foi marcada como sem créditos (402), usa os modelos disponíveis normalmente
+            // (todos os modelos do freeModels são Gemini que funcionam via OpenRouter com saldo)
             if (this.keysWithoutCredits && this.keysWithoutCredits.has(activeKey)) {
-                modelsToTry = modelsToTry.filter(m => m.endsWith(':free') || m.includes(':free'));
-                if (modelsToTry.length === 0) {
-                    const actualFreeModelsList = [
-                        "qwen/qwen3-coder:free",
-                        "meta-llama/llama-3.3-70b-instruct:free",
-                        "z-ai/glm-4.5-air:free",
-                        "deepseek/deepseek-r1:free"
-                    ];
-                    modelsToTry = actualFreeModelsList.filter(m => !this.deadModels.has(m) && (this.modelCooldowns.get(m) || 0) <= nowTime);
-                    if (modelsToTry.length === 0) {
-                        modelsToTry = actualFreeModelsList;
-                    }
-                }
+                modelsToTry = this.freeModels.filter(m => !this.deadModels.has(m));
+                if (modelsToTry.length === 0) modelsToTry = this.freeModels;
             }
 
             for (const modelName of modelsToTry) {
                 // Prevenção dinâmica: se a chave ficou sem créditos durante a iteração, ignora modelos pagos
                 if (this.keysWithoutCredits && this.keysWithoutCredits.has(activeKey)) {
-                    const isFree = modelName.endsWith(':free') || modelName.includes(':free');
-                    if (!isFree) {
+                    if (!this.freeModels.includes(modelName)) {
                         continue;
                     }
                 }
@@ -2447,11 +2423,7 @@ class KeyRotationEngine {
         }
 
         const actualFreeModelsList = [
-            ...this.freeModels,
-            "qwen/qwen3-coder:free",
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "z-ai/glm-4.5-air:free",
-            "deepseek/deepseek-r1:free"
+            ...this.freeModels
         ];
 
         const isModelAliveAndClean = m => {

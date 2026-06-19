@@ -18,6 +18,7 @@ try {
   assert.deepStrictEqual(apiKeyManager.listKeys(), [], 'A lista de chaves deve ficar vazia após a remoção.');
 
   console.log('apiKeyManager regression test passed.');
+  process.exit(0);
 } finally {
   if (backup === null) {
     if (fs.existsSync(keyFile)) fs.unlinkSync(keyFile);
