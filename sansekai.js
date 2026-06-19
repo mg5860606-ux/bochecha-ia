@@ -2153,7 +2153,7 @@ class KeyRotationEngine {
                         top_p: 0.8,
                         frequency_penalty: 0.2,
                         presence_penalty: 0.0,
-                        max_tokens: requestProfile.mode === 'smart' ? 380 : 160
+                        max_tokens: requestProfile.mode === 'smart' ? 200 : 90
                     };
 
                     if (openRouterTools && openRouterTools.length > 0) {
@@ -7426,6 +7426,16 @@ ${chatLogs}`;
 
         let output = finalResponse.text() ? finalResponse.text().trim() : "";
         if (output) {
+            // Remove markdown de conversas casuais: bold, itálico, headers, bullets
+            output = output
+                .replace(/\*\*(.*?)\*\*/g, '$1')   // **bold** → bold
+                .replace(/\*(.*?)\*/g, '$1')        // *italic* → italic
+                .replace(/_{1,2}(.*?)_{1,2}/g, '$1') // _italic_ → italic
+                .replace(/^#{1,6}\s+/gm, '')        // # header → sem header
+                .replace(/^[-*+]\s+/gm, '')         // bullet lists → sem bullet
+                .replace(/^\d+\.\s+/gm, '')         // numbered lists → sem número
+                .replace(/`{1,3}([^`]*)`{1,3}/g, '$1'); // `code` → sem backtick
+
             output = output
                 .split('\n')
                 .map(line => line.replace(/={5,}/g, '').replace(/-{5,}/g, '').trim())
@@ -7441,7 +7451,8 @@ ${chatLogs}`;
                     }
                     return true;
                 })
-                .join('\n')
+                .join(' ')
+                .replace(/\s{2,}/g, ' ')
                 .trim();
         }
 
