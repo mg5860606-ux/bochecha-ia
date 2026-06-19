@@ -6,7 +6,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "local": "node local.js"
+    "local": "node local.js",
+    "chat": "node chat.js"
   },
   "keywords": [
     "whatsapp-bot",
