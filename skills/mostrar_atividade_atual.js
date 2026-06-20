@@ -11,7 +11,7 @@ module.exports = {
     definition: {
         function: {
             name: "mostrar_atividade_atual",
-            description: "Gera e envia uma foto, vídeo ou GIF realista por IA do Bochecha mostrando o que ele está fazendo no momento. Use SEMPRE que o usuário perguntar o que você está fazendo, onde você está, pedir para te ver agora, pedir uma foto sua de agora, ou pedir um VÍDEO/GIF seu de agora. Seja criativo e varie a atividade para não repetir sempre a mesma coisa!",
+            description: "Gera e envia uma foto, vídeo, GIF ou apenas texto por IA do Bochecha mostrando o que ele está fazendo no momento. Use SEMPRE que o usuário perguntar o que você está fazendo, onde você está, pedir para te ver agora, pedir uma foto sua de agora, ou pedir um VÍDEO/GIF seu de agora. Seja criativo e varie a atividade para não repetir sempre a mesma coisa!",
             parameters: {
                 type: "object",
                 properties: {
@@ -25,8 +25,8 @@ module.exports = {
                     },
                     tipo: {
                         type: "string",
-                        enum: ["foto", "video", "gif"],
-                        description: "Selecione o formato: 'foto' para imagem estática, 'video' para vídeo curto de ação com som, ou 'gif' para animação de loop automático sem som."
+                        enum: ["foto", "video", "gif", "texto"],
+                        description: "Selecione o formato da resposta. Use 'gif' se o usuário pedir explicitamente um GIF, 'video' para vídeo curto de ação com som, 'foto' para imagem estática e 'texto' se a IA decidir responder apenas em formato textual/áudio."
                     }
                 },
                 required: ["atividade", "legenda", "tipo"]
@@ -36,6 +36,28 @@ module.exports = {
     async execute(args, ctx) {
         try {
             const requestedType = args.tipo || "foto";
+            const mentions = ctx.message?.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+            
+            // Se for apenas resposta textual, pula geração de imagem/vídeo totalmente
+            if (requestedType === "texto") {
+                console.log(chalk.cyan(`[📸 SELFIE] Responder o que está fazendo apenas com texto/áudio: ${args.atividade}`));
+                await ctx.sock.sendMessage(ctx.chatId, {
+                    text: args.legenda,
+                    mentions: mentions
+                }, { quoted: ctx.message });
+
+                // Envia áudio narrando a legenda
+                if (global.VoiceSynthesizer && typeof global.VoiceSynthesizer.speak === 'function') {
+                    try {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        await global.VoiceSynthesizer.speak(ctx.sock, ctx.chatId, args.legenda, ctx.message);
+                    } catch (audioErr) {
+                        console.error(chalk.red("[📸 SELFIE] Erro ao sintetizar áudio da atividade:"), audioErr);
+                    }
+                }
+                return "";
+            }
+
             const isVideoOrGif = requestedType === "video" || requestedType === "gif";
             console.log(chalk.cyan(`[📸 SELFIE] Gerando selfie autônoma do Bochecha: ${args.atividade} | Formato: ${requestedType}`));
 
@@ -96,19 +118,30 @@ module.exports = {
                 await ctx.sock.sendMessage(ctx.chatId, {
                     video: videoBuffer,
                     caption: args.legenda,
-                    gifPlayback: requestedType === "gif"
+                    gifPlayback: requestedType === "gif",
+                    mentions: mentions
                 }, { quoted: ctx.message });
 
-                return "";
             } else {
                 // Envia como foto estática com legenda
                 await ctx.sock.sendMessage(ctx.chatId, {
                     image: imageBuffer,
-                    caption: args.legenda
+                    caption: args.legenda,
+                    mentions: mentions
                 }, { quoted: ctx.message });
-
-                return "";
             }
+
+            // Se o VoiceSynthesizer estiver disponível globalmente, envia também o áudio correspondente à legenda!
+            if (global.VoiceSynthesizer && typeof global.VoiceSynthesizer.speak === 'function') {
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 1500)); // Pequeno delay de 1.5s
+                    await global.VoiceSynthesizer.speak(ctx.sock, ctx.chatId, args.legenda, ctx.message);
+                } catch (audioErr) {
+                    console.error(chalk.red("[📸 SELFIE] Erro ao sintetizar áudio da atividade:"), audioErr);
+                }
+            }
+
+            return "";
         } catch (e) {
             console.error(chalk.red("[📸 SELFIE] Erro na Skill mostrar_atividade_atual:"), e);
             return `Erro ao gerar selfie por IA: ${e.message}`;
