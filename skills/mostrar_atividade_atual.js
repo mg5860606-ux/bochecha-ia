@@ -21,7 +21,7 @@ module.exports = {
                     },
                     legenda: {
                         type: "string",
-                        description: "Uma legenda curta, divertida, sarcástica e com gírias cariocas na primeira pessoa que descreve o que você está fazendo (ex: 'Olha eu aqui programando as paradas do meu rei Marcos, mó trampo! 💻🔥')."
+                        description: "Uma legenda curta, divertida, sarcástica e com gírias cariocas na primeira pessoa que descreve o que você está fazendo (ex: 'Olha eu aqui programando as paradas do Marcos, mó trampo! 💻🔥')."
                     },
                     tipo: {
                         type: "string",
