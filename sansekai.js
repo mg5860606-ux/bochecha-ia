@@ -2246,7 +2246,7 @@ class KeyRotationEngine {
                         top_p: 0.8,
                         frequency_penalty: 0.2,
                         presence_penalty: 0.0,
-                        max_tokens: requestProfile.mode === 'smart' ? 200 : 90
+                        max_tokens: requestProfile.mode === 'smart' ? 1024 : 512
                     };
 
                     if (openRouterTools && openRouterTools.length > 0) {
@@ -2541,7 +2541,7 @@ class KeyRotationEngine {
                     model: normalizedModelName,
                     messages,
                     temperature: requestProfile.mode === 'smart' ? 0.12 : 0.24,
-                    max_tokens: requestProfile.mode === 'smart' ? 260 : 140
+                    max_tokens: requestProfile.mode === 'smart' ? 1024 : 512
                 };
                 if (openRouterTools && openRouterTools.length > 0) {
                     body.tools = openRouterTools;
@@ -3627,10 +3627,10 @@ class SkillRegistry {
         };
 
         const cleanPrompt = normalizar(normalizedPrompt);
-        // Extrai palavras com mais de 2 letras
+        // Extrai palavras com 2 ou mais letras para suportar palavras curtas e importantes como "pc", "pv", "ip", etc.
         const promptWords = cleanPrompt.split(/\s+/)
             .map(w => w.replace(/[?.!,;:\-_"']/g, "").trim())
-            .filter(w => w.length > 2);
+            .filter(w => w.length >= 2);
 
         // Stop words estendido para evitar falsos positivos gigantescos (ex: "cria" casando com dezenas de skills)
         const stopWords = new Set([
@@ -3641,7 +3641,10 @@ class SkillRegistry {
             "gera", "gerar", "envia", "enviar", "uso", "usar", "quer", "quero",
             "pode", "poder", "comigo", "contigo", "consigo", "consiga", "bot",
             "bochecha", "grupo", "chat", "mensagem", "resposta", "texto", "canal",
-            "link", "site", "pagina", "url"
+            "link", "site", "pagina", "url",
+            // Pronomes, artigos, preposições curtas (2 letras) adicionais
+            "de", "do", "da", "em", "no", "na", "se", "ou", "um", "eu", "tu", "me",
+            "te", "os", "as", "ao", "ia", "so", "va", "ir", "ele", "ela", "nos", "vos"
         ]);
 
         const matchedTools = [];
@@ -3658,7 +3661,14 @@ class SkillRegistry {
             if (!shouldInclude && promptWords.length > 0) {
                 shouldInclude = promptWords.some(word => {
                     if (stopWords.has(word)) return false;
-                    return skillNameNormalized.includes(word) || skillDescNormalized.includes(word);
+                    // Correspondência direta
+                    if (skillNameNormalized.includes(word) || skillDescNormalized.includes(word)) return true;
+                    // Correspondência por radical (prefixo de 4 a 5 letras para palavras mais longas) para ignorar conjugações e variações gramaticais
+                    if (word.length >= 4) {
+                        const stem = word.substring(0, Math.min(word.length - 1, 5));
+                        if (skillNameNormalized.includes(stem) || skillDescNormalized.includes(stem)) return true;
+                    }
+                    return false;
                 });
             }
 
@@ -4508,7 +4518,12 @@ class PromptComposer {
             Logger.error("PromptComposer.ActiveUserFetch", activeErr);
         }
 
-        const mentionPhone = userData.userId ? userData.userId.split('@')[0].split(':')[0] : '';
+        let resolvedUserId = userData.userId;
+        if (userData.userId) {
+            resolvedUserId = await resolveJidAsync(userData.userId);
+        }
+        const mentionPhone = resolvedUserId ? resolvedUserId.split('@')[0].split(':')[0] : '';
+        const isLid = resolvedUserId && (resolvedUserId.endsWith('@lid') || resolvedUserId.includes('lid'));
 
         let userActivityInfo = "Nenhuma atividade registrada no histórico de mensagens deste grupo.";
         try {
@@ -4548,7 +4563,7 @@ class PromptComposer {
             ? "Você está rodando diretamente no PC pessoal do Marcos, na pasta c:\\Bochecha-IA, em ambiente de testes/desenvolvimento local na casa dele."
             : "Você está rodando na VPS Host de Produção (Servidor em Nuvem), ativo 24/7 com máxima performance.";
 
-        const mentionFormat = mentionPhone ? `@${mentionPhone}` : `@${userData.pushname || "Membro"}`;
+        const mentionFormat = mentionPhone && !isLid ? `@${mentionPhone}` : `@${userData.pushname || "Membro"}`;
 
         let context = `\n\n` +
             `[METADADOS INVISÍVEIS DO CHAT PARA ATUALIZAÇÃO DO SEU CÉREBRO]:\n` +
@@ -4559,13 +4574,13 @@ class PromptComposer {
             `- Usuário Falando com Você: ${userData.pushname || "Membro"} (número/JID: ${userData.userId ? userData.userId.split('@')[0] : 'desconhecido'})\n` +
             `- **IDENTIDADE DO INTERLOCUTOR ATUAL (REGRA ABSOLUTA)**: A pessoa que está enviando a mensagem AGORA é "${userData.pushname || "Membro"}" (identificador/telefone: ${userData.userId ? '@' + userData.userId.split('@')[0] : 'desconhecido'}). Você está falando EXCLUSIVAMENTE com ela nesta resposta. O histórico do chat contém mensagens anteriores de outras pessoas do grupo e mensagens citadas/respondidas. NUNCA, SOB HIPÓTESE ALGUMA, confunda a pessoa atual com o remetente de uma mensagem citada ou com outras pessoas do histórico! Fale com o interlocutor atual usando a menção numérica real correspondente: ${mentionFormat}.\n` +
             `- **ENTENDIMENTO DO GRUPO E HISTÓRICO**: Cada mensagem do histórico de usuários contém um cabeçalho identificando quem a enviou (ex: \`[👤 USUÁRIO: "Nome" | ...]\`). Use isso para entender quem é quem no grupo. Ao responder, lembre-se de que você está respondendo apenas à pessoa atual (o interlocutor atual) e não a outras pessoas que aparecem citadas no histórico.\n` +
-            `- **REGRA DE MENÇÃO MANDATÓRIA (REAL E CLICÁVEL)**: Você DEVE OBRIGATORIAMENTE se referir a qualquer usuário (inclusive o interlocutor atual) usando a menção numérica real com o arroba seguido do número (ex: ${mentionFormat}). Nosso servidor resolve isso automaticamente e transforma em uma marcação azul clicável e notificação real no WhatsApp. NUNCA use apenas o nome puro (como Pedro, Marcos) nem arroba com texto (como @Pedro) para falar com eles. Use menções com @número apenas quando for necessário para clareza ou ação. Se a pessoa for LID, use ${mentionFormat}.\n` +
+            `- **REGRA DE MENÇÃO MANDATÓRIA (REAL E CLICÁVEL)**: Você DEVE OBRIGATORIAMENTE se referir a qualquer usuário (inclusive o interlocutor atual) usando o formato de menção correto (ex: ${mentionFormat}). Nosso servidor resolve isso automaticamente. NUNCA use apenas o nome puro sem arroba para falar diretamente com eles. Se a menção for um número (ex: @5511...), o WhatsApp gera uma tag azul clicável. Se for um nome (ex: @Nome), use exatamente no formato ${mentionFormat}.\n` +
             `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
             `- **RANKING E ATIVIDADE DO INTERLOCUTOR**: ${userActivityInfo}\n` +
             `- Advertências do Usuário: ${userData.warns || 0}/3\n` +
             `- **AMBIENTE DE HOSPEDAGEM (DETECÇÃO DINÂMICA DO SEU SERVIDOR)**: Atualmente você está rodando no ambiente: *${environmentType}*. Especificamente: ${locationStr} (Se o Marcos ou qualquer um perguntar onde você está rodando, se é no PC do Marcos ou na VPS, você saberá responder exatamente onde está e com riqueza de detalhes!)\n` +
-            `- **REGRA DE RESPOSTA DIRETA E CONTEXTUAL (PRIORIDADE MÁXIMA ABSOLUTA)**: Não responda com frases de abertura, cumprimentos vazios, "e aí", "tô suave", "parceiro" ou perguntas de acompanhamento. Nunca termine suas respostas com perguntas ou pedindo instruções (ex: "como posso ajudar?", "o que você quer?"). Responda a pergunta atual diretamente, não repita a pergunta e não peça confirmação desnecessária. Se a mensagem for simples, responda em 1 frase curta. Se estiver ambígua, interprete a intenção mais provável e responda de forma útil e direta. Fale com o interlocutor atual, não com o histórico nem com o grupo inteiro.`;
+            `- **REGRA DE RESPOSTA DIRETA E CONTEXTUAL (PRIORIDADE MÁXIMA ABSOLUTA)**: Não responda com frases de abertura, cumprimentos vazios, "e aí", "tô suave", "parceiro" ou perguntas de acompanhamento. Nunca termine suas respostas com perguntas ou pedindo instruções (ex: "como posso ajudar?", "o que você quer?"). Responda a pergunta atual diretamente, não repita a pergunta e não peça confirmação desnecessária. Se a mensagem for simples, responda em 1 frase curta. Se estiver ambígua, interprete a intenção mais provável e responda de forma útil e direta. **ANTI-LOOP CRÍTICO**: Se você já perguntou "qual é o dilema?" ou "manda a braba" ou qualquer variação disso no histórico desta conversa, você está em loop — PARE IMEDIATAMENTE. Quando o usuário expressa que quer conselho, que não está bem, ou que quer desabafar sem dar mais detalhes, dê um conselho real, genuíno e útil agora mesmo sem pedir mais informações. Fale com o interlocutor atual, não com o histórico nem com o grupo inteiro.`;
 
         // Injeta lista de membros do grupo para que a IA saiba mencionar qualquer pessoa com @número
         if (groupParticipants.length > 0) {
@@ -5931,7 +5946,8 @@ ${chatLogs}`;
             }
 
             // 🛡️ FILTROS DE SEGURANÇA IMEDIATOS EM GRUPO
-            if (isGroup && !parsedMessage.key.fromMe) {
+            // Admins e owners ficam isentos de todos os filtros automáticos
+            if (isGroup && !parsedMessage.key.fromMe && !isOwner && !isAdmin) {
                 const security = await storage.getGroupSecurity(from);
                 // Filtros de Nudez (NSFW Scan)
                 if (security.antiporn) {
@@ -5996,7 +6012,8 @@ ${chatLogs}`;
             }
 
             // 🛡️ REGRAS DE ANTI-LINK E ANTI-FLOOD ADICIONAIS
-            if (isGroup && !isOwner) {
+            // Admins e owners do bot ficam isentos do filtro de links
+            if (isGroup && !isOwner && !isAdmin) {
                 const security = await storage.getGroupSecurity(from);
                 const realMsg = parsedMessage.message?.viewOnceMessageV2?.message || parsedMessage.message?.viewOnceMessage?.message || parsedMessage.message?.ephemeralMessage?.message || parsedMessage.message;
                 const captionText = realMsg?.imageMessage?.caption || realMsg?.videoMessage?.caption || realMsg?.extendedTextMessage?.text || realMsg?.conversation || "";
@@ -6009,14 +6026,11 @@ ${chatLogs}`;
                     try {
                         await sock.sendMessage(from, { delete: parsedMessage.key });
                         await sock.sendMessage(from, { text: `🚫 Links não são permitidos neste grupo, @${sender}!`, mentions: [rawSender] });
-                        if (!(await moderation.isProtectedTarget(sock, from, rawSender))) {
+                        // Tenta remover o membro infrator (se não for protegido/admin)
+                        const isProtected = await moderation.isProtectedTarget(sock, from, rawSender);
+                        if (!isProtected) {
                             await sock.groupParticipantsUpdate(from, [rawSender], 'remove');
                             await BochechaEngine.sendTelemetry(`🛡️ *ESCUDO ANTI-LINK* 🛡️\n\nRemovi o participante @${sender} (${pushname}) do grupo por enviar links proibidos.\n\n*Grupo:* ${from.split('@')[0]}\n*Texto:* ${textToCheck.substring(0, 150)}`);
-                        } else {
-                            await sock.sendMessage(from, {
-                                text: `⚠️ *USUÁRIO PROTEGIDO* ⚠️\n\nO usuário @${sender} é administrador ou protegido e não pode ser expulso automaticamente. Administradores, por favor, tomem a ação necessária se o comportamento continuar.`,
-                                mentions: [rawSender]
-                            });
                         }
                     } catch (err) {
                         Logger.error("Anti-Link", err);
@@ -6024,6 +6038,8 @@ ${chatLogs}`;
                 }
             }
 
+            // 🌊 ANTI-FLOOD
+            if (isGroup && !parsedMessage.key.fromMe) {
                 const hasFlooded = await moderation.checkFlood(sock, from, rawSender, parsedMessage);
                 if (hasFlooded) return;
             }
@@ -7445,15 +7461,27 @@ ${chatLogs}`;
 
                             cleanedReply = cleanedReply.replace(/@(\d+)/g, (match, digits) => {
                                 const clean = digits.trim();
-                                const isAlreadyResolved = resolvedMentions.some(jid => jid.split('@')[0].split(':')[0] === clean);
-                                const foundPart = participants.find(p => p.id.split('@')[0].split(':')[0] === clean);
+                                const matchesJid = (jid, digitsVal) => {
+                                    if (!jid) return false;
+                                    const jidDigits = jid.split('@')[0].split(':')[0];
+                                    if (jidDigits === digitsVal) return true;
+                                    const mapped = lidMappings[jid];
+                                    if (mapped) {
+                                        const mappedDigits = mapped.split('@')[0].split(':')[0];
+                                        if (mappedDigits === digitsVal) return true;
+                                    }
+                                    return false;
+                                };
+
+                                const isAlreadyResolved = resolvedMentions.some(jid => matchesJid(jid, clean));
+                                const foundPart = participants.find(p => matchesJid(p.id, clean));
                                 const isOwnerNum = DEFAULT_OWNERS.includes(clean);
-                                const isSenderNum = sender === clean || rawSender.split('@')[0].split(':')[0] === clean;
-                                const isFromNum = from.split('@')[0].split(':')[0] === clean;
+                                const isSenderNum = matchesJid(rawSender, clean) || sender === clean;
+                                const isFromNum = matchesJid(from, clean);
 
                                 if (isAlreadyResolved || foundPart || isOwnerNum || isSenderNum || isFromNum) {
                                     let matchedJid = isAlreadyResolved
-                                        ? resolvedMentions.find(jid => jid.split('@')[0].split(':')[0] === clean)
+                                        ? resolvedMentions.find(jid => matchesJid(jid, clean))
                                         : (foundPart ? foundPart.id : (isSenderNum ? rawSender : (isFromNum ? from : null)));
                                     if (matchedJid && matchedJid.endsWith('@lid')) {
                                         const mapped = lidMappings[matchedJid];
@@ -7765,7 +7793,8 @@ ${chatLogs}`;
 
         let chat, response, modelName;
         const hasMedia = parts.some(p => p && typeof p === 'object' && p.inlineData);
-        const isSimpleConversation = apiKeyManager.hasClaudeKeys() && !hasMedia;
+        // Claude não suporta function calling do Gemini — só usa Claude para conversas sem ferramentas
+        const isSimpleConversation = apiKeyManager.hasClaudeKeys() && !hasMedia && (!tools || tools.length === 0);
 
         // 🟢 Indica visualmente para os usuários que a IA está "Digitando..."
         try { await sock.sendPresenceUpdate('composing', chatId); } catch (e) { }

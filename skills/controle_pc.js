@@ -7,18 +7,18 @@ module.exports = {
     definition: {
         function: {
             name: "controle_pc",
-            description: "Permite ao criador Marcos monitorar e executar ações de hardware remotamente no computador local dele. Só funciona se o bot estiver rodando no PC local do Marcos e o remetente for ele.",
+            description: "Permite ao criador Marcos monitorar e executar ações de hardware e sistema remotamente no computador local dele (como tirar screenshot, bloquear a tela, verificar status/processos, tocar áudio, desligar, e abrir links/YouTube no navegador). Só funciona se o bot estiver rodando no PC local do Marcos e o remetente for ele.",
             parameters: {
                 type: "object",
                 properties: {
                     acao: {
                         type: "string",
-                        enum: ["print", "bloquear", "status", "processos", "tocar_audio", "desligar", "cancelar_desligamento"],
+                        enum: ["print", "bloquear", "status", "processos", "tocar_audio", "desligar", "cancelar_desligamento", "abrir_link"],
                         description: "A ação a ser executada no computador pessoal do Marcos."
                     },
                     parametro: {
                         type: "string",
-                        description: "Parâmetro adicional. Para tocar_audio: caminho de áudio local ou URL. Para desligar: tempo em segundos ou minutos."
+                        description: "Parâmetro adicional. Para abrir_link: URL ou termo como 'youtube'. Para tocar_audio: caminho de áudio local ou URL. Para desligar: tempo em segundos ou minutos."
                     }
                 },
                 required: ["acao"]
@@ -248,8 +248,32 @@ module.exports = {
                     return "✅ *Agendamento de desligamento cancelado com sucesso!* Seu computador continuará ligado normalmente. 🖥️🙌";
                 }
 
+                case "abrir_link":
+                case "abrir_url":
+                case "abrir":
+                case "youtube": {
+                    if (!param) {
+                        return "⚠️ Por favor, especifique o link ou termo para abrir.";
+                    }
+                    let url = param;
+                    if (url.toLowerCase() === "youtube") {
+                        url = "https://www.youtube.com";
+                    } else if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                        url = `https://www.youtube.com/results?search_query=${encodeURIComponent(url)}`;
+                    }
+
+                    await new Promise((resolve, reject) => {
+                        exec(`start "" "${url.replace(/"/g, '\\"')}"`, (error) => {
+                            if (error) reject(error);
+                            else resolve();
+                        });
+                    });
+
+                    return `🌐 *Abrindo link no seu PC local!* 🖥️\n*Destino:* ${url}`;
+                }
+
                 default:
-                    return `❌ Ação de hardware desconhecida: "${action}". Use: print, bloquear, status, processos, tocar_audio, desligar ou cancelar_desligamento.`;
+                    return `❌ Ação de hardware desconhecida: "${action}". Use: print, bloquear, status, processos, tocar_audio, desligar, abrir_link ou cancelar_desligamento.`;
             }
         } catch (err) {
             console.error(err);
