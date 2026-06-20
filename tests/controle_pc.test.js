@@ -2,6 +2,21 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const child_process = require('child_process');
 
+// Mockar yt-search antes de executar o teste para evitar chamadas de rede e garantir asserção precisa
+require('yt-search'); // carrega no cache do require
+require.cache[require.resolve('yt-search')] = {
+    exports: async (query) => {
+        if (query === 'musica foda') {
+            return {
+                videos: [
+                    { url: 'https://youtube.com/watch?v=mocked_video_id' }
+                ]
+            };
+        }
+        return { videos: [] };
+    }
+};
+
 // Salva a função original de exec para não alterar o comportamento global depois do teste
 const originalExec = child_process.exec;
 let lastExecCommand = '';
@@ -32,11 +47,12 @@ test('Controle PC: abre YouTube sem parametro', async () => {
     assert.match(lastExecCommand, /https:\/\/www.youtube.com/);
 });
 
-test('Controle PC: pesquisa e abre musica foda no youtube', async () => {
+test('Controle PC: pesquisa e abre musica foda no youtube (com busca do primeiro vídeo)', async () => {
     lastExecCommand = '';
     const res = await controlePc.execute({ acao: 'tocar_musica', parametro: 'musica foda' }, { isOwner: true });
     assert.match(res, /Abrindo link no seu PC local/);
-    assert.match(lastExecCommand, /search_query=musica%20foda/);
+    assert.match(lastExecCommand, /watch\?v=mocked_video_id/);
+    assert.match(lastExecCommand, /autoplay=1/);
 });
 
 // Restaura exec original

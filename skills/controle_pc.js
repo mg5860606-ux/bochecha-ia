@@ -267,7 +267,24 @@ module.exports = {
                     if (url.toLowerCase() === "youtube") {
                         url = "https://www.youtube.com";
                     } else if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                        url = `https://www.youtube.com/results?search_query=${encodeURIComponent(url)}`;
+                        // Se for ação de música/youtube e for termo de busca, busca o primeiro vídeo com yt-search
+                        if (["youtube", "abrir_youtube", "tocar_musica", "abrir_musica"].includes(action)) {
+                            try {
+                                const ytSearch = require('yt-search');
+                                const searchResult = await ytSearch(url);
+                                if (searchResult && searchResult.videos && searchResult.videos.length > 0) {
+                                    // Adiciona autoplay=1 para que o navegador tente reproduzir o vídeo automaticamente
+                                    url = `${searchResult.videos[0].url}&autoplay=1`;
+                                } else {
+                                    url = `https://www.youtube.com/results?search_query=${encodeURIComponent(url)}`;
+                                }
+                            } catch (searchErr) {
+                                console.error("[controle_pc] Erro ao buscar no YouTube:", searchErr);
+                                url = `https://www.youtube.com/results?search_query=${encodeURIComponent(url)}`;
+                            }
+                        } else {
+                            url = `https://www.youtube.com/results?search_query=${encodeURIComponent(url)}`;
+                        }
                     }
 
                     await new Promise((resolve, reject) => {
