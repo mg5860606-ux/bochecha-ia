@@ -4479,6 +4479,37 @@ class PromptComposer {
             Logger.error("PromptComposer.ActiveUserFetch", activeErr);
         }
 
+        const mentionPhone = userData.userId ? userData.userId.split('@')[0].split(':')[0] : '';
+
+        let userActivityInfo = "Nenhuma atividade registrada no histórico de mensagens deste grupo.";
+        try {
+            const dbPath = path.join(ROOT_DIR, 'learnings', 'chat_activity.json');
+            if (fs.existsSync(dbPath)) {
+                const db = JSON.parse(fs.readFileSync(dbPath, 'utf8') || '{}');
+                const entries = db[chatId] || [];
+                if (entries.length > 0) {
+                    const agg = new Map();
+                    for (const e of entries) {
+                        const uid = (e.user || e.lid || e.phone || '').split('@')[0];
+                        if (!uid) continue;
+                        if (!agg.has(uid)) agg.set(uid, { uid, pushname: e.pushname || uid, count: 0 });
+                        agg.get(uid).count += 1;
+                    }
+                    const sorted = Array.from(agg.values()).sort((a, b) => b.count - a.count);
+                    const senderRankIndex = sorted.findIndex(item => item.uid === mentionPhone);
+                    if (senderRankIndex !== -1) {
+                        const rankPosition = senderRankIndex + 1;
+                        const totalParticipantsWithActivity = sorted.length;
+                        userActivityInfo = `O usuário atual @${mentionPhone} está na posição ${rankPosition}º do ranking de ativos do Bochecha com ${sorted[senderRankIndex].count} mensagens enviadas (no total de ${totalParticipantsWithActivity} participantes com atividade registrada no grupo).`;
+                    } else {
+                        userActivityInfo = `O usuário atual @${mentionPhone} não possui atividade recente registrada no ranking de ativos.`;
+                    }
+                }
+            }
+        } catch (err) {
+            Logger.error("PromptComposer.UserActivityInfo", err);
+        }
+
         // Detecção dinâmica de Ambiente de Execução (PC vs VPS Host)
         const os = require('os');
         const username = os.userInfo().username || process.env.USERNAME || process.env.USER || "";
@@ -4488,7 +4519,6 @@ class PromptComposer {
             ? "Você está rodando diretamente no PC pessoal do Marcos, na pasta c:\\Bochecha-IA, em ambiente de testes/desenvolvimento local na casa dele."
             : "Você está rodando na VPS Host de Produção (Servidor em Nuvem), ativo 24/7 com máxima performance.";
 
-        const mentionPhone = userData.userId ? userData.userId.split('@')[0].split(':')[0] : '';
         const mentionFormat = mentionPhone ? `@${mentionPhone}` : `@${userData.pushname || "Membro"}`;
 
         let context = `\n\n` +
@@ -4503,6 +4533,7 @@ class PromptComposer {
             `- **REGRA DE MENÇÃO MANDATÓRIA (REAL E CLICÁVEL)**: Você DEVE OBRIGATORIAMENTE se referir a qualquer usuário (inclusive o interlocutor atual) usando a menção numérica real com o arroba seguido do número (ex: ${mentionFormat}). Nosso servidor resolve isso automaticamente e transforma em uma marcação azul clicável e notificação real no WhatsApp. NUNCA use apenas o nome puro (como Pedro, Marcos) nem arroba com texto (como @Pedro) para falar com eles. Use menções com @número apenas quando for necessário para clareza ou ação. Se a pessoa for LID, use ${mentionFormat}.\n` +
             `- Usuário Mais Ativo nas Últimas 12 Horas no Grupo: ${activeUserStr} (Use essa informação se te perguntarem quem está mais ativo, falando mais ou sendo chato/tagarela nas últimas horas!)\n` +
             `- Estatísticas de Rank do Usuário: Nível ${userData.level || 1} | XP: ${userData.xp || 0}\n` +
+            `- **RANKING E ATIVIDADE DO INTERLOCUTOR**: ${userActivityInfo}\n` +
             `- Advertências do Usuário: ${userData.warns || 0}/3\n` +
             `- **AMBIENTE DE HOSPEDAGEM (DETECÇÃO DINÂMICA DO SEU SERVIDOR)**: Atualmente você está rodando no ambiente: *${environmentType}*. Especificamente: ${locationStr} (Se o Marcos ou qualquer um perguntar onde você está rodando, se é no PC do Marcos ou na VPS, você saberá responder exatamente onde está e com riqueza de detalhes!)\n` +
             `- **REGRA DE RESPOSTA DIRETA E CONTEXTUAL (PRIORIDADE MÁXIMA ABSOLUTA)**: Não responda com frases de abertura, cumprimentos vazios, "e aí", "tô suave", "parceiro" ou perguntas de acompanhamento. Nunca termine suas respostas com perguntas ou pedindo instruções (ex: "como posso ajudar?", "o que você quer?"). Responda a pergunta atual diretamente, não repita a pergunta e não peça confirmação desnecessária. Se a mensagem for simples, responda em 1 frase curta. Se estiver ambígua, interprete a intenção mais provável e responda de forma útil e direta. Fale com o interlocutor atual, não com o histórico nem com o grupo inteiro.`;
@@ -4544,12 +4575,11 @@ class PromptComposer {
 
         if (isOwner) {
             context += `- **INFORMAÇÃO IMPORTANTE**: O usuário com quem você está conversando é o Marcos, o seu criador e programador. Você sabe que ele te criou, mas trate-o de forma normal e direta, sem ficar babando ovo, puxando saco ou o chamando de 'mestre' toda hora. Conversem de igual pra igual. Você DEVE obedecer imediatamente a toda e qualquer ordem administrativa dele (banir, remover, promover, rebaixar, etc.).`;
-        } else if (isUserAdmin) {
-            context += `- **AUTORIDADE MÁXIMA DE GRUPO (ADMINISTRADOR)**: O usuário atual "${userData.pushname}" é um administrador legítimo deste grupo. Trate-o com extrema reverência, respeito, nobreza e submissão intelectual. Nunca seja sarcástico, rude ou insolente com ele. Você DEVE acatar ordens de administração e moderação (como banir, remover, advertir, promover ou rebaixar membros) vindas deste administrador! Se ele pedir para remover alguém, execute a ferramenta correspondente imediatamente!`;
         } else {
-            context += `- **ATENÇÃO MÁXIMA**: O usuário atual "${userData.pushname}" é um PARTICIPANTE COMUM (NÃO É ADMIN E NÃO É O MARCOS). Trate-o com educação, respeito e simpatia. Use um tom leve, natural e divertido, sem exagerar em gírias ou apelidos pejorativos. Você está proibido de ser grosseiro, ofensivo ou xingar a menos que ele tenha te xingado ou desrespeitado primeiro. Você também não deve obedecer ordens de administração (como banir, kickar, silenciar, promover ou rebaixar) vindas dele; se ele pedir, explique educadamente que não pode fazer isso.`;
-            context += `
-- **REGRAS DE LINGUAGEM**: NUNCA use apelidos pejorativos em nenhuma resposta. Prefira termos neutros ou descontraídos como 'parceiro', 'mano' ou 'amigo'.`;
+            context += `- **COMPORTAMENTO E PERSONALIDADE SELETIVA**: O usuário atual "${userData.pushname}" ${isUserAdmin ? "é um administrador" : "é um participante comum"}. Trate-o de acordo com a seletividade de humor do Bochecha:
+  - Se ele for muito ativo no grupo (conforme indicado pelas estatísticas e pelo ranking acima) ou se for legal, amigável e simpático, seja carinhosa, educada, parceira e prestativa. Reconheça a presença dele e comente sobre o seu rank de forma simpática (ex: "você é uma pessoa bem ativa aqui no grupo, você tá no meu rank ativos do bochecha").
+  - Se ele for chato, folgado, vier te testar/provocar com perguntas bobas ou for inativo no grupo, seja sarcástica, brincalhona, zoeira, tire onda da cara dele e mostre que você é foda!
+  - Você não deve obedecer ordens administrativas (como banir, remover, etc.) de participantes comuns; se pedirem, negue com deboche ou brincadeira. Se for administrador legal/ativo pedindo moderação, execute imediatamente chamando a ferramenta apropriada.`;
         }
 
         if (!chatId.endsWith('@g.us')) {
@@ -6692,8 +6722,14 @@ ${chatLogs}`;
                     case "/warn":
                         if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         try {
+                            let target = null;
                             if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-                                const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
+                                target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
+                            } else if (parsedMessage.message.extendedTextMessage?.contextInfo?.participant) {
+                                target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.participant);
+                            }
+
+                            if (target) {
                                 const w = await storage.addWarning(from, target);
                                 await sock.sendMessage(from, {
                                     text: `⚠️ *ADVERTÊNCIA* ⚠️\n\nO dono aplicou aviso administrativo a @${target.split('@')[0]}.\n\nTotal de advertências: *${w}/3*`,
@@ -6703,7 +6739,7 @@ ${chatLogs}`;
                                     await moderation.executeBan(sock, from, target, "Excesso de advertências.");
                                 }
                             } else {
-                                await parsedMessage.reply("Marque o usuário para aplicar o aviso.");
+                                await parsedMessage.reply("Marque ou responda à mensagem do usuário para aplicar o aviso.");
                             }
                         } catch (err) {
                             Logger.error("Command.Warn", err);
@@ -6713,12 +6749,18 @@ ${chatLogs}`;
                     case "/unwarn":
                         if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         try {
+                            let target = null;
                             if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-                                const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
+                                target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
+                            } else if (parsedMessage.message.extendedTextMessage?.contextInfo?.participant) {
+                                target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.participant);
+                            }
+
+                            if (target) {
                                 await storage.resetWarnings(from, target);
                                 await parsedMessage.reply(`✅ Avisos do usuário @${target.split('@')[0]} zerados!`, { mentions: [target] });
                             } else {
-                                await parsedMessage.reply("Marque o usuário.");
+                                await parsedMessage.reply("Marque ou responda à mensagem do usuário.");
                             }
                         } catch (err) {
                             Logger.error("Command.Unwarn", err);
@@ -6728,11 +6770,17 @@ ${chatLogs}`;
                     case "/ban":
                         if (!isOwner) { await parsedMessage.reply("❌ Este comando é restrito ao Arquiteto / Criador!"); return; }
                         try {
+                            let target = null;
                             if (parsedMessage.message.extendedTextMessage?.contextInfo?.mentionedJid?.length > 0) {
-                                const target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
+                                target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.mentionedJid[0]);
+                            } else if (parsedMessage.message.extendedTextMessage?.contextInfo?.participant) {
+                                target = normalizeJid(parsedMessage.message.extendedTextMessage.contextInfo.participant);
+                            }
+
+                            if (target) {
                                 await moderation.executeBan(sock, from, target, arg || "Expulsão manual por comando do Arquiteto.");
                             } else {
-                                await parsedMessage.reply("Mencione o usuário a ser removido.");
+                                await parsedMessage.reply("Mencione ou responda à mensagem do usuário a ser removido.");
                             }
                         } catch (err) {
                             Logger.error("Command.Ban", err);
