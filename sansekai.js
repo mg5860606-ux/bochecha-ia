@@ -246,24 +246,8 @@ function getHallucinationFallback(options = {}) {
 }
 
 function buildToolExecutionFallbackOutput(prompt = '', lastExecutedTool = null) {
-    if (!prompt || typeof prompt !== 'string') {
-        return 'Feito.';
-    }
-
-    if (lastExecutedTool === 'baixar_adulto' || lastExecutedTool === 'baixar_videos' || lastExecutedTool === 'play_video') {
-        return 'Feito.';
-    }
-
-    const normalizedPrompt = normalizeTextForHallucination(prompt);
-    if (/ (play|tocar|reproduzir|audio|áudio) /.test(normalizedPrompt) || lastExecutedTool === 'falar_em_audio' || lastExecutedTool === 'bochecha_voz' || lastExecutedTool === 'play_audio') {
-        return 'Já toquei.';
-    }
-
-    if (/ (imagem|foto|gerar|criar|mandar|enviar) /.test(normalizedPrompt)) {
-        return 'Feito.';
-    }
-
-    return 'Feito.';
+    // Desativado: sem textos locais fixos. Deixa a IA falar por ela mesma.
+    return '';
 }
 
 function isLowConfidenceFactualAnswer(output, prompt) {
@@ -4110,38 +4094,9 @@ class SecuritySystem {
 
     /**
      * Processa reações de áudio automáticas do bot.
+     * Desativado: a IA responde a tudo diretamente, sem intercepção local.
      */
     static async handleAudioReactions(sock, chatId, body, msgRef) {
-        try {
-            const low = body.toLowerCase().trim();
-            const reactions = {
-                "bom dia": "bomdia.mp3",
-                "boa noite": "boanoite.mp3",
-                "boa tarde": "boatarde.mp3",
-                "kkk": "risada.mp3",
-                "hahaha": "risada.mp3",
-                "safado": "safado.mp3",
-                "corvo": "corvo.mp3",
-                "menu": "menu.mp3"
-            };
-
-            for (const [trigger, filename] of Object.entries(reactions)) {
-                if (low.includes(trigger)) {
-                    const audioPath = path.join(ROOT_DIR, "lib", filename);
-                    if (fs.existsSync(audioPath)) {
-                        Logger.info("AudioReactions", `Enviando resposta em áudio para gatilho: '${trigger}'`);
-                        await sock.sendMessage(chatId, {
-                            audio: fs.readFileSync(audioPath),
-                            mimetype: 'audio/mpeg',
-                            ptt: false
-                        }, { quoted: msgRef });
-                        return true;
-                    }
-                }
-            }
-        } catch (e) {
-            Logger.error("SecuritySystem.AudioReactions", e);
-        }
         return false;
     }
 
@@ -4149,21 +4104,7 @@ class SecuritySystem {
      * Verifica e responde se houver alguma resposta programada ou ensinada.
      */
     static async handleAutoReplies(sock, chatId, body, msgRef) {
-        try {
-            if (!fs.existsSync(AUTOREPLY_FILE)) return false;
-            const db = JSON.parse(fs.readFileSync(AUTOREPLY_FILE, 'utf8'));
-
-            if (db[chatId]) {
-                const low = body.toLowerCase().trim();
-                if (db[chatId][low]) {
-                    Logger.info("AutoReplies", `Enviando resposta ensinada para: '${low}'`);
-                    await sock.sendMessage(chatId, { text: db[chatId][low] }, { quoted: msgRef });
-                    return true;
-                }
-            }
-        } catch (e) {
-            Logger.error("SecuritySystem.AutoReplies", e);
-        }
+        // Desativado: sempre a IA que deve responder pela API.
         return false;
     }
 
