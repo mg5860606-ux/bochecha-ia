@@ -79,6 +79,8 @@ const SKILL_CATEGORIES = {
     moeda: "games", enquete_rapida: "games", brincadeiras: "games", velha: "games",
     verdade_desafio: "games", criar_enquete: "games", games_controller: "games",
     jogar_moeda: "games", rolar_dados: "games",
+    guerra_clas: "games", eleicao_imperador: "games", identidade_secreta: "games",
+    oraculo_bochecha: "games", arena_debates: "games", quiz_aovivo: "games",
     
     horoscopo: "astro", signo: "astro", hora_mundial: "astro",
     
@@ -238,7 +240,13 @@ const SKILL_SHORT_DESCRIPTIONS = {
     chamar_no_pv: "Chama membro no PV e avisa",
     melhorar_grupo: "Gera foto do grupo com IA",
     analista_psicologico: "Análise de perfil psicológico",
-    enviar_mensagem_privada: "Envia mensagem no PV de alguém"
+    enviar_mensagem_privada: "Envia mensagem no PV de alguém",
+    guerra_clas: "Guerra de Clãs por mensagens",
+    eleicao_imperador: "Eleição para Imperador do Dia",
+    identidade_secreta: "Jogo de espionagem e missão no PV",
+    oraculo_bochecha: "Profecias e votação real/caô",
+    arena_debates: "Arena de debates com voto popular",
+    quiz_aovivo: "Show do Milhão (Quiz ao vivo)"
 };
 
 module.exports = {
