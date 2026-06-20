@@ -17,41 +17,76 @@ module.exports = {
         }
     },
     async execute(args, { sock, from }) {
-        const tema = args.tema || "";
+        const tema = args.tema ? args.tema.toLowerCase().trim() : "";
         
         try {
             await sock.sendMessage(from, { text: `✨ Buscando notícias positivas ${tema ? `sobre *${tema}* ` : ''}para alegrar o dia...` });
             
-            // Monta a query para o Google focada nos maiores portais de notícias boas do Brasil
-            let query = "site:sonoticiaboa.com.br OR site:razoesparaacreditar.com";
-            if (tema) {
-                query += ` ${tema}`;
-            }
+            const res = await axios.get('https://www.sonoticiaboa.com.br/feed/');
+            const xml = res.data;
             
-            const res = await axios.get(`https://vyturex-api.vercel.app/api/google?query=${encodeURIComponent(query)}`);
-            
-            if (!res.data || !res.data.results || res.data.results.length === 0) {
-                // Fallback de busca geral por notícias felizes se os sites específicos falharem ou não retornarem nada
-                const fallbackQuery = tema ? `noticias boas positivas ${tema}` : "noticias boas de hoje positivas";
-                const fallbackRes = await axios.get(`https://vyturex-api.vercel.app/api/google?query=${encodeURIComponent(fallbackQuery)}`);
+            const items = [];
+            const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+            let match;
+            while ((match = itemRegex.exec(xml)) !== null) {
+                const itemContent = match[1];
+                const titleMatch = /<title>([\s\S]*?)<\/title>/.exec(itemContent);
+                const linkMatch = /<link>([\s\S]*?)<\/link>/.exec(itemContent);
+                const descMatch = /<description>([\s\S]*?)<\/description>/.exec(itemContent);
                 
-                if (!fallbackRes.data || !fallbackRes.data.results || fallbackRes.data.results.length === 0) {
-                    return "🌞 Parece que hoje o dia está calmo, mas lembre-se: coisas boas acontecem a todo momento! Não consegui encontrar nenhuma notícia específica agora.";
+                let title = titleMatch ? titleMatch[1].trim() : '';
+                let link = linkMatch ? linkMatch[1].trim() : '';
+                let desc = descMatch ? descMatch[1].trim() : '';
+                
+                title = title.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
+                link = link.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
+                desc = desc.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
+                
+                desc = desc.replace(/<[^>]*>/g, '').trim();
+                desc = desc.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'");
+                title = title.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#039;/g, "'");
+
+                if (title && link) {
+                    items.push({ title, link, snippet: desc });
                 }
-                res.data.results = fallbackRes.data.results;
             }
 
-            const results = res.data.results.slice(0, 3);
+            if (items.length === 0) {
+                return "🌞 Parece que hoje o dia está calmo, mas lembre-se: coisas boas acontecem a todo momento! Não consegui encontrar notícias no momento.";
+            }
+
+            let filteredItems = items;
+            let temaEncontrado = true;
+            if (tema) {
+                filteredItems = items.filter(item => 
+                    item.title.toLowerCase().includes(tema) || 
+                    item.snippet.toLowerCase().includes(tema)
+                );
+                if (filteredItems.length === 0) {
+                    filteredItems = items;
+                    temaEncontrado = false;
+                }
+            }
+
+            const results = filteredItems.slice(0, 3);
             
             let text = `🌞 *SÓ NOTÍCIA BOA!* 🌞\n`;
-            text += `_Aqui estão algumas coisas boas acontecendo hoje:_\n\n`;
+            if (tema) {
+                if (temaEncontrado) {
+                    text += `_Aqui estão algumas notícias positivas sobre *${args.tema}*:_\n\n`;
+                } else {
+                    text += `_Não encontrei notícias recentes sobre *${args.tema}*, mas aqui estão as últimas de hoje para alegrar seu dia:_\n\n`;
+                }
+            } else {
+                text += `_Aqui estão algumas coisas boas acontecendo hoje:_\n\n`;
+            }
             
             results.forEach((r, idx) => {
-                // Limpa título de marcas d'água dos sites se houver
-                const cleanTitle = r.title.replace(/ - Só Notícia Boa| \| Razões para Acreditar/gi, "").trim();
+                const cleanTitle = r.title.replace(/ - Só Notícia Boa/gi, "").trim();
                 text += `*${idx + 1}. ${cleanTitle}*\n`;
                 if (r.snippet) {
-                    text += `📝 _${r.snippet}_\n`;
+                    const cleanSnippet = r.snippet.replace(/\[&hellip;\]/g, "...").trim();
+                    text += `📝 _${cleanSnippet}_\n`;
                 }
                 text += `🔗 ${r.link}\n\n`;
             });
