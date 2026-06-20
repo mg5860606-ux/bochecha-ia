@@ -2058,7 +2058,7 @@ class KeyRotationEngine {
     async executeWithRotation(history, prompt, tools, systemInstruction, isUserRequest = false) {
         let attempts = 0;
         const totalKeys = apiKeyManager.listKeys().length;
-        const maxKeyCycles = Math.min(Math.max(totalKeys, 2), 3); // Máximo 3 ciclos para evitar loops excessivos
+        const maxKeyCycles = Math.max(totalKeys, 3); // Tenta todas as chaves disponíveis pelo menos uma vez antes de desistir
 
         // Circuit breaker: se faz mais de 2 minutos sem sucesso, reduz tentativas
         const timeSinceSuccess = Date.now() - this._lastSuccessTime;
@@ -3463,9 +3463,26 @@ class SkillRegistry {
     /**
      * Mapeia as assinaturas para envio direto na requisição do Gemini.
      */
-    getGeminiTools() {
+    getGeminiTools(promptText = "") {
         const tools = [];
+        const normalizedPrompt = String(promptText || "").toLowerCase().trim();
+        
+        // Otimização de Tokens: Se o prompt for uma saudação/conversa muito casual e curta,
+        // envia apenas ferramentas utilitárias fundamentais para economizar mais de 15.000 tokens de prompt.
+        const isCasual = normalizedPrompt.length < 40 && 
+            /^(oi|olá|ola|bom dia|boa tarde|boa noite|tudo bem|tudo bom|e aí|e ae|eae|eai|quem é você|quem e voce|bochecha|bot|ia|salve|opa|opá|hey|hi|hello)$/i.test(normalizedPrompt.replace(/[?.!,;:\-_]/g, "").trim());
+
         for (const name in this.skills) {
+            if (isCasual) {
+                const essentialTools = [
+                    "exibir_menu", "status", "listar_minhas_ferramentas", "chamar_no_pv", 
+                    "consultar_conversa_pv", "mostrar_atividade_atual"
+                ];
+                if (!essentialTools.includes(name)) {
+                    continue;
+                }
+            }
+
             const fn = this.skills[name].definition.function;
             const converted = this._convert(fn.parameters || { type: "object", properties: {} });
             tools.push({
@@ -7258,7 +7275,7 @@ ${chatLogs}`;
             parts: [{ text: m.content }]
         }));
 
-        const tools = registry.getGeminiTools();
+        const tools = registry.getGeminiTools(prompt);
         
         // Determina a hierarquia do remetente no grupo
         let hierarchy = "Membro Comum (👤 Plebe)";
