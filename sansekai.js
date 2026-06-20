@@ -1333,7 +1333,7 @@ global.storage = storage;
 // 3.1. LONG TERM SEMANTIC MEMORY (CLASS LONGTERMMEMORY)
 // ══════════════════════════════════════════════════════════════════════════
 
-const LTM_AUTOSAVE_ENABLED = false;
+const LTM_AUTOSAVE_ENABLED = true;
 
 function shouldSkipFactExtraction(messageContent) {
     if (!messageContent || typeof messageContent !== 'string') return true;

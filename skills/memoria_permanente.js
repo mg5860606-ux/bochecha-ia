@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const settingsPath = path.join(__dirname, '..', '..', 'settings.json');
-const LTM_SAVE_ENABLED = false;
+const { db, doc, getDoc, setDoc, isAvailable } = require('../firebase_connector');
+const settingsPath = path.join(__dirname, '..', 'settings.json');
+const LTM_SAVE_ENABLED = isAvailable;
 let maxLTM = 50;
 try {
   const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
