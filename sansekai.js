@@ -157,7 +157,8 @@ const ANTI_HALLUCINATION_HEDGING_PATTERNS = [
 ];
 
 const ANTI_HALLUCINATION_FACTUAL_PROMPT_PATTERNS = [
-    /\b(quem|qual|quando|onde|quanto|quantos|como|por que|porque|resultado|horario|horário|preço|valor|data|nome|telefone|endereço|saldo|placar|status|jogo|vencedor|perdedor)\b/i
+    /\b(qual|quando|onde|quanto|quantos|por que|porque|resultado|horario|horário|preço|valor|data|nome|telefone|endereço|saldo|placar|status|jogo|vencedor|perdedor)\b/i
+    // Nota: 'como', 'quem' foram removidos pois causavam falsos positivos em conversas casuais como "como vai?" ou "e eu?"
 ];
 
 function normalizeTextForHallucination(text) {
