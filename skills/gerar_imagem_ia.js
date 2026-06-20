@@ -37,28 +37,12 @@ module.exports = {
                 finalPrompt = BOCHECHA_VISUAL;
             }
 
-            // Usando DeepAI que é gratuito e mais robusta
-            const FormData = require('form-data');
-            const formData = new FormData();
-            formData.append('text', finalPrompt);
-
-            const response = await axios.post(API_CONFIG.imageGen.url, formData, {
-                headers: {
-                    'api-key': 'skipped',
-                    ...formData.getHeaders()
-                },
-                timeout: 30000
-            });
-
-            const imageUrl = response.data.output_url;
-
-            if (!imageUrl) {
-                return `❌ Erro: A API não retornou uma URL de imagem válida.`;
-            }
+            // Usando Pollinations AI que é gratuito e robusto
+            const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=1024&height=1024&nologo=true&private=true&enhance=true`;
 
             await sock.sendMessage(from, { 
                 image: { url: imageUrl }, 
-                caption: `✨ *IMAGEM GERADA POR IA*\n\n🎯 *Prompt:* ${args.prompt}\n🚀 *Motor:* DeepAI Neural Engine`
+                caption: `✨ *IMAGEM GERADA POR IA*\n\n🎯 *Prompt:* ${args.prompt}\n🚀 *Motor:* Pollinations AI`
             });
 
             return "A imagem foi gerada e enviada com sucesso.";
