@@ -13,8 +13,8 @@ module.exports = {
                 properties: {
                     acao: {
                         type: "string",
-                        enum: ["print", "bloquear", "status", "processos", "tocar_audio", "desligar", "cancelar_desligamento", "abrir_link"],
-                        description: "A ação a ser executada no computador pessoal do Marcos."
+                        enum: ["print", "bloquear", "status", "processos", "tocar_audio", "desligar", "cancelar_desligamento", "abrir_link", "abrir_youtube", "tocar_musica", "abrir_musica"],
+                        description: "A ação a ser executada no computador pessoal do Marcos. Use abrir_youtube ou abrir_musica para termos/vídeos no YouTube, e tocar_musica para tocar diretamente no PC do Marcos."
                     },
                     parametro: {
                         type: "string",
@@ -251,11 +251,19 @@ module.exports = {
                 case "abrir_link":
                 case "abrir_url":
                 case "abrir":
-                case "youtube": {
-                    if (!param) {
-                        return "⚠️ Por favor, especifique o link ou termo para abrir.";
-                    }
+                case "youtube":
+                case "abrir_youtube":
+                case "tocar_musica":
+                case "abrir_musica": {
                     let url = param;
+                    if (!url) {
+                        // Se for youtube ou tocar_musica sem termo específico, abre a página inicial do YouTube
+                        if (["youtube", "abrir_youtube", "tocar_musica", "abrir_musica"].includes(action)) {
+                            url = "https://www.youtube.com";
+                        } else {
+                            return "⚠️ Por favor, especifique o link ou termo para abrir.";
+                        }
+                    }
                     if (url.toLowerCase() === "youtube") {
                         url = "https://www.youtube.com";
                     } else if (!url.startsWith("http://") && !url.startsWith("https://")) {
