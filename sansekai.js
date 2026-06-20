@@ -3467,30 +3467,88 @@ class SkillRegistry {
         const tools = [];
         const normalizedPrompt = String(promptText || "").toLowerCase().trim();
         
-        // Otimização de Tokens: Se o prompt for uma saudação/conversa muito casual e curta,
-        // envia apenas ferramentas utilitárias fundamentais para economizar mais de 15.000 tokens de prompt.
-        const isCasual = normalizedPrompt.length < 40 && 
-            /^(oi|olá|ola|bom dia|boa tarde|boa noite|tudo bem|tudo bom|e aí|e ae|eae|eai|quem é você|quem e voce|bochecha|bot|ia|salve|opa|opá|hey|hi|hello)$/i.test(normalizedPrompt.replace(/[?.!,;:\-_]/g, "").trim());
+        // Se o prompt for completamente vazio ou muito curto, retorna todas as tools por segurança.
+        if (!normalizedPrompt || normalizedPrompt.length < 3) {
+            for (const name in this.skills) {
+                const fn = this.skills[name].definition.function;
+                const converted = this._convert(fn.parameters || { type: "object", properties: {} });
+                tools.push({
+                    name: fn.name,
+                    description: fn.description || "Função autônoma do bot.",
+                    parameters: converted
+                });
+            }
+            return tools;
+        }
+
+        // Função utilitária para normalizar acentuação
+        const normalizar = (str) => {
+            return String(str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        };
+
+        const cleanPrompt = normalizar(normalizedPrompt);
+        // Extrai palavras com mais de 2 letras
+        const promptWords = cleanPrompt.split(/\s+/)
+            .map(w => w.replace(/[?.!,;:\-_"']/g, "").trim())
+            .filter(w => w.length > 2);
+
+        // Stop words que não devem ser usadas como gatinho de busca
+        const stopWords = new Set([
+            "uma", "com", "para", "por", "que", "nao", "mas", "dos", "das", 
+            "seu", "sua", "como", "esta", "este", "dele", "dela", "tudo", 
+            "mais", "bem", "vou", "sem", "aqui", "quem", "voce", "esse", "essa"
+        ]);
+
+        // Ferramentas essenciais que sempre devem estar disponíveis no array da IA
+        const essentialTools = [
+            "exibir_menu", "status", "listar_minhas_ferramentas", "chamar_no_pv", 
+            "consultar_conversa_pv", "mostrar_atividade_atual"
+        ];
 
         for (const name in this.skills) {
-            if (isCasual) {
-                const essentialTools = [
-                    "exibir_menu", "status", "listar_minhas_ferramentas", "chamar_no_pv", 
-                    "consultar_conversa_pv", "mostrar_atividade_atual"
-                ];
-                if (!essentialTools.includes(name)) {
-                    continue;
-                }
+            const skill = this.skills[name];
+            const fn = skill.definition.function;
+            const skillNameNormalized = normalizar(fn.name);
+            const skillDescNormalized = normalizar(fn.description || "");
+
+            // Critérios de inclusão:
+            // 1. É uma ferramenta essencial/global.
+            // 2. O nome da skill está contido no prompt de forma exata.
+            // 3. Alguma palavra relevante do prompt bate com o nome ou a descrição da skill.
+            let shouldInclude = essentialTools.includes(name) || cleanPrompt.includes(skillNameNormalized);
+
+            if (!shouldInclude && promptWords.length > 0) {
+                shouldInclude = promptWords.some(word => {
+                    if (stopWords.has(word)) return false;
+                    return skillNameNormalized.includes(word) || skillDescNormalized.includes(word);
+                });
             }
 
-            const fn = this.skills[name].definition.function;
-            const converted = this._convert(fn.parameters || { type: "object", properties: {} });
-            tools.push({
-                name: fn.name,
-                description: fn.description || "Função autônoma do bot.",
-                parameters: converted
-            });
+            if (shouldInclude) {
+                const converted = this._convert(fn.parameters || { type: "object", properties: {} });
+                tools.push({
+                    name: fn.name,
+                    description: fn.description || "Função autônoma do bot.",
+                    parameters: converted
+                });
+            }
         }
+
+        // Garante fallback para as essenciais caso nenhuma específica tenha sido selecionada
+        if (tools.length === 0) {
+            for (const name of essentialTools) {
+                if (this.skills[name]) {
+                    const fn = this.skills[name].definition.function;
+                    const converted = this._convert(fn.parameters || { type: "object", properties: {} });
+                    tools.push({
+                        name: fn.name,
+                        description: fn.description || "Função autônoma do bot.",
+                        parameters: converted
+                    });
+                }
+            }
+        }
+
         return tools;
     }
 
