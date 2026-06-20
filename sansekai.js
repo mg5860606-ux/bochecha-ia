@@ -7465,7 +7465,13 @@ ${chatLogs}`;
             }
         }
 
-        const history = historyToUse.map(m => ({
+        // Limita o histórico enviado ao modelo para economizar tokens e evitar erros de limite na API (ex: 402 no OpenRouter)
+        const summaryMsg = historyToUse.find(m => m.isSummaryMetadata);
+        const regularMsgs = historyToUse.filter(m => !m.isSummaryMetadata);
+        const slicedRegular = regularMsgs.slice(-30);
+        const finalHistory = summaryMsg ? [summaryMsg, ...slicedRegular] : slicedRegular;
+
+        const history = finalHistory.map(m => ({
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }]
         }));
