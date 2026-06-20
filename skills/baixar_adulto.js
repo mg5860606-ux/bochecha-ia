@@ -111,7 +111,36 @@ module.exports = {
                 return "❌ Nenhum vídeo encontrado para essa descrição. Tente usar outros termos de busca.";
             }
 
-            const selectedEntry = videosList[Math.floor(Math.random() * videosList.length)];
+            // Função helper para converter duração formatada "mm:ss" ou "hh:mm:ss" em segundos
+            const parseDurationToSeconds = (durationStr) => {
+                if (!durationStr || typeof durationStr !== 'string') return 0;
+                const parts = durationStr.split(':').map(Number);
+                if (parts.some(isNaN)) return 0;
+                if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+                if (parts.length === 2) return parts[0] * 60 + parts[1];
+                return parts[0] || 0;
+            };
+
+            // Filtrar vídeos com duração <= 240 segundos (4 minutos) para encaixar no limite ideal do WhatsApp
+            let validVideos = videosList.filter(entry => {
+                const v = entry.video || entry;
+                const secs = parseDurationToSeconds(v.duration);
+                return secs > 0 && secs <= 240;
+            });
+
+            // Se nenhum for menor que 240s, ordena e pega o mais curto disponível do resultado
+            if (validVideos.length === 0) {
+                validVideos = [...videosList].sort((a, b) => {
+                    const va = a.video || a;
+                    const vb = b.video || b;
+                    return parseDurationToSeconds(va.duration) - parseDurationToSeconds(vb.duration);
+                });
+            }
+
+            // Escolhe aleatoriamente entre os vídeos que atendem à regra de duração, ou seleciona o mais curto se todos excederem
+            const selectedEntry = validVideos.length > 0 && parseDurationToSeconds((validVideos[0].video || validVideos[0]).duration) <= 240
+                ? validVideos[Math.floor(Math.random() * validVideos.length)]
+                : validVideos[0];
             const randVideo = selectedEntry?.video || selectedEntry;
 
             if (!randVideo?.url) {
@@ -121,6 +150,7 @@ module.exports = {
             const videoPageUrl = randVideo.url;
             const videoTitle = randVideo.title || "Vídeo Adulto";
             const videoDuration = randVideo.duration || "N/A";
+            const videoDurationSec = parseDurationToSeconds(videoDuration) || 240;
 
             await sock.sendMessage(from, { text: `📥 Vídeo encontrado: *"${videoTitle}"* (${videoDuration})\nIniciando download e processamento... Aguarde.` });
 
@@ -129,7 +159,8 @@ module.exports = {
 
             let downloadedPath = tempFilePath;
             try {
-                await YtDlpHelper.downloadVideo(videoPageUrl, tempFilePath);
+                // Passa o tempo máximo de duração dinâmico (com 15 segundos de margem de segurança)
+                await YtDlpHelper.downloadVideo(videoPageUrl, tempFilePath, videoDurationSec + 15);
             } catch (downloadErr) {
                 console.warn("[baixar_adulto] Falha no download via yt-dlp:", downloadErr.message);
                 return "⚠️ Não foi possível baixar o vídeo no momento. O serviço externo ou o motor de download está indisponível.";

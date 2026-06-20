@@ -20,7 +20,7 @@ const originalExec = childProcess.exec;
 
         await YtDlpHelper.downloadVideo('https://example.com/video', 'C:/tmp/video.mp4');
 
-        assert.match(lastCommand, /--max-duration 240/, 'Esperava o comando do yt-dlp limitar a duração a 240 segundos.');
+        assert.match(lastCommand, /--match-filter "duration <= 240"/, 'Esperava o comando do yt-dlp limitar a duração a 240 segundos.');
         console.log('yt_dlp_helper duration limit regression check passed.');
     } catch (err) {
         console.error(err);
