@@ -5276,6 +5276,121 @@ ${chatLogs}`;
                 }
             }
 
+            // ⚔️ SISTEMA DE PONTOS DA GUERRA DE CLÃS
+            if (isGroup && global.activeWars && global.activeWars.has(from) && !parsedMessage.key.fromMe) {
+                const war = global.activeWars.get(from);
+                if (war.teams[0].has(rawSender)) {
+                    war.scores[0]++;
+                } else if (war.teams[1].has(rawSender)) {
+                    war.scores[1]++;
+                }
+            }
+
+            // 🗳️ SISTEMA DE CANDIDATURA E VOTOS PARA IMPERADOR
+            if (isGroup && global.activeElections && global.activeElections.has(from) && !parsedMessage.key.fromMe) {
+                const el = global.activeElections.get(from);
+                const voteText = body.toLowerCase().trim();
+                if (el.phase === "candidatura") {
+                    if (voteText === "eu imperador") {
+                        if (!el.candidates.has(rawSender)) {
+                            el.candidates.add(rawSender);
+                            await parsedMessage.reply(`✅ *${pushname}* inscrito como candidato a Imperador!`);
+                        }
+                    }
+                } else if (el.phase === "votacao") {
+                    const voteIdx = parseInt(voteText, 10) - 1;
+                    if (!isNaN(voteIdx) && voteIdx >= 0 && voteIdx < el.candidatesList.length) {
+                        const cand = el.candidatesList[voteIdx];
+                        if (cand === rawSender) {
+                            await parsedMessage.reply("❌ Você não pode votar em si mesmo, malandro!");
+                        } else if (!el.voted.has(rawSender)) {
+                            el.voted.add(rawSender);
+                            const currentVotes = el.votes.get(cand) || 0;
+                            el.votes.set(cand, currentVotes + 1);
+                            await parsedMessage.reply(`👍 Voto computado para o candidato *#${voteIdx + 1}* (@${cand.split('@')[0]})!`, { mentions: [cand] });
+                        } else {
+                            await parsedMessage.reply("❌ Você já votou nesta eleição!");
+                        }
+                    }
+                }
+            }
+
+            // 🔮 SISTEMA DE VOTAÇÃO DA PROFECIA DO ORÁCULO
+            if (isGroup && global.activeOracles && global.activeOracles.has(from) && !parsedMessage.key.fromMe) {
+                const oracle = global.activeOracles.get(from);
+                const voteText = body.toLowerCase().trim();
+                if (voteText === "real" || voteText === "caô" || voteText === "cao") {
+                    if (!oracle.voted.has(rawSender)) {
+                        oracle.voted.add(rawSender);
+                        if (voteText === "real") {
+                            oracle.realVotes.add(rawSender);
+                            await parsedMessage.reply(`👍 Voto de *${pushname}* computado: *REAL*!`);
+                        } else {
+                            oracle.caoVotes.add(rawSender);
+                            await parsedMessage.reply(`👎 Voto de *${pushname}* computado: *CAÔ*!`);
+                        }
+                    } else {
+                        await parsedMessage.reply("❌ Você já votou nesta profecia do Oráculo!");
+                    }
+                }
+            }
+
+            // 🎤 SISTEMA DE VOTOS NA ARENA DE DEBATES
+            if (isGroup && global.activeDebates && global.activeDebates.has(from) && !parsedMessage.key.fromMe) {
+                const debate = global.activeDebates.get(from);
+                if (debate.phase === "votacao") {
+                    const voteText = body.toLowerCase().trim();
+                    if (voteText === "votar") {
+                        const quotedParticipant = parsedMessage.message?.extendedTextMessage?.contextInfo?.participant;
+                        if (quotedParticipant) {
+                            const cleanTarget = quotedParticipant.split('@')[0];
+                            const cleanChallenger = debate.challenger.split('@')[0];
+                            const cleanOpponent = debate.opponent.split('@')[0];
+                            if (cleanTarget === cleanChallenger || cleanTarget === cleanOpponent) {
+                                if (rawSender === debate.challenger || rawSender === debate.opponent) {
+                                    await parsedMessage.reply("❌ Debatedores não votam!");
+                                } else if (!debate.voted.has(rawSender)) {
+                                    debate.voted.add(rawSender);
+                                    const currentVotes = debate.votes.get(quotedParticipant) || 0;
+                                    debate.votes.set(quotedParticipant, currentVotes + 1);
+                                    await parsedMessage.reply(`👍 Voto computado para @${cleanTarget}!`, { mentions: [quotedParticipant] });
+                                } else {
+                                    await parsedMessage.reply("❌ Você já votou neste debate!");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 🧠 SISTEMA DE RESPOSTAS DO QUIZ AO VIVO
+            if (isGroup && global.activeQuizzes && global.activeQuizzes.has(from) && !parsedMessage.key.fromMe) {
+                const quiz = global.activeQuizzes.get(from);
+                const idx = quiz.currentQuestionIndex;
+                if (idx < 5) {
+                    const q = quiz.perguntas[idx];
+                    const answerText = body.toLowerCase().trim();
+                    if (["a", "b", "c", "d"].includes(answerText) && !quiz.answeredThisRound) {
+                        if (answerText === q.r) {
+                            quiz.answeredThisRound = true;
+                            if (quiz.timer) clearTimeout(quiz.timer);
+
+                            const currentPoints = quiz.scores.get(rawSender) || 0;
+                            quiz.scores.set(rawSender, currentPoints + 1);
+
+                            await parsedMessage.reply(`🎉 *CORRETO!* @${rawSender.split('@')[0]} respondeu primeiro e acertou! A resposta era *${q.r.toUpperCase()}*.\n\n_Preparando próxima pergunta..._`, { mentions: [rawSender] });
+
+                            quiz.currentQuestionIndex++;
+                            setTimeout(() => {
+                                if (quiz.runQuestion) {
+                                    quiz.runQuestion().catch(() => {});
+                                }
+                            }, 3000);
+                        }
+                    }
+                }
+            }
+
             // 🔇 MIDDLEWARE MUTE DE ECONOMIA (SILENCIADO POR BOCHECHA-COINS)
             if (isGroup && !parsedMessage.key.fromMe && global.mutedUsers) {
                 const muteKey = `${from}-${rawSender}`;
