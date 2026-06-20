@@ -361,6 +361,15 @@ function looksLikeConversationalToolReply(output) {
     const simpleConfirmation = /^\s*(feito|pronto|ok|okay|já toquei|já enviei|enviado|baixado|download concluído|concluído|concluido|realizado|executado|processado|entendido)\b/i.test(trimmed);
     if (simpleConfirmation) return false;
 
+    // Respostas ricas de ferramentas (notícias, buscas, resultados formatados) nunca devem ser barradas.
+    // Critérios de isenção: contém URL, emojis de resultado, múltiplas linhas ou marcadores de lista.
+    const hasUrl = /https?:\/\//i.test(trimmed);
+    const hasMultipleLines = trimmed.split('\n').filter(l => l.trim().length > 0).length >= 3;
+    const hasResultEmojis = /[📌📚🌐🌞☁️🎶🔗📝✨🌟🏆🔎]/u.test(trimmed);
+    const hasBulletOrNumberedList = /^\s*(\d+\.|\*|-|•)/m.test(trimmed);
+    const isRichToolResult = hasUrl || hasMultipleLines || hasResultEmojis || hasBulletOrNumberedList;
+    if (isRichToolResult) return false;
+
     const tooLong = trimmed.split(/\s+/).filter(Boolean).length > 8;
     const hasQuestion = /\?/.test(trimmed);
     const hasFollowUp = /\b(qual|como|quero|vou|vamos|quer|gostaria|pode|podes|curte|queres|quero|me diga|fala|diz|manda|deixa|vamos|vamos fazer)\b/i.test(trimmed);
@@ -388,6 +397,18 @@ function enforceAntiHallucinationGuard(output, prompt, history, options = {}) {
         if (isSimpleToolConfirmation) {
             Logger.info('AntiHallucination', 'Resposta pós-tool simples aceita com fallback neutro.');
             return buildToolExecutionFallbackOutput(prompt, options.lastExecutedTool);
+        }
+
+        // Bypass total para respostas ricas de ferramentas (notícias, buscas, resultados formatados).
+        // Qualquer conteúdo com URL, múltiplas linhas, emojis de resultado ou lista numerada é
+        // dado de retorno de ferramenta legítimo e nunca deve ser barrado pelo guard.
+        const hasUrl = /https?:\/\//i.test(trimmed);
+        const hasMultipleLines = trimmed.split('\n').filter(l => l.trim().length > 0).length >= 3;
+        const hasResultEmojis = /[📌📚🌐🌞☁️🎶🔗📝✨🌟🏆🔎]/u.test(trimmed);
+        const hasBulletOrNumberedList = /^\s*(\d+\.|\*|-|•)/m.test(trimmed);
+        if (hasUrl || hasMultipleLines || hasResultEmojis || hasBulletOrNumberedList) {
+            Logger.info('AntiHallucination', 'Resposta pós-tool rica (URL/lista/emojis) aprovada sem filtros.');
+            return output;
         }
 
         if (looksLikeUnsafeToolOutput(trimmed) || looksLikeConversationalToolReply(trimmed)) {
