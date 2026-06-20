@@ -35,6 +35,14 @@ assert.strictEqual(toolAggressionResult, 'Feito.', 'Respostas ofensivas pós-too
 const toolFollowupResult = sandbox.enforceAntiHallucinationGuard('que vacilo, mano! vou mandar uma metadinha pra compensar. qual o estilo que vc curte?', 'bochecha tocar xvideos', [], { wasToolExecuted: true, lastExecutedTool: 'baixar_adulto' });
 assert.strictEqual(toolFollowupResult, 'Feito.', 'Respostas conversacionais pós-tool devem ser substituídas por uma confirmação curta.');
 
+const informationalToolResult = sandbox.enforceAntiHallucinationGuard(
+    'O desemprego caiu para 5% no segundo trimestre de 2026, segundo o IBGE.',
+    'quais as noticias de hoje?',
+    [],
+    { wasToolExecuted: true, lastExecutedTool: 'noticias_boas' }
+);
+assert.strictEqual(informationalToolResult, 'O desemprego caiu para 5% no segundo trimestre de 2026, segundo o IBGE.', 'Respostas de ferramentas informativas (como notícias) devem ser aprovadas diretamente.');
+
 const guardContextPattern = /const isGroup = typeof chatId === 'string' && chatId\.endsWith\('@g\.us'\);[\s\S]*?output = enforceAntiHallucinationGuard\(output, input, history, \{ isGroup, wasToolExecuted, lastExecutedTool \}\);/;
 assert.ok(guardContextPattern.test(source), 'O guard de anti-hallucinação precisa propagar o contexto de grupo e execução de tool antes de chamar a proteção.');
 

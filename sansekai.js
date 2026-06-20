@@ -370,10 +370,9 @@ function looksLikeConversationalToolReply(output) {
     const isRichToolResult = hasUrl || hasMultipleLines || hasResultEmojis || hasBulletOrNumberedList;
     if (isRichToolResult) return false;
 
-    const tooLong = trimmed.split(/\s+/).filter(Boolean).length > 8;
     const hasQuestion = /\?/.test(trimmed);
     const hasFollowUp = /\b(qual|como|quero|vou|vamos|quer|gostaria|pode|podes|curte|queres|quero|me diga|fala|diz|manda|deixa|vamos|vamos fazer)\b/i.test(trimmed);
-    return tooLong || hasQuestion || hasFollowUp;
+    return hasQuestion || hasFollowUp;
 }
 
 function enforceAntiHallucinationGuard(output, prompt, history, options = {}) {
@@ -408,6 +407,40 @@ function enforceAntiHallucinationGuard(output, prompt, history, options = {}) {
         const hasBulletOrNumberedList = /^\s*(\d+\.|\*|-|•)/m.test(trimmed);
         if (hasUrl || hasMultipleLines || hasResultEmojis || hasBulletOrNumberedList) {
             Logger.info('AntiHallucination', 'Resposta pós-tool rica (URL/lista/emojis) aprovada sem filtros.');
+            return output;
+        }
+
+        const isActionTool = options.lastExecutedTool && [
+            'baixar_adulto',
+            'baixar_videos',
+            'falar_em_audio',
+            'play_audio',
+            'play_video',
+            'bochecha_voz',
+            'fazer_figurinha',
+            'fazer_figurinha_de_texto',
+            'gerar_imagem_ia',
+            'banir_usuario',
+            'remover_membro',
+            'promover_membro',
+            'rebaixar_membro',
+            'mutar_grupo',
+            'desmutar_grupo',
+            'apagar_mensagem',
+            'apagar_especial',
+            'postar_status',
+            'adicionar_membro',
+            'advertir_membro',
+            'agendar_lembrete',
+            'adicionar_lembrete'
+        ].includes(options.lastExecutedTool);
+
+        if (!isActionTool) {
+            if (looksLikeUnsafeToolOutput(trimmed)) {
+                Logger.warn('AntiHallucination', 'Resposta pós-tool ofensiva detectada em tool informativa; aplicando fallback seguro.');
+                return buildToolExecutionFallbackOutput(prompt, options.lastExecutedTool);
+            }
+            Logger.info('AntiHallucination', 'Resposta pós-tool informativa aprovada diretamente.');
             return output;
         }
 

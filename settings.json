@@ -3,11 +3,14 @@
     "216716214853887"
   ],
   "isPublic": true,
-  "primaryModel": "google/gemini-2.5-flash-lite",
+  "primaryModel": "openrouter/free",
   "voicePreference": {
     "chance": 0.5,
     "preset": "francisca",
     "abTest": true,
-    "abVariants": ["francisca", "duarte"]
+    "abVariants": [
+      "francisca",
+      "duarte"
+    ]
   }
 }
