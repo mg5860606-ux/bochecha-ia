@@ -853,10 +853,23 @@ class StorageManager {
     async read(filePath, defaultValue = {}) {
         const release = await this._acquireLock(filePath);
         try {
+            if (this.cache.has(filePath)) {
+                return JSON.parse(JSON.stringify(this.cache.get(filePath)));
+            }
+
             let localData = defaultValue;
             let existsLocal = fs.existsSync(filePath);
 
-            if (!existsLocal) {
+            if (existsLocal) {
+                try {
+                    const raw = fs.readFileSync(filePath, 'utf8');
+                    localData = JSON.parse(raw);
+                    this.cache.set(filePath, localData);
+                } catch (readErr) {
+                    Logger.error(`StorageManager.read(${path.basename(filePath)}) read error`, readErr);
+                    throw readErr;
+                }
+            } else {
                 // Se o arquivo local não existe, tenta puxar do Firebase Firestore de forma síncrona para esta inicialização
                 const baseName = path.basename(filePath);
                 const { db, doc, getDoc, setDoc } = require('./firebase_connector');
@@ -895,12 +908,12 @@ class StorageManager {
                     localData = defaultValue;
                     
                     // Salva backup inicial assincronamente no Firebase
-                        setDoc(docRef, {
-                            data: defaultValue,
-                            lastUpdated: Date.now()
-                        }).catch(() => {});
-                    }
+                    setDoc(docRef, {
+                        data: defaultValue,
+                        lastUpdated: Date.now()
+                    }).catch(() => {});
                 }
+            }
 
             // Garantir que as propriedades do defaultValue estejam presentes em localData caso seja um objeto
             if (defaultValue && typeof defaultValue === 'object' && !Array.isArray(defaultValue)) {
@@ -2940,6 +2953,69 @@ class DialogSession {
             this._autoCompress(chatId, history);
         }
     }
+
+    /**
+     * Adiciona nova rodada de diálogo no histórico pessoal do usuário (limita a 20 interações/40 msgs).
+     */
+    async addPersonalMessage(sender, role, content) {
+        if (!sender) return;
+        const cleanSender = sender.split('@')[0];
+        const file = path.join(MEMORY_DIR, `user_${cleanSender}.json`);
+        let history = await storage.read(file, []);
+        if (!Array.isArray(history)) history = [];
+
+        history.push({ role, content, timestamp: Date.now() });
+
+        // Limita ao máximo de 40 mensagens (20 do usuário e 20 da IA)
+        if (history.length > 40) {
+            history = history.slice(history.length - 40);
+        }
+
+        await storage.write(file, history);
+    }
+
+    /**
+     * Recupera o histórico pessoal de mensagens do remetente.
+     */
+    async getPersonalHistory(sender) {
+        if (!sender) return [];
+        const cleanSender = sender.split('@')[0];
+        const file = path.join(MEMORY_DIR, `user_${cleanSender}.json`);
+        let history = await storage.read(file, []);
+        if (!Array.isArray(history)) history = [];
+        return history;
+    }
+
+    /**
+     * Mescla o histórico do chat com o histórico pessoal do remetente, ordenando cronologicamente
+     * e eliminando duplicatas com base no conteúdo da mensagem ou timestamp.
+     */
+    mergeHistories(chatHistory, personalHistory) {
+        if (!Array.isArray(chatHistory)) chatHistory = [];
+        if (!Array.isArray(personalHistory)) personalHistory = [];
+
+        // Extrai resumos de metadados se houver (para mantê-los no início)
+        const summaries = chatHistory.filter(m => m.isSummaryMetadata);
+        const normalChat = chatHistory.filter(m => !m.isSummaryMetadata);
+        const normalPersonal = personalHistory.filter(m => !m.isSummaryMetadata);
+
+        const merged = [...normalChat];
+        for (const pMsg of normalPersonal) {
+            const exists = normalChat.some(cMsg => 
+                cMsg.content === pMsg.content && 
+                cMsg.role === pMsg.role &&
+                (cMsg.timestamp && pMsg.timestamp ? Math.abs(cMsg.timestamp - pMsg.timestamp) < 10000 : true)
+            );
+            if (!exists) {
+                merged.push(pMsg);
+            }
+        }
+
+        // Ordena cronologicamente
+        merged.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+        return [...summaries, ...merged];
+    }
 }
 
 // Instanciar gerenciador de sessão
@@ -3556,7 +3632,7 @@ class SkillRegistry {
         // Ferramentas essenciais que sempre devem estar disponíveis no array da IA
         const essentialTools = [
             "exibir_menu", "status", "listar_minhas_ferramentas", "chamar_no_pv", 
-            "consultar_conversa_pv", "mostrar_atividade_atual"
+            "consultar_conversa_pv", "mostrar_atividade_atual", "falar_em_audio", "gerar_imagem_ia"
         ];
 
         for (const name in this.skills) {
@@ -5581,6 +5657,7 @@ ${chatLogs}`;
                             `=========================================`;
 
                         await sessionManager.addMessage(from, 'user', formattedMsgForHistory);
+                        await sessionManager.addPersonalMessage(rawSender, 'user', formattedMsgForHistory);
                     } catch (histErr) {
                         Logger.error("handleMessage.HistorySave", histErr);
                     }
@@ -7370,9 +7447,11 @@ ${chatLogs}`;
 
         const sys = await composer.build(chatId, isOwner, { pushname, level, xp, warns, userId: sender });
         const rawHistory = await sessionManager.getHistory(chatId);
+        const personalHistory = await sessionManager.getPersonalHistory(sender);
+        const mergedHistory = sessionManager.mergeHistories(rawHistory, personalHistory);
         
-        // Garante que rawHistory é sempre um array (Firebase pode retornar objeto ou null)
-        const safeHistory = Array.isArray(rawHistory) ? rawHistory : [];
+        // Garante que mergedHistory é sempre um array (Firebase pode retornar objeto ou null)
+        const safeHistory = Array.isArray(mergedHistory) ? mergedHistory : [];
         
         // Remove a última mensagem de usuário se ela existir no final do histórico E pertencer
         // ao sender atual. Isso evita remover mensagens de outros membros do grupo por engano,
@@ -7505,6 +7584,7 @@ ${chatLogs}`;
             Logger.warn('SafetyGate', `Mensagem bloqueada por segurança: ${safetyCheck.reason}`);
             const blockedReply = safetyCheck.fallback || 'Não vou entrar nesse tema aqui.';
             await sessionManager.addMessage(chatId, 'assistant', blockedReply);
+            await sessionManager.addPersonalMessage(sender, 'assistant', blockedReply);
             return { output: blockedReply, modelName: 'safety-gate', wasToolExecuted: false, lastExecutedTool: null };
         }
         
@@ -7694,6 +7774,7 @@ ${chatLogs}`;
 
         // Armazena diálogo na memória da sessão (a mensagem do usuário já foi registrada no handleMessage)
         await sessionManager.addMessage(chatId, 'assistant', output);
+        await sessionManager.addPersonalMessage(sender, 'assistant', output);
 
         return { output, modelName, wasToolExecuted, lastExecutedTool };
     }

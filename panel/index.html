@@ -777,13 +777,13 @@
 
             <!-- Typing Indicator -->
             <div class="typing-indicator" id="typing-indicator">
-                <img src="/avatar.png" class="typing-avatar" alt="Avatar Bochecha">
+                <img id="typing-avatar-img" src="/avatar.png" class="typing-avatar" alt="Avatar Bochecha">
                 <div class="typing-dots-wrapper">
                     <div class="typing-dot"></div>
                     <div class="typing-dot"></div>
                     <div class="typing-dot"></div>
                 </div>
-                <span style="font-size: 0.82rem; color: var(--text-secondary); margin-left: 0.25rem; font-weight: 500;">Bochecha está orquestrando...</span>
+                <span style="font-size: 0.82rem; color: var(--text-secondary); margin-left: 0.25rem; font-weight: 500;">Bochecha está digitando...</span>
             </div>
 
             <!-- Input e Uploader -->
@@ -840,6 +840,8 @@
         if (window.location.protocol === 'file:') {
             API_URL = 'http://localhost:3030';
         }
+        const typingImg = document.getElementById('typing-avatar-img');
+        if (typingImg) typingImg.src = `${API_URL}/avatar.png`;
         const chatContainer = document.getElementById('chat-messages-container');
         const messageInput = document.getElementById('message-input');
         const btnSend = document.getElementById('btn-send');
@@ -1038,7 +1040,7 @@
             const formattedContent = content.replace(/\n/g, '<br>');
 
             messageWrapper.innerHTML = `
-                ${isBot ? '<img class="chat-avatar" src="/avatar.png?v=1" alt="Bochecha">' : ''}
+                ${isBot ? `<img class="chat-avatar" src="${API_URL}/avatar.png?v=1" alt="Bochecha">` : ''}
                 <div class="message ${isBot ? 'assistant' : 'user'}">
                     ${mediaHtml}
                     ${formattedContent ? `<div class="message-bubble">${formattedContent}</div>` : ''}
