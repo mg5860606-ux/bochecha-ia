@@ -13,3 +13,8 @@ scratch/
 !package.json
 *.bak
 test_all_models.js
+media/
+temp/
+temp_media/
+lib/yt-dlp.exe
+lib/yt-dlp
