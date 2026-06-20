@@ -53,7 +53,7 @@ const SKILL_CATEGORIES = {
     renomear_figurinha: "stickers", arte_figurinha: "stickers",
     
     consultar_clima: "data", google: "data", wiki: "data", consultar_dados: "data",
-    consultar_pv: "data", cep: "data", ip: "data", web_reader: "data",
+    consultar_pv: "data", cep: "data", ip: "data", web_reader: "data", noticias_boas: "data",
     
     remover_membro: "admin", adicionar_membro: "admin", promover_membro: "admin",
     rebaixar_membro: "admin", advertir_membro: "admin", remover_advertencia: "admin",
@@ -121,6 +121,7 @@ const SKILL_SHORT_DESCRIPTIONS = {
     consultar_dados: "Consulta CPF/CNPJ/Placa",
     consultar_pv: "Consulta dados privados",
     web_reader: "Extrai conteúdo de links web",
+    noticias_boas: "Busca notícias positivas de hoje",
     remover_membro: "Remove membro (ban)",
     adicionar_membro: "Adiciona membro",
     promover_membro: "Promove a admin",
