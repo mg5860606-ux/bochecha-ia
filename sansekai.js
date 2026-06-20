@@ -3672,6 +3672,30 @@ class SkillRegistry {
             }
         }
 
+        // Se o prompt mencionar termos de diagnóstico, programação, arquivos ou terminal, injeta ferramentas do sistema.
+        const isSystemQuery = /\b(erro|bug|logs|pasta|diretorio|diretório|arquivo|codigo|código|terminal|sandbox|executar|verificar|conferir|status|autonomo|autônoma|sistema|testar|teste)\b/i.test(cleanPrompt);
+        if (isSystemQuery) {
+            const systemInspectTools = [
+                "read_system_file", "write_system_file", "executar_codigo_sandbox",
+                "run_terminal", "status_sistema", "list_system_directory",
+                "search_system_files", "listar_minhas_ferramentas"
+            ];
+            for (const name of systemInspectTools) {
+                if (this.skills[name]) {
+                    const alreadyAdded = matchedTools.some(t => t.name === name);
+                    if (!alreadyAdded) {
+                        const fn = this.skills[name].definition.function;
+                        const converted = this._convert(fn.parameters || { type: "object", properties: {} });
+                        matchedTools.push({
+                            name: fn.name,
+                            description: fn.description || "Função autônoma do bot.",
+                            parameters: converted
+                        });
+                    }
+                }
+            }
+        }
+
         // Adiciona as essenciais que não foram selecionadas dinamicamente
         const finalTools = [...matchedTools];
         for (const name of essentialTools) {
@@ -3689,8 +3713,8 @@ class SkillRegistry {
             }
         }
 
-        // Limita o total de ferramentas enviadas à API para no máximo 15 (evita lentidão e erros de limite de tokens)
-        return finalTools.slice(0, 15);
+        // Limita o total de ferramentas enviadas à API para no máximo 25 (garante variedade e evita estourar tokens)
+        return finalTools.slice(0, 25);
     }
 
     /**
