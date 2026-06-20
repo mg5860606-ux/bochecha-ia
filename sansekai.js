@@ -4040,8 +4040,13 @@ class SecuritySystem {
      */
     static async scanNSFW(sock, chatId, msgRef) {
         try {
-            const type = msgRef.message.imageMessage ? 'image' : 'video';
-            const stream = await downloadContentFromMessage(msgRef.message[type + 'Message'], type);
+            const realMsg = msgRef.message?.viewOnceMessageV2?.message || msgRef.message?.viewOnceMessage?.message || msgRef.message?.ephemeralMessage?.message || msgRef.message;
+            if (!realMsg) return false;
+            const type = realMsg.imageMessage ? 'image' : 'video';
+            const mediaMsg = realMsg[type + 'Message'];
+            if (!mediaMsg) return false;
+            
+            const stream = await downloadContentFromMessage(mediaMsg, type);
 
             let buffer = Buffer.from([]);
             for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
@@ -5927,11 +5932,14 @@ ${chatLogs}`;
 
             // 🛡️ FILTROS DE SEGURANÇA IMEDIATOS EM GRUPO
             if (isGroup && !parsedMessage.key.fromMe) {
-                // Filtros de Nudez (NSFW Scan)
                 const security = await storage.getGroupSecurity(from);
-                if (security.antiporn && parsedMessage.message && (parsedMessage.message.imageMessage || parsedMessage.message.videoMessage)) {
-                    const isNSFW = await SecuritySystem.scanNSFW(sock, from, parsedMessage);
-                    if (isNSFW) return;
+                // Filtros de Nudez (NSFW Scan)
+                if (security.antiporn) {
+                    const realMsg = parsedMessage.message?.viewOnceMessageV2?.message || parsedMessage.message?.viewOnceMessage?.message || parsedMessage.message?.ephemeralMessage?.message || parsedMessage.message;
+                    if (realMsg && (realMsg.imageMessage || realMsg.videoMessage)) {
+                        const isNSFW = await SecuritySystem.scanNSFW(sock, from, parsedMessage);
+                        if (isNSFW) return;
+                    }
                 }
 
                 // Filtros de Status ou Pagamento
@@ -5990,14 +5998,20 @@ ${chatLogs}`;
             // 🛡️ REGRAS DE ANTI-LINK E ANTI-FLOOD ADICIONAIS
             if (isGroup && !isOwner) {
                 const security = await storage.getGroupSecurity(from);
-                if (security.antilink && body.includes("chat.whatsapp.com/")) {
-                    Logger.warn("Anti-Link", `Deletando link proibido de ${pushname}`);
+                const realMsg = parsedMessage.message?.viewOnceMessageV2?.message || parsedMessage.message?.viewOnceMessage?.message || parsedMessage.message?.ephemeralMessage?.message || parsedMessage.message;
+                const captionText = realMsg?.imageMessage?.caption || realMsg?.videoMessage?.caption || realMsg?.extendedTextMessage?.text || realMsg?.conversation || "";
+                const textToCheck = (body + " " + captionText).trim();
+                const linkRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|chat\.whatsapp\.com\/|wa\.me\/|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\/[^\s]*)/i;
+                const hasLink = linkRegex.test(textToCheck);
+
+                if (security.antilink && hasLink) {
+                    Logger.warn("Anti-Link", `Deletando link proibido de ${pushname}: "${textToCheck}"`);
                     try {
                         await sock.sendMessage(from, { delete: parsedMessage.key });
                         await sock.sendMessage(from, { text: `🚫 Links não são permitidos neste grupo, @${sender}!`, mentions: [rawSender] });
                         if (!(await moderation.isProtectedTarget(sock, from, rawSender))) {
                             await sock.groupParticipantsUpdate(from, [rawSender], 'remove');
-                            await BochechaEngine.sendTelemetry(`🛡️ *ESCUDO ANTI-LINK* 🛡️\n\nRemovi o participante @${sender} (${pushname}) do grupo por enviar links proibidos.\n\n*Grupo:* ${from.split('@')[0]}\n*Texto:* ${body.substring(0, 100)}`);
+                            await BochechaEngine.sendTelemetry(`🛡️ *ESCUDO ANTI-LINK* 🛡️\n\nRemovi o participante @${sender} (${pushname}) do grupo por enviar links proibidos.\n\n*Grupo:* ${from.split('@')[0]}\n*Texto:* ${textToCheck.substring(0, 150)}`);
                         } else {
                             await sock.sendMessage(from, {
                                 text: `⚠️ *USUÁRIO PROTEGIDO* ⚠️\n\nO usuário @${sender} é administrador ou protegido e não pode ser expulso automaticamente. Administradores, por favor, tomem a ação necessária se o comportamento continuar.`,
@@ -6008,6 +6022,7 @@ ${chatLogs}`;
                         Logger.error("Anti-Link", err);
                     }
                 }
+            }
 
                 const hasFlooded = await moderation.checkFlood(sock, from, rawSender, parsedMessage);
                 if (hasFlooded) return;
