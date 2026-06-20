@@ -129,6 +129,22 @@ npm start
 ```
 *(O Bochecha detectará automaticamente o Termux e usará o FFmpeg instalado no sistema).*
 
+#### 💬 Como abrir o Chat no Termux
+
+Você tem duas formas de abrir e interagir com o chat do Bochecha-IA localmente no Termux (sem precisar conectar o WhatsApp):
+
+1. **Pelo Terminal (Console Interativo):**
+   ```bash
+   npm run local
+   ```
+   *Abre uma conversa interativa direta na linha de comando do Termux, identificando você como Marcos (Dono Absoluto).*
+
+2. **Pelo Navegador (Painel Web de Chat):**
+   ```bash
+   npm run chat
+   ```
+   *Inicia o servidor local do painel. Depois, basta abrir o navegador do seu celular no endereço:* `http://localhost:3030` *para conversar usando a interface web completa.*
+
 ---
 
 <div align="center">
