@@ -3597,16 +3597,24 @@ class SkillRegistry {
         const tools = [];
         const normalizedPrompt = String(promptText || "").toLowerCase().trim();
         
-        // Se o prompt for completamente vazio ou muito curto, retorna todas as tools por segurança.
+        // Se o prompt for completamente vazio ou muito curto, retorna apenas as ferramentas essenciais.
+        // NUNCA retorne todas as 136 ferramentas, pois isso estoura o limite de tokens da API!
+        const essentialTools = [
+            "exibir_menu", "status", "listar_minhas_ferramentas", "chamar_no_pv", 
+            "consultar_conversa_pv", "mostrar_atividade_atual", "falar_em_audio", "gerar_imagem_ia"
+        ];
+
         if (!normalizedPrompt || normalizedPrompt.length < 3) {
-            for (const name in this.skills) {
-                const fn = this.skills[name].definition.function;
-                const converted = this._convert(fn.parameters || { type: "object", properties: {} });
-                tools.push({
-                    name: fn.name,
-                    description: fn.description || "Função autônoma do bot.",
-                    parameters: converted
-                });
+            for (const name of essentialTools) {
+                if (this.skills[name]) {
+                    const fn = this.skills[name].definition.function;
+                    const converted = this._convert(fn.parameters || { type: "object", properties: {} });
+                    tools.push({
+                        name: fn.name,
+                        description: fn.description || "Função autônoma do bot.",
+                        parameters: converted
+                    });
+                }
             }
             return tools;
         }
@@ -3622,18 +3630,19 @@ class SkillRegistry {
             .map(w => w.replace(/[?.!,;:\-_"']/g, "").trim())
             .filter(w => w.length > 2);
 
-        // Stop words que não devem ser usadas como gatinho de busca
+        // Stop words estendido para evitar falsos positivos gigantescos (ex: "cria" casando com dezenas de skills)
         const stopWords = new Set([
             "uma", "com", "para", "por", "que", "nao", "mas", "dos", "das", 
             "seu", "sua", "como", "esta", "este", "dele", "dela", "tudo", 
-            "mais", "bem", "vou", "sem", "aqui", "quem", "voce", "esse", "essa"
+            "mais", "bem", "vou", "sem", "aqui", "quem", "voce", "esse", "essa",
+            "cria", "criar", "criacao", "faz", "fazer", "feito", "manda", "mandar",
+            "gera", "gerar", "envia", "enviar", "uso", "usar", "quer", "quero",
+            "pode", "poder", "comigo", "contigo", "consigo", "consiga", "bot",
+            "bochecha", "grupo", "chat", "mensagem", "resposta", "texto", "canal",
+            "link", "site", "pagina", "url"
         ]);
 
-        // Ferramentas essenciais que sempre devem estar disponíveis no array da IA
-        const essentialTools = [
-            "exibir_menu", "status", "listar_minhas_ferramentas", "chamar_no_pv", 
-            "consultar_conversa_pv", "mostrar_atividade_atual", "falar_em_audio", "gerar_imagem_ia"
-        ];
+        const matchedTools = [];
 
         for (const name in this.skills) {
             const skill = this.skills[name];
@@ -3641,11 +3650,8 @@ class SkillRegistry {
             const skillNameNormalized = normalizar(fn.name);
             const skillDescNormalized = normalizar(fn.description || "");
 
-            // Critérios de inclusão:
-            // 1. É uma ferramenta essencial/global.
-            // 2. O nome da skill está contido no prompt de forma exata.
-            // 3. Alguma palavra relevante do prompt bate com o nome ou a descrição da skill.
-            let shouldInclude = essentialTools.includes(name) || cleanPrompt.includes(skillNameNormalized);
+            // Se o prompt contém exatamente o nome da skill
+            let shouldInclude = cleanPrompt.includes(skillNameNormalized);
 
             if (!shouldInclude && promptWords.length > 0) {
                 shouldInclude = promptWords.some(word => {
@@ -3656,7 +3662,7 @@ class SkillRegistry {
 
             if (shouldInclude) {
                 const converted = this._convert(fn.parameters || { type: "object", properties: {} });
-                tools.push({
+                matchedTools.push({
                     name: fn.name,
                     description: fn.description || "Função autônoma do bot.",
                     parameters: converted
@@ -3664,13 +3670,15 @@ class SkillRegistry {
             }
         }
 
-        // Garante fallback para as essenciais caso nenhuma específica tenha sido selecionada
-        if (tools.length === 0) {
-            for (const name of essentialTools) {
-                if (this.skills[name]) {
+        // Adiciona as essenciais que não foram selecionadas dinamicamente
+        const finalTools = [...matchedTools];
+        for (const name of essentialTools) {
+            if (this.skills[name]) {
+                const alreadyAdded = finalTools.some(t => t.name === name);
+                if (!alreadyAdded) {
                     const fn = this.skills[name].definition.function;
                     const converted = this._convert(fn.parameters || { type: "object", properties: {} });
-                    tools.push({
+                    finalTools.push({
                         name: fn.name,
                         description: fn.description || "Função autônoma do bot.",
                         parameters: converted
@@ -3679,7 +3687,8 @@ class SkillRegistry {
             }
         }
 
-        return tools;
+        // Limita o total de ferramentas enviadas à API para no máximo 15 (evita lentidão e erros de limite de tokens)
+        return finalTools.slice(0, 15);
     }
 
     /**
