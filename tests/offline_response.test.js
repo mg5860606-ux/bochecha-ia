@@ -6,9 +6,10 @@ const root = path.join(__dirname, '..');
 const sansekaiPath = path.join(root, 'sansekai.js');
 const source = fs.readFileSync(sansekaiPath, 'utf8');
 
+// Garante que o método de fallback offline foi totalmente removido
 assert.ok(
-  source.includes('generateOfflineResponse(prompt)') && source.includes('return "";'),
-  'A lógica de fallback offline não foi desativada para respostas silenciosas.'
+  !source.includes('generateOfflineResponse('),
+  'O método generateOfflineResponse ainda existe em sansekai.js.'
 );
 
 const forbiddenPhrases = [
@@ -25,7 +26,4 @@ for (const phrase of forbiddenPhrases) {
   assert.ok(!source.includes(phrase), `O código ainda contém fallback textual genérico: ${phrase}`);
 }
 
-assert.ok(source.includes('Tô com um branco agora') || source.includes('Não consegui responder com clareza agora') || source.includes('mais contexto'), 'O fallback offline precisa ser mais útil e menos genérico.');
-assert.ok(source.includes('tocar') || source.includes('musica') || source.includes('música'), 'O fallback offline precisa reconhecer pedidos de tocar música ou comandos de ação.');
-
-console.log('Offline response regression check passed.');
+console.log('Offline response regression check passed (no fallbacks verified).');

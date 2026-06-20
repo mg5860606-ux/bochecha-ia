@@ -67,7 +67,6 @@ const fs = require("fs");
 const path = require("path");
 const util = require("util");
 const { resolveStickerReactionFallback } = require("./lib/stickerReactionHelper");
-const { buildOfflineFallbackResponse } = require("./lib/offlineFallbackHelper");
 const { resolveDirectCommand } = require("./lib/direct_commands");
 const chalk = require("chalk");
 const moment = require("moment-timezone");
@@ -1714,7 +1713,7 @@ class KeyRotationEngine {
         this.cooldowns = new Map();
 
         // Modelos que podem ser enviados ao OpenRouter com normalização.
-        // Mantemos sempre um endpoint Gemini válido e conhecido como ativo.
+        // Usa os modelos diretamente — as chaves sk-or têm crédito e funcionam com os modelos pagos.
         this.modelNormalization = {
             "google/gemini-2.5-flash-lite": "google/gemini-2.5-flash-lite",
             "google/gemini-2.5-flash": "google/gemini-2.5-flash",
@@ -2732,10 +2731,6 @@ class KeyRotationEngine {
             }).join(" ");
         }
         return String(prompt);
-    }
-
-    generateOfflineResponse(prompt) {
-        return buildOfflineFallbackResponse(prompt);
     }
 }
 
@@ -7642,12 +7637,8 @@ ${chatLogs}`;
                 finalResponse = secondary.response.response;
                 modelName = secondary.modelName;
             } catch (secErr) {
-                Logger.error("BochechaEngine.AI", `Falha na submissão de ferramenta de volta à IA: ${secErr.message}. Usando fallback local para a ferramenta.`);
-                finalResponse = {
-                    text: () => "",
-                    functionCalls: () => undefined
-                };
-                modelName = "offline-fallback-tool";
+                Logger.error("BochechaEngine.AI", `Falha na submissão de ferramenta de volta à IA: ${secErr.message}.`);
+                throw secErr;
             }
         }
 

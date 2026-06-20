@@ -109,9 +109,6 @@ module.exports = {
 
         // 3. Executa a IA para dar o veredito final
         const currentBrain = global.keyRotator;
-        if (!currentBrain) {
-            return "❌ Cérebros neurais offline. Impossível rodar investigação de fake news no momento.";
-        }
 
         const factPrompt = `Você é o Bochecha-IA, detetive supremo de fake news do submundo.
 Sua missão é dar um veredito real e factível sobre a seguinte notícia/link suspeito enviado pelo usuário.
@@ -148,7 +145,7 @@ Instruções e Estrutura do Laudo Bochecha:
 
         } catch (err) {
             console.error("[Detetive Fake News] Erro ao processar laudo pela IA:", err);
-            return "❌ Ocorreu um erro interno ao compilar os dados da investigação.";
+            throw err;
         }
     }
 };

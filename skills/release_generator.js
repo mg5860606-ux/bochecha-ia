@@ -49,7 +49,7 @@ module.exports = {
             await sock.sendMessage(from, { text: `📦 *Iniciando deploy de versão:* \`${tag}\`...\nLendo commits recentes do Git e consultando neurônios de elite.` });
         }
 
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             // Puxa os últimos 15 commits legíveis
             exec("git log -n 15 --pretty=format:\"- %s (%h) [%an]\"", { timeout: 15000 }, async (errLog, stdout) => {
                 if (errLog) {
@@ -61,8 +61,7 @@ module.exports = {
 
                 const commits = stdout.trim() || "- Commits iniciais (Sem histórico prévio).";
 
-                if (global.keyRotator) {
-                    try {
+                try {
                         const prompt = `Gere uma nota de lançamento (Release Notes / Changelog) estética, robusta, premium e muito estilosa para a versão '${tag}' do Bochecha-IA.\n` +
                                        `Use a linguagem sarcástica, debochada e de cria carioca característica do Bochecha.\n` +
                                        `Destaque as novidades técnicas dividindo em seções (ex: ⚡ Novidades do Submudo, 🛠️ Ajustes de Cria, etc) e decore com emojis góticos raros (🪐 🥀 💀 ⚡ 🛸 ♰ 𖤐).\n\n` +
@@ -152,15 +151,8 @@ module.exports = {
                         });
 
                     } catch (aiErr) {
-                        const fail = `❌ *Falha no cérebro neural ao compilar release:* \`${aiErr.message}\``;
-                        if (isCommand) { await sock.sendMessage(from, { text: fail }, { quoted: message }); }
-                        resolve(fail);
+                        reject(aiErr);
                     }
-                } else {
-                    const fail = `❌ Cérebro neural indisponível no momento.`;
-                    if (isCommand) { await sock.sendMessage(from, { text: fail }, { quoted: message }); }
-                    resolve(fail);
-                }
             });
         });
     }

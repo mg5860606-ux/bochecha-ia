@@ -62,9 +62,6 @@ module.exports = {
         } catch (e) {}
 
         const currentBrain = global.keyRotator;
-        if (!currentBrain) {
-            return "❌ Cérebros neurais offline. Impossível ler a mente dos alvos.";
-        }
 
         // ═════════════════════════════════════════════════════════════════
         // 🔮 AÇÃO 1: PERFIL PSICOLÓGICO DE CRIA (/perfil @user)
@@ -123,7 +120,7 @@ module.exports = {
 
             } catch (err) {
                 console.error(err);
-                return "❌ Falha ao invadir os neurônios do alvo.";
+                throw err;
             }
         }
 
@@ -178,7 +175,7 @@ module.exports = {
 
             } catch (err) {
                 console.error(err);
-                return "❌ Erro ao calibrar perito semântico.";
+                throw err;
             }
         }
 
@@ -248,7 +245,7 @@ module.exports = {
 
             } catch (err) {
                 console.error(err);
-                return "❌ Falha ao sintonizar barômetro de humor.";
+                throw err;
             }
         }
     }

@@ -205,7 +205,6 @@ module.exports = {
                 const resIssue = await axios.get(url, { headers, timeout: 15000 });
                 const issue = resIssue.data;
 
-                if (global.keyRotator) {
                     // Manda a IA varrer os arquivos ou ler o código principal para identificar o reparo
                     // Para que a IA possa corrigir de forma hiper-fiel, passamos o erro/relato
                     // e deixamos a IA usar a ferramenta run_terminal_command se precisar,
@@ -289,20 +288,11 @@ Sua tarefa de cria:
                             }
                         });
                     });
-                } else {
-                    const fail = `❌ Cérebro neural indisponível.`;
-                    if (isCommand) { await sock.sendMessage(from, { text: fail }, { quoted: message }); }
-                    return fail;
-                }
             }
 
         } catch (e) {
             console.error('[ERRO] issue_operator:', e.message);
-            const errReport = `❌ *Erro ao operar issues no GitHub:* Conexão recusada ou recurso não encontrado.\nHost info: \`${e.message}\``;
-            if (isCommand) {
-                await sock.sendMessage(from, { text: errReport }, { quoted: message });
-            }
-            return errReport;
+            throw e;
         }
     }
 };

@@ -124,27 +124,21 @@ module.exports = {
 
             // Se foi comando direto, chama a IA em background para resumir esteticamente a página para o Marcos
             if (isCommand) {
-                if (global.keyRotator) {
-                    await sock.sendMessage(from, { text: "📚 *Conteúdo lido com sucesso!* Gerando síntese neural de cria... ⚡" });
-                    
-                    const prompt = `Leia e resuma o seguinte conteúdo extraído da URL: ${url}.\nFaça uma síntese extremamente inteligente, prática, usando a linguagem e deboche do Bochecha. Destaque pontos importantes.\n\nConteúdo:\n${contentToReturn}`;
-                    const sys = "Você é o Bochecha-IA. Dê resumos diretos e inteligentes com gírias cariocas.";
-                    
-                    const { response: aiRes } = await global.keyRotator.executeWithRotation([], prompt, [], sys, true);
-                    const aiSummary = aiRes.response.text().trim();
-                    
-                    const report = `🌐 *SÍNTESE DE LEITURA WEB* 🥀\n\n` +
-                                   `🔗 *URL analisada:* ${url}\n\n` +
-                                   `📝 *Resumo Bochecha:*\n${aiSummary}\n\n` +
-                                   `> *BOCHECHA CRAWLER ENGINE* 💀⚡`;
-                    
-                    await sock.sendMessage(from, { text: report }, { quoted: message });
-                    return report;
-                } else {
-                    const fallback = `🌐 *CONTEÚDO EXTRAÍDO DA URL:* ${url}\n\n${contentToReturn.substring(0, 1500)}...\n\n*(Instale chaves Gemini/OpenRouter para ver a síntese neural)*`;
-                    await sock.sendMessage(from, { text: fallback }, { quoted: message });
-                    return fallback;
-                }
+                await sock.sendMessage(from, { text: "📚 *Conteúdo lido com sucesso!* Gerando síntese neural de cria... ⚡" });
+                
+                const prompt = `Leia e resuma o seguinte conteúdo extraído da URL: ${url}.\nFaça uma síntese extremamente inteligente, prática, usando a linguagem e deboche do Bochecha. Destaque pontos importantes.\n\nConteúdo:\n${contentToReturn}`;
+                const sys = "Você é o Bochecha-IA. Dê resumos diretos e inteligentes com gírias cariocas.";
+                
+                const { response: aiRes } = await global.keyRotator.executeWithRotation([], prompt, [], sys, true);
+                const aiSummary = aiRes.response.text().trim();
+                
+                const report = `🌐 *SÍNTESE DE LEITURA WEB* 🥀\n\n` +
+                               `🔗 *URL analisada:* ${url}\n\n` +
+                               `📝 *Resumo Bochecha:*\n${aiSummary}\n\n` +
+                               `> *BOCHECHA CRAWLER ENGINE* 💀⚡`;
+                
+                await sock.sendMessage(from, { text: report }, { quoted: message });
+                return report;
             } else {
                 // Chamado pela IA: Retorna o texto bruto limpo para que a IA analise ativamente
                 return `[URL EXTRAÍDA COM SUCESSO: ${url}]\n\n[CONTEÚDO DA PÁGINA]:\n${contentToReturn}`;
