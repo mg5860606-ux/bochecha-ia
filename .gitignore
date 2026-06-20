@@ -10,6 +10,7 @@ key_backup.json
 scratch/
 *.json
 !package.json
+!key.json
 *.bak
 test_all_models.js
 media/
