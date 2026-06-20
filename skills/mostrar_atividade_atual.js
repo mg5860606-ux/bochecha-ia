@@ -79,8 +79,8 @@ module.exports = {
 
                 fs.writeFileSync(tempImagePath, imageBuffer);
 
-                // Localiza o binário do FFmpeg Estático
-                const ffmpegPath = require('ffmpeg-static');
+                // Localiza o binário do FFmpeg
+                const ffmpegPath = require('../lib/ffmpegHelper').getFFmpegPath();
 
                 const runFFmpeg = () => {
                     return new Promise((resolve, reject) => {

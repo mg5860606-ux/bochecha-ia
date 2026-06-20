@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
-const ffmpegPath = require('ffmpeg-static');
+const ffmpegPath = require('../lib/ffmpegHelper').getFFmpegPath();
 const Jimp = require('jimp');
 const chalk = require('chalk');
 

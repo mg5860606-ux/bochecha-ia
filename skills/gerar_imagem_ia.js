@@ -77,7 +77,7 @@ module.exports = {
 
                 // Roda o FFmpeg para aplicar o efeito zoompan de 5 segundos
                 const ffmpeg = require('fluent-ffmpeg');
-                const ffmpegPath = require('ffmpeg-static');
+                const ffmpegPath = require('../lib/ffmpegHelper').getFFmpegPath();
                 ffmpeg.setFfmpegPath(ffmpegPath);
 
                 await new Promise((resolve, reject) => {

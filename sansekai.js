@@ -74,6 +74,7 @@ const moment = require("moment-timezone");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { exec, spawn, execFileSync } = require("child_process");
 const config = require("./config");
+const { getFFmpegPath } = require("./lib/ffmpegHelper");
 
 
 // Módulo de Gerenciamento das Chaves API local
@@ -3050,9 +3051,13 @@ class VoiceSynthesizer {
     static checkFFmpeg() {
         return new Promise((resolve) => {
             try {
-                const ffmpegPath = require('ffmpeg-static');
-                const fs = require('fs');
-                if (ffmpegPath && fs.existsSync(ffmpegPath)) {
+                const ffmpegPath = getFFmpegPath();
+                if (ffmpegPath === "ffmpeg") {
+                    // No Termux ou comando global, testa executando o binário
+                    exec('ffmpeg -version', (error) => {
+                        resolve(!error);
+                    });
+                } else if (ffmpegPath && fs.existsSync(ffmpegPath)) {
                     resolve(true);
                 } else {
                     resolve(false);
@@ -3065,7 +3070,7 @@ class VoiceSynthesizer {
 
     static convertMp3ToOggOpus(mp3Buffer, voicePreset = "antonio") {
         return new Promise((resolve, reject) => {
-            const ffmpegPath = require('ffmpeg-static');
+            const ffmpegPath = getFFmpegPath();
             let filterString = '[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=2[a]';
 
             if (voicePreset === "helio") {
@@ -3107,7 +3112,7 @@ class VoiceSynthesizer {
     // Conversão simples MP3 → OGG Opus sem efeitos (mais confiável)
     static convertMp3ToOggSimples(mp3Buffer) {
         return new Promise((resolve, reject) => {
-            const ffmpegPath = require('ffmpeg-static');
+            const ffmpegPath = getFFmpegPath();
             const ffmpeg = spawn(ffmpegPath, [
                 '-i', 'pipe:0',
                 '-c:a', 'libopus',
@@ -7057,12 +7062,16 @@ ${chatLogs}`;
                     }
 
                     let replyText = aiReply;
+                    if (!replyText || !replyText.trim()) {
+                        Logger.warn("BochechaEngine.AI", "Resposta vazia ou nula da IA. Nenhuma mensagem enviada ao WhatsApp.");
+                        if (typingInterval) clearInterval(typingInterval);
+                        await sock.sendPresenceUpdate('paused', from).catch(() => { });
+                        return;
+                    }
 
                     // Filtro absoluto de segurança contra menções ou citações da Yandra
-                    if (replyText) {
-                        replyText = replyText.replace(/yandra/gi, 'membro');
-                        replyText = replyText.replace(/@?7100252033253/g, '');
-                    }
+                    replyText = replyText.replace(/yandra/gi, 'membro');
+                    replyText = replyText.replace(/@?7100252033253/g, '');
 
                     // 1. Intercepta Reação de Emoji [REACAO: <emoji>]
                     let reactionEmoji = null;
@@ -7703,22 +7712,11 @@ ${chatLogs}`;
 
         let output = finalResponse.text() ? finalResponse.text().trim() : "";
         if (output) {
-            // Remove markdown de conversas casuais: bold, itálico, headers, bullets
-            output = output
-                .replace(/\*\*(.*?)\*\*/g, '$1')   // **bold** → bold
-                .replace(/\*(.*?)\*/g, '$1')        // *italic* → italic
-                .replace(/_{1,2}(.*?)_{1,2}/g, '$1') // _italic_ → italic
-                .replace(/^#{1,6}\s+/gm, '')        // # header → sem header
-                .replace(/^[-*+]\s+/gm, '')         // bullet lists → sem bullet
-                .replace(/^\d+\.\s+/gm, '')         // numbered lists → sem número
-                .replace(/`{1,3}([^`]*)`{1,3}/g, '$1'); // `code` → sem backtick
-
+            // Remove apenas eventuais ecos de linhas do sistema e do template de chat, preservando quebras de linha reais
             output = output
                 .split('\n')
-                .map(line => line.replace(/={5,}/g, '').replace(/-{5,}/g, '').trim())
                 .filter(line => {
                     const cleanLine = line.toLowerCase();
-                    if (!cleanLine) return false;
                     if (cleanLine.includes('[💬 chat:') ||
                         cleanLine.includes('[👤 usuário:') ||
                         cleanLine.includes('[👤 usuario:') ||
@@ -7728,61 +7726,12 @@ ${chatLogs}`;
                     }
                     return true;
                 })
-                .join(' ')
-                .replace(/\s{2,}/g, ' ')
+                .join('\n')
                 .trim();
         }
 
-        // Pós-processamento: remover perguntas desnecessárias quando o usuário já forneceu contexto
-        try {
-            const rawHist = Array.isArray(rawHistory) ? rawHistory : [];
-            const lastUserEntry = rawHist.slice().reverse().find(m => m && m.role === 'user' || (m && m.user));
-            const lastUserText = lastUserEntry ? (lastUserEntry.content || lastUserEntry.text || lastUserEntry) : '';
-
-            // Remove perguntas típicas de suporte/assistente no final de qualquer resposta
-            if (output) {
-                const assistantQuestionsPattern = /\s*\b(como posso (te )?ajudar( hoje)?\??|em que posso ajudar\??|mais alguma coisa\??|algo mais\??|o que (você|vc) (gostaria de|quer) fazer\??|como posso ser útil\??|o que manda( hoje)?\??|o que vamos (fazer|aprontar) hoje\??|o que quer que eu faça\??|quer ajuda com (mais )?algo\??|tudo bem com (você|vc)\??)\s*$/i;
-                output = output.replace(assistantQuestionsPattern, '').trim();
-            }
-
-            const likelyClear = typeof lastUserText === 'string' && lastUserText.trim().length > 40 && !lastUserText.trim().endsWith('?');
-            if (likelyClear && output && output.includes('?')) {
-                // remove sentenças interrogativas do final da resposta
-                const partsSent = output.split(/(?<=\.|!|\?)\s+/);
-                const filtered = partsSent.filter(s => !s.trim().endsWith('?'));
-                const newOut = filtered.join(' ').trim();
-                if (newOut) {
-                    Logger.info('PostProcess', 'Removidas perguntas supérfluas da resposta do modelo.');
-                    output = newOut;
-                }
-            }
-        } catch (ppErr) {
-            Logger.error('PostProcess.ContextCleanup', ppErr);
-        }
-
-        // Anti-repetição: se a resposta for idêntica ou muito parecida com a última resposta do bot, descarta (não envia nada)
-        try {
-            if (output && rawHistory && Array.isArray(rawHistory)) {
-                const lastBotMsgs = rawHistory
-                    .filter(m => m && m.role === 'assistant' && m.content)
-                    .slice(-3)
-                    .map(m => m.content.trim().toLowerCase().substring(0, 80));
-                const normalizedOut = output.trim().toLowerCase().substring(0, 80);
-                const isDuplicate = lastBotMsgs.some(prev => {
-                    if (!prev) return false;
-                    const shorter = Math.min(prev.length, normalizedOut.length);
-                    if (shorter < 10) return false;
-                    const matches = [...normalizedOut.substring(0, shorter)].filter((c, i) => c === prev[i]).length;
-                    return matches / shorter > 0.82; // 82% similares = duplicata
-                });
-                if (isDuplicate) {
-                    Logger.warn('PostProcess.AntiRepeat', 'Resposta duplicada detectada. Descartando (sem envio).');
-                    output = null; // não envia nada
-                }
-            }
-        } catch (arErr) {
-            Logger.error('PostProcess.AntiRepeat', arErr);
-        }
+        // Anti-repetição: Desativado - a IA pode repetir respostas sem restrições
+        // try { ... } catch (arErr) { ... }
 
         try {
             output = sanitizeAssistantOutput(output, { isGroup, isOwner });
