@@ -63,8 +63,12 @@ module.exports = {
             }
         }
     },
-    async execute(args, { sock, from }) {
+    async execute(args, { sock, from, message, isOwner, isGroupAdmins }) {
         if (!from.endsWith('@g.us')) return "Este comando só funciona em grupos.";
+
+        if (!isOwner && !isGroupAdmins) {
+            return "❌ Só administrador do grupo ou o dono pode usar o comando de marcar todos! Fica pianinho aí, plebeu! 💀";
+        }
 
         try {
             const metadata = await sock.groupMetadata(from);

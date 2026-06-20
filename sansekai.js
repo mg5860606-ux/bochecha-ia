@@ -7341,10 +7341,14 @@ ${chatLogs}`;
         const warns = await storage.getWarnings(chatId, sender);
         
         let logGroupName = "Privado";
+        let isUserAdmin = false;
         if (chatId.endsWith('@g.us') && sock) {
             try {
                 const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await sock.groupMetadata(chatId);
                 logGroupName = metadata.subject || metadata.name || "Grupo";
+                const participants = metadata.participants || [];
+                const senderPart = participants.find(p => p.id.split('@')[0] === sender.split('@')[0]);
+                isUserAdmin = senderPart?.admin === 'admin' || senderPart?.admin === 'superadmin';
             } catch {}
         }
         
@@ -7393,19 +7397,8 @@ ${chatLogs}`;
         let hierarchy = "Membro Comum (👤 Plebe)";
         if (isOwner) {
             hierarchy = "Criador (👑 Dono Absoluto)";
-        } else {
-            let isUserAdmin = false;
-            if (chatId.endsWith('@g.us') && sock) {
-                try {
-                    const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await sock.groupMetadata(chatId);
-                    const participants = metadata.participants || [];
-                    const senderPart = participants.find(p => p.id.split('@')[0] === sender.split('@')[0]);
-                    isUserAdmin = senderPart?.admin === 'admin' || senderPart?.admin === 'superadmin';
-                } catch {}
-            }
-            if (isUserAdmin) {
-                hierarchy = "Administrador (🛡️ Privilegiado)";
-            }
+        } else if (isUserAdmin) {
+            hierarchy = "Administrador (🛡️ Privilegiado)";
         }
 
         const timeStr = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false });
@@ -7583,7 +7576,7 @@ ${chatLogs}`;
             for (const call of functionCalls) {
                 const fn = call.name;
                 const isGroup = chatId.endsWith("@g.us");
-                const ctx = { chatId, sock, from: chatId, message: messageRef, isOwner, isGroup, sender, pushname };
+                const ctx = { chatId, sock, from: chatId, message: messageRef, isOwner, isGroup, sender, pushname, isGroupAdmins: isUserAdmin };
                 const res = await registry.execute(fn, call.args, ctx);
 
                 wasToolExecuted = true;

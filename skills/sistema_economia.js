@@ -229,6 +229,59 @@ module.exports = {
             if (!target && message.message?.extendedTextMessage?.contextInfo?.mentionedJid) {
                 target = message.message.extendedTextMessage.contextInfo.mentionedJid[0];
             }
+
+            if (!global.pendingDuels) global.pendingDuels = new Map();
+
+            // Checar se o desafiado respondeu aceitando
+            if (args.opcao === "aceitar") {
+                let activeDuel = null;
+                let foundKey = null;
+
+                if (target) {
+                    const checkKey = `${from}-${target}`;
+                    const duel = global.pendingDuels.get(checkKey);
+                    if (duel && duel.target === sender) {
+                        activeDuel = duel;
+                        foundKey = checkKey;
+                    }
+                } else {
+                    // Busca qualquer duelo pendente nesta sala onde o desafiado seja o sender
+                    for (const [key, duel] of global.pendingDuels.entries()) {
+                        if (key.startsWith(`${from}-`) && duel.target === sender) {
+                            activeDuel = duel;
+                            foundKey = key;
+                            target = duel.challenger;
+                            break;
+                        }
+                    }
+                }
+
+                if (!activeDuel) {
+                    return "❌ Não há nenhum duelo pendente lançado contra você.";
+                }
+
+                const bet = activeDuel.bet;
+                const myCoins = await storage.addCoins(from, sender, 0);
+                const targetCoins = await storage.addCoins(from, target, 0);
+
+                if (myCoins < bet) return `❌ Você não possui moedas suficientes (${myCoins} coins).`;
+                if (targetCoins < bet) return `❌ O oponente é quebrado e não tem moedas suficientes! (${targetCoins} coins).`;
+
+                global.pendingDuels.delete(foundKey);
+
+                // Executar o Duelo
+                const shooter = Math.random() < 0.5 ? sender : target;
+                const winner = shooter === sender ? target : sender;
+
+                await storage.addCoins(from, winner, bet);
+                await storage.addCoins(from, shooter, -bet);
+
+                const winnerCoins = await storage.addCoins(from, winner, 0);
+
+                return `🔫 *DUELO RUSSO DE COINS* 🔫\n\n*${pushname}* aceitou o duelo de *${bet} Bochecha-Coins*!\n\n*ENGATILHANDO O REVOLVER...* 💥\n\n💀 @${shooter.split('@')[0]} tomou o tiro na testa e capotou!\n\n🏆 *VENCEDOR:* @${winner.split('@')[0]} faturou a aposta!\n🪙 *Saldo do Vencedor:* *${winnerCoins} Bochecha-Coins*`;
+            }
+
+            // Caso contrário, é o lançamento de um novo desafio
             if (!target) return "❌ Você precisa desafiar ou marcar um usuário do grupo!";
             if (target === sender) return "❌ Você não pode duelar consigo mesmo, maluco!";
 
@@ -241,34 +294,8 @@ module.exports = {
             if (myCoins < bet) return `❌ Você não possui moedas suficientes (${myCoins} coins).`;
             if (targetCoins < bet) return `❌ O oponente é quebrado e não tem moedas suficientes! (${targetCoins} coins).`;
 
-            // Gerenciar duelos pendentes na memória
-            if (!global.pendingDuels) global.pendingDuels = new Map();
-            const duelKey = `${from}-${target}`;
-
-            // Checar se o desafiado respondeu aceitando
-            if (args.opcao === "aceitar") {
-                const activeDuel = global.pendingDuels.get(duelKey);
-                if (!activeDuel || activeDuel.challenger !== target) {
-                    return "❌ Não há nenhum duelo pendente lançado contra você por este usuário.";
-                }
-
-                global.pendingDuels.delete(duelKey);
-
-                // Executar o Duelo
-                const shooter = Math.random() < 0.5 ? sender : target;
-                const winner = shooter === sender ? target : sender;
-
-                await storage.addCoins(from, winner, bet);
-                await storage.addCoins(from, shooter, -bet);
-
-                const winnerCoins = await storage.addCoins(from, winner, 0);
-                const loserCoins = await storage.addCoins(from, shooter, 0);
-
-                return `🔫 *DUELO RUSSO DE COINS* 🔫\n\n*${pushname}* aceitou o duelo de *${bet} Bochecha-Coins*!\n\n*ENGATILHANDO O REVOLVER...* 💥\n\n💀 @${shooter.split('@')[0]} tomou o tiro na testa e capotou!\n\n🏆 *VENCEDOR:* @${winner.split('@')[0]} faturou a aposta!\n🪙 *Saldo do Vencedor:* *${winnerCoins} Bochecha-Coins*`;
-            }
-
             // Lançar desafio
-            global.pendingDuels.set(`${from}-${sender}`, { challenger: sender, bet });
+            global.pendingDuels.set(`${from}-${sender}`, { challenger: sender, target: target, bet });
             // Expira em 1 minuto
             setTimeout(() => {
                 global.pendingDuels.delete(`${from}-${sender}`);
