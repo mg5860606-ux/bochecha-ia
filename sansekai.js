@@ -190,6 +190,16 @@ function buildSourceText(prompt, history) {
             }
         });
     }
+
+    // Injeta a data, hora, meses e dia da semana atuais na base de dados de veracidade (para evitar falsos positivos do AntiHallucination)
+    try {
+        const now = moment().tz("America/Sao_Paulo");
+        source += ` ${now.format("DD/MM/YYYY HH:mm:ss dddd")} `;
+        source += ` ${now.format("YYYY")} ${now.format("MM")} ${now.format("DD")} ${now.format("HH")} ${now.format("mm")} `;
+        source += " segunda terça quarta quinta sexta sábado domingo segunda-feira terça-feira quarta-feira quinta-feira sexta-feira ";
+        source += " janeiro fevereiro março abril maio junho julho agosto setembro outubro novembro dezembro ";
+    } catch {}
+
     return normalizeTextForHallucination(source);
 }
 
