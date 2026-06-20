@@ -15,7 +15,7 @@ module.exports = {
                     },
                     texto: {
                         type: "string",
-                        description: "O texto curto que a IA falará na nota de voz (máximo 450 caracteres)."
+                        description: "O texto que a IA falará na nota de voz (máximo de 1800 caracteres, equivalente a até 2 minutos de áudio)."
                     }
                 },
                 required: ["preset", "texto"]

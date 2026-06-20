@@ -3039,7 +3039,7 @@ class VoiceSynthesizer {
         try {
             Logger.info("VoiceSynthesizer", `Gerando voz humana premium (${voicePreset}) para: "${text.substring(0, 40)}..."`);
             
-            const cleanText = text.substring(0, 500);
+            const cleanText = text.substring(0, 2000);
             const { UniversalEdgeTTS } = require('edge-tts-universal');
             const sendOptions = { ...options };
             if (options.quoted === true || options.reply === true) {

@@ -4,13 +4,13 @@ module.exports = {
     definition: {
         function: {
             name: "falar_em_audio",
-            description: "Gera a resposta falada da IA em português brasileiro e a envia como uma nota de voz oficial do WhatsApp. Use sempre que o usuário pedir para você falar por áudio, mandar um áudio ou mandar uma mensagem de voz. Mantenha a resposta concisa e de no máximo 450 caracteres para não passar do limite de 40 segundos.",
+            description: "Gera a resposta falada da IA em português brasileiro e a envia como uma nota de voz oficial do WhatsApp. Use sempre que o usuário pedir para você falar por áudio, mandar um áudio ou mandar uma mensagem de voz. Mantenha a resposta natural e de no máximo 1800 caracteres para não passar do limite de 2 minutos (120 segundos).",
             parameters: {
                 type: "object",
                 properties: {
                     texto: {
                         type: "string",
-                        description: "O texto que a IA falará na nota de voz. Deve ser expressivo, sarcástico e curto (máximo de 450 caracteres, equivalente a 35 segundos)."
+                        description: "O texto que a IA falará na nota de voz. Deve ser expressivo, sarcástico e dinâmico (máximo de 1800 caracteres, equivalente a até 2 minutos de áudio)."
                     }
                 },
                 required: ["texto"]
