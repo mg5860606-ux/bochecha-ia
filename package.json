@@ -1,6 +1,6 @@
 {
   "name": "bochecha-ia",
-  "version": "1.0.0",
+  "version": "6.0.0",
   "description": "𝐁𝐎𝐂𝐇𝐄𝐂𝐇𝐀 - Bot de WhatsApp com IA",
   "main": "index.js",
   "type": "commonjs",

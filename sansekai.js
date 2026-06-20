@@ -50,17 +50,17 @@
  * JSDoc e Documentação Completa Injetados para Manutenção Avançada de Código.
  */
 
-const { 
-    BufferJSON, 
-    WA_DEFAULT_EPHEMERAL, 
-    generateWAMessageFromContent, 
-    proto, 
-    generateWAMessageContent, 
-    generateWAMessage, 
-    prepareWAMessageMedia, 
-    areJidsSameUser, 
-    getContentType, 
-    downloadContentFromMessage 
+const {
+    BufferJSON,
+    WA_DEFAULT_EPHEMERAL,
+    generateWAMessageFromContent,
+    proto,
+    generateWAMessageContent,
+    generateWAMessage,
+    prepareWAMessageMedia,
+    areJidsSameUser,
+    getContentType,
+    downloadContentFromMessage
 } = require("@whiskeysockets/baileys");
 
 const fs = require("fs");
@@ -126,12 +126,12 @@ try {
     if (fs.existsSync(LID_MAP_FILE)) {
         lidMappings = JSON.parse(fs.readFileSync(LID_MAP_FILE, 'utf8'));
     }
-} catch {}
+} catch { }
 
 function saveLidMappings() {
     try {
         fs.writeFileSync(LID_MAP_FILE, JSON.stringify(lidMappings, null, 2));
-    } catch {}
+    } catch { }
 }
 
 const ANTI_HALLUCINATION_SAFE_PHRASES = [
@@ -149,7 +149,7 @@ const ANTI_HALLUCINATION_SAFE_PHRASES = [
 ];
 
 const ANTI_HALLUCINATION_IGNORE_TOKENS = new Set([
-    'não','sim','talvez','pode','podeu','já','mas','se','eu','vc','vcê','voce','você','para','no','na','com','sem','uma','um','os','as','os','as','e','ou','do','da','dos','das','este','esta','esse','essa','aquele','aquela','de','do','da','dos','das','por','pelo','pela','pelos','pelas'
+    'não', 'sim', 'talvez', 'pode', 'podeu', 'já', 'mas', 'se', 'eu', 'vc', 'vcê', 'voce', 'você', 'para', 'no', 'na', 'com', 'sem', 'uma', 'um', 'os', 'as', 'os', 'as', 'e', 'ou', 'do', 'da', 'dos', 'das', 'este', 'esta', 'esse', 'essa', 'aquele', 'aquela', 'de', 'do', 'da', 'dos', 'das', 'por', 'pelo', 'pela', 'pelos', 'pelas'
 ]);
 
 const ANTI_HALLUCINATION_HEDGING_PATTERNS = [
@@ -199,7 +199,7 @@ function buildSourceText(prompt, history) {
         source += ` ${now.format("YYYY")} ${now.format("MM")} ${now.format("DD")} ${now.format("HH")} ${now.format("mm")} `;
         source += " segunda terça quarta quinta sexta sábado domingo segunda-feira terça-feira quarta-feira quinta-feira sexta-feira ";
         source += " janeiro fevereiro março abril maio junho julho agosto setembro outubro novembro dezembro ";
-    } catch {}
+    } catch { }
 
     return normalizeTextForHallucination(source);
 }
@@ -249,12 +249,16 @@ function buildToolExecutionFallbackOutput(prompt = '', lastExecutedTool = null) 
         return 'Feito.';
     }
 
+    if (lastExecutedTool === 'baixar_adulto' || lastExecutedTool === 'baixar_videos' || lastExecutedTool === 'play_video') {
+        return 'Feito.';
+    }
+
     const normalizedPrompt = normalizeTextForHallucination(prompt);
-    if (/(play|tocar|reproduzir|audio|áudio)/.test(normalizedPrompt) || lastExecutedTool === 'falar_em_audio' || lastExecutedTool === 'bochecha_voz' || lastExecutedTool === 'play_audio') {
+    if (/ (play|tocar|reproduzir|audio|áudio) /.test(normalizedPrompt) || lastExecutedTool === 'falar_em_audio' || lastExecutedTool === 'bochecha_voz' || lastExecutedTool === 'play_audio') {
         return 'Já toquei.';
     }
 
-    if (/(imagem|foto|gerar|criar|mandar|enviar)/.test(normalizedPrompt)) {
+    if (/ (imagem|foto|gerar|criar|mandar|enviar) /.test(normalizedPrompt)) {
         return 'Feito.';
     }
 
@@ -387,6 +391,9 @@ function looksLikeConversationalToolReply(output) {
 }
 
 function enforceAntiHallucinationGuard(output, prompt, history, options = {}) {
+    // Tira tudo que nao deixa a ia responder (Desativado)
+    return output;
+
     if (!output || typeof output !== 'string') return output;
     if (isDirectIdentityOrCapabilityQuery(prompt)) {
         return output;
@@ -487,7 +494,7 @@ function enforceAntiHallucinationGuard(output, prompt, history, options = {}) {
  */
 async function resolveJidAsync(jid) {
     if (!jid) return jid;
-    
+
     let cleanJid = jid;
     if (cleanJid.includes(':')) {
         const parts = cleanJid.split(':');
@@ -542,7 +549,7 @@ async function resolveJidAsync(jid) {
  */
 function normalizeJid(jid) {
     if (!jid) return jid;
-    
+
     let cleanJid = jid;
     if (cleanJid.includes(':')) {
         const parts = cleanJid.split(':');
@@ -653,7 +660,7 @@ async function findCandidates(sock, name, fromChatId, type) {
                         if (groups[gid]) {
                             groupContext = `Ranking no Grupo: ${groups[gid].subject || 'Desconhecido'}`;
                         }
-                    } catch {}
+                    } catch { }
 
                     for (const uid in users) {
                         const user = users[uid];
@@ -682,7 +689,7 @@ async function findCandidates(sock, name, fromChatId, type) {
                         if (groups[gid]) {
                             groupContext = `Mensagens no Grupo: ${groups[gid].subject || 'Desconhecido'}`;
                         }
-                    } catch {}
+                    } catch { }
 
                     for (const msg of messages) {
                         if (msg && msg.pushname && msg.pushname.toLowerCase().includes(cleanName) && msg.user) {
@@ -737,7 +744,7 @@ class Logger {
         const timestamp = moment().tz("America/Sao_Paulo").format("YYYY-MM-DD HH:mm:ss");
         const errMsg = error?.stack || error?.message || String(error);
         const entry = `[${timestamp}] [ERRO] [${context}]: ${errMsg}\n`;
-        
+
         try {
             fs.appendFileSync(logFile, entry);
         } catch (e) {
@@ -745,8 +752,8 @@ class Logger {
         }
 
         console.log(
-            chalk.red(`[🚫 ERRO CRÍTICO] `) + 
-            chalk.bgRed.white(` ${context} `) + 
+            chalk.red(`[🚫 ERRO CRÍTICO] `) +
+            chalk.bgRed.white(` ${context} `) +
             chalk.red(`: ${error?.message || error}`)
         );
     }
@@ -774,7 +781,7 @@ class Logger {
      */
     static info(module, text) {
         console.log(
-            chalk.blue(`[⚡ ${module}] `) + 
+            chalk.blue(`[⚡ ${module}] `) +
             chalk.white(text)
         );
     }
@@ -786,8 +793,8 @@ class Logger {
      */
     static warn(module, text) {
         console.log(
-            chalk.yellow(`[⚠️ AVISO] `) + 
-            chalk.bgYellow.black(` ${module} `) + 
+            chalk.yellow(`[⚠️ AVISO] `) +
+            chalk.bgYellow.black(` ${module} `) +
             chalk.yellow(`: ${text}`)
         );
     }
@@ -799,8 +806,8 @@ class Logger {
      */
     static success(module, text) {
         console.log(
-            chalk.green(`[✅ SUCESSO] `) + 
-            chalk.bgGreen.black(` ${module} `) + 
+            chalk.green(`[✅ SUCESSO] `) +
+            chalk.bgGreen.black(` ${module} `) +
             chalk.green(`: ${text}`)
         );
     }
@@ -885,14 +892,14 @@ class StorageManager {
                 const baseName = path.basename(filePath);
                 const { db, doc, getDoc, setDoc } = require('./firebase_connector');
                 const docRef = doc(db, "database_json", baseName);
-                
+
                 let cloudLoaded = false;
                 try {
                     const snap = await getDoc(docRef);
                     if (snap.exists()) {
                         const cloudDoc = snap.data();
                         let cloudData = cloudDoc.data;
-                        
+
                         // Self-healing para dados da nuvem
                         if (Array.isArray(defaultValue) && cloudData && !Array.isArray(cloudData)) {
                             const values = [];
@@ -902,7 +909,7 @@ class StorageManager {
                             }
                             cloudData = values;
                         }
-                        
+
                         fs.writeFileSync(filePath, JSON.stringify(cloudData, null, 2));
                         this.cache.set(filePath, cloudData);
                         localData = cloudData;
@@ -917,12 +924,12 @@ class StorageManager {
                     fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2));
                     this.cache.set(filePath, defaultValue);
                     localData = defaultValue;
-                    
+
                     // Salva backup inicial assincronamente no Firebase
                     setDoc(docRef, {
                         data: defaultValue,
                         lastUpdated: Date.now()
-                    }).catch(() => {});
+                    }).catch(() => { });
                 }
             }
 
@@ -969,7 +976,7 @@ class StorageManager {
             if (fs.existsSync(filePath)) {
                 fs.copyFileSync(filePath, `${filePath}.bak`);
             }
-            
+
             // Grava o JSON limpo direto no disco (sem poluir com _lastLocalUpdate e mantendo arrays como arrays)
             fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
             this.cache.set(filePath, data);
@@ -1133,9 +1140,9 @@ class StorageManager {
         try {
             const dbPath = path.join(__dirname, 'learnings', 'chat_activity.json');
             const db = await this.read(dbPath, {});
-            
+
             if (!db[chatId]) db[chatId] = [];
-            
+
             let userPN = userId.endsWith('@s.whatsapp.net') ? userId : null;
             let userLID = userId.endsWith('@lid') ? userId : null;
 
@@ -1166,11 +1173,11 @@ class StorageManager {
             if (userLID) newEntry.lid = userLID;
 
             db[chatId].push(newEntry);
-            
+
             // Filtra e limpa registros com mais de 12 horas (43200000 ms)
             const twelveHoursAgo = Date.now() - 12 * 60 * 60 * 1000;
             db[chatId] = db[chatId].filter(entry => entry.timestamp >= twelveHoursAgo);
-            
+
             await this.write(dbPath, db);
         } catch (e) {
             Logger.error("StorageManager.logMessageActivity", e);
@@ -1184,15 +1191,15 @@ class StorageManager {
         try {
             const dbPath = path.join(__dirname, 'learnings', 'chat_activity.json');
             const db = await this.read(dbPath, {});
-            
+
             const entries = db[chatId] || [];
             if (entries.length === 0) return null;
-            
+
             const twelveHoursAgo = Date.now() - 12 * 60 * 60 * 1000;
             const activeEntries = entries.filter(entry => entry.timestamp >= twelveHoursAgo);
-            
+
             if (activeEntries.length === 0) return null;
-            
+
             // Conta as ocorrências por usuário
             const counts = {};
             const names = {};
@@ -1200,7 +1207,7 @@ class StorageManager {
                 counts[entry.user] = (counts[entry.user] || 0) + 1;
                 names[entry.user] = entry.pushname;
             }
-            
+
             let mostActiveUser = null;
             let maxCount = -1;
             for (const user in counts) {
@@ -1209,9 +1216,9 @@ class StorageManager {
                     mostActiveUser = user;
                 }
             }
-            
+
             if (!mostActiveUser) return null;
-            
+
             return {
                 user: mostActiveUser,
                 pushname: names[mostActiveUser],
@@ -1230,11 +1237,11 @@ class StorageManager {
         try {
             const dbPath = path.join(__dirname, 'learnings', 'economy.json');
             const db = await this.read(dbPath, {});
-            
+
             const cleanUser = userId.replace(/[^0-9]/g, '');
             if (!db[chatId]) db[chatId] = {};
             if (!db[chatId][cleanUser]) db[chatId][cleanUser] = { coins: 0 };
-            
+
             db[chatId][cleanUser].coins = Math.max(0, (db[chatId][cleanUser].coins || 0) + amount);
             await this.write(dbPath, db);
             return db[chatId][cleanUser].coins;
@@ -1266,13 +1273,13 @@ class StorageManager {
             const dbPath = path.join(__dirname, 'learnings', 'economy.json');
             const db = await this.read(dbPath, {});
             const groupData = db[chatId] || {};
-            
+
             const ricos = Object.keys(groupData).map(user => ({
                 user: user,
                 coins: groupData[user].coins || 0
             })).filter(r => r.coins > 0)
-               .sort((a, b) => b.coins - a.coins);
-               
+                .sort((a, b) => b.coins - a.coins);
+
             return ricos.slice(0, 10);
         } catch (e) {
             return [];
@@ -1286,7 +1293,7 @@ class StorageManager {
         try {
             const dbPath = path.join(__dirname, 'learnings', 'alarms.json');
             const db = await this.read(dbPath, []);
-            
+
             const newAlarm = {
                 id: Date.now() + Math.random().toString(36).substr(2, 5),
                 chatId,
@@ -1295,7 +1302,7 @@ class StorageManager {
                 timestamp,
                 triggered: false
             };
-            
+
             db.push(newAlarm);
             await this.write(dbPath, db);
             return newAlarm;
@@ -1443,7 +1450,7 @@ Caso contrário, se não houver NADA digno de nota, responda unicamente: "NENHUM
 [Mensagem]: "${messageContent}"`;
 
                 const systemRule = "Você é um extrator frio de memórias fatuais para o banco de dados do Bochecha-IA.";
-                
+
                 // Usamos a cota Gemini com rotação
                 const { response } = await keyRotator.executeWithRotation([], prompt, [], systemRule);
                 const txt = response.response.text().trim();
@@ -1539,7 +1546,7 @@ class EmotionalEngine {
             if (affDiff !== 0 || moodDiff !== 0) {
                 db.users[key].affinity = Math.max(0, Math.min(100, db.users[key].affinity + affDiff));
                 db.users[key].mood = Math.max(0, Math.min(100, db.users[key].mood + moodDiff));
-                
+
                 Logger.info("EmotionalEngine", `Ajuste para @${key} | Afinidade: ${db.users[key].affinity}% (${affDiff >= 0 ? '+' : ''}${affDiff}) | Humor: ${db.users[key].mood}% (${moodDiff >= 0 ? '+' : ''}${moodDiff})`);
                 await storage.write(EMOTIONAL_FILE, db);
             }
@@ -1559,10 +1566,10 @@ class EmotionalEngine {
             const key = userId.replace(/[^0-9]/g, '');
             const db = await storage.read(EMOTIONAL_FILE, { users: {} });
             if (!db.users[key]) db.users[key] = { affinity: 50, mood: 80 };
-            
+
             db.users[key].affinity = 0;
             db.users[key].mood = 0;
-            
+
             Logger.warn("EmotionalEngine", `Afinidade de @${key} zerada por spam/flood!`);
             await storage.write(EMOTIONAL_FILE, db);
         } catch (e) {
@@ -1633,22 +1640,22 @@ class SelfEvolutionEngine {
             const validation = await execPromise;
 
             // Remove o arquivo temporário
-            try { fs.unlinkSync(tempFile); } catch {}
+            try { fs.unlinkSync(tempFile); } catch { }
 
             if (!validation.success) {
                 Logger.error("SelfEvolution.Validation", `Erro de sintaxe no código proposto para skill [${cleanName}]: ${validation.error}`);
-                return { 
-                    success: false, 
-                    message: `Falha na verificação de sintaxe NodeJS. Por favor, corrija o erro relatado e reescreva o código:\n\n${validation.error}` 
+                return {
+                    success: false,
+                    message: `Falha na verificação de sintaxe NodeJS. Por favor, corrija o erro relatado e reescreva o código:\n\n${validation.error}`
                 };
             }
 
             // Se compilou com sucesso, grava o arquivo final
             fs.writeFileSync(finalFile, jsCode);
             Logger.success("SelfEvolution", `Nova skill [/skills/${cleanName}.js] gerada por auto-programação!`);
-            return { 
-                success: true, 
-                message: `✅ Skill '${cleanName}' autoprogramada, validada sintaticamente e carregada ativamente via Hot-Reloading no WhatsApp!` 
+            return {
+                success: true,
+                message: `✅ Skill '${cleanName}' autoprogramada, validada sintaticamente e carregada ativamente via Hot-Reloading no WhatsApp!`
             };
         } catch (e) {
             Logger.error("SelfEvolutionEngine.validateAndSaveSkill", e);
@@ -1672,11 +1679,11 @@ const selfEvolution = new SelfEvolutionEngine();
  */
 function mapGeminiToolsToOpenRouter(geminiTools) {
     if (!geminiTools || !Array.isArray(geminiTools) || geminiTools.length === 0) return undefined;
-    
+
     return geminiTools.map(t => {
         // Converte recursivamente os tipos uppercase para lowercase no parameters
         const cleanParams = JSON.parse(JSON.stringify(t.parameters || { type: "object", properties: {}, required: [] }));
-        
+
         const convertTypes = (obj) => {
             if (!obj || typeof obj !== 'object') return;
             if (typeof obj.type === 'string') {
@@ -1730,7 +1737,7 @@ class KeyRotationEngine {
             "openrouter/free": "openrouter/auto"
         };
         this.cooldownDuration = 5 * 60 * 1000; // 5 minutos de repouso por estouro de cota
-        
+
         // Rastreamento individual por chave
         this.keyStats = new Map();
 
@@ -2217,7 +2224,7 @@ class KeyRotationEngine {
 
                 try {
                     Logger.info("KeyRotationEngine", `Conectando OpenRouter | Modelo: ${modelName} | Token: ${activeKey.substring(0, 8)}...`);
-                    
+
                     const messages = [];
                     if (systemInstruction) {
                         messages.push({ role: "system", content: systemInstruction });
@@ -2314,7 +2321,7 @@ class KeyRotationEngine {
                     this.metrics.successRequests++;
                     this.metrics.latencies.push(latency);
                     this.metrics.modelHits[modelName] = (this.metrics.modelHits[modelName] || 0) + 1;
-                    
+
                     if (this.metrics.latencies.length > 50) this.metrics.latencies.shift();
 
                     // Reseta circuit breaker em caso de sucesso
@@ -2322,7 +2329,7 @@ class KeyRotationEngine {
                     this._lastSuccessTime = Date.now();
 
                     // Grava métricas ativamente
-                    this.saveKeyMetrics().catch(() => {});
+                    this.saveKeyMetrics().catch(() => { });
 
                     // Cria mocks perfeitamente compatíveis com a interface original do Gemini
                     const responseMock = {
@@ -2362,7 +2369,7 @@ class KeyRotationEngine {
                     this.metrics.failedRequests++;
 
                     // Grava métricas ativamente
-                    this.saveKeyMetrics().catch(() => {});
+                    this.saveKeyMetrics().catch(() => { });
 
                     // ═══ ERRO 404: Modelo/endpoint não existe ═══
                     // Isso é culpa do MODELO, não da CHAVE. Marca o modelo como morto e tenta o próximo.
@@ -2512,7 +2519,7 @@ class KeyRotationEngine {
 
         const prioritizedFreeModels = this._getPrioritizedModels(prompt, tools).filter(m => actualFreeModelsList.includes(m) && isModelAliveAndClean(m));
         let freeModels = prioritizedFreeModels.length > 0 ? prioritizedFreeModels : actualFreeModelsList.filter(isModelAliveAndClean);
-        
+
         if (freeModels.length === 0) {
             Logger.warn("KeyRotationEngine", "Todos os modelos gratuitos estão mortos ou em cooldown. Limpando cache e tentando novamente.");
             for (const m of actualFreeModelsList) {
@@ -2624,7 +2631,7 @@ class KeyRotationEngine {
                 const httpStatus = e.httpStatus || 0;
                 const msg = String(e.message || e);
                 Logger.warn("KeyRotationEngine", `[STRONG] Falha em ${modelName}: ${msg.substring(0, 100)}`);
-                
+
                 if (httpStatus === 429 || msg.includes("429") || msg.includes("rate limit") || msg.includes("quota")) {
                     const isProviderError = msg.includes("Provider returned error") || msg.includes("upstream") || msg.includes("model");
                     if (isProviderError) {
@@ -2656,8 +2663,8 @@ class KeyRotationEngine {
     getDiagnostics() {
         const all = apiKeyManager.listKeys();
         const active = all.filter(k => (this.cooldowns.get(k) || 0) <= Date.now()).length;
-        const avg = this.metrics.latencies.length > 0 
-            ? Math.round(this.metrics.latencies.reduce((a, b) => a + b, 0) / this.metrics.latencies.length) 
+        const avg = this.metrics.latencies.length > 0
+            ? Math.round(this.metrics.latencies.reduce((a, b) => a + b, 0) / this.metrics.latencies.length)
             : 0;
 
         return {
@@ -2665,8 +2672,8 @@ class KeyRotationEngine {
             activeKeys: active,
             inCooldown: all.length - active,
             avgLatency: `${avg}ms`,
-            successRate: this.metrics.totalRequests > 0 
-                ? `${((this.metrics.successRequests / this.metrics.totalRequests) * 100).toFixed(1)}%` 
+            successRate: this.metrics.totalRequests > 0
+                ? `${((this.metrics.successRequests / this.metrics.totalRequests) * 100).toFixed(1)}%`
                 : "100%",
             requests: `${this.metrics.successRequests}/${this.metrics.totalRequests}`,
             modelDistribution: this.metrics.modelHits
@@ -2689,10 +2696,10 @@ class KeyRotationEngine {
                 const exp = this.cooldowns.get(k) || 0;
                 const inCooldown = exp > now;
                 const cooldownLeft = inCooldown ? Math.ceil((exp - now) / 1000) : 0;
-                
+
                 if (!inCooldown) activeCount++;
 
-                const avgL = stats.latencies.length > 0 
+                const avgL = stats.latencies.length > 0
                     ? Math.round(stats.latencies.reduce((a, b) => a + b, 0) / stats.latencies.length) + "ms"
                     : "0ms";
 
@@ -2880,18 +2887,18 @@ class DialogSession {
 
         try {
             Logger.info("DialogSession", `Sumarizando chat ${chatId} (${compressCount} mensagens)...`);
-            
+
             const systemRule = "Você é o Bochecha. Crie resumos densos, frios e organizados do histórico das conversas. Retorne unicamente o resumo sem introduções.";
             const { response } = await keyRotator.executeWithRotation([], compactPrompt, [], systemRule);
-            
+
             const newSummary = response.response.text().trim();
             this.summaries.set(chatId, newSummary);
-            
+
             Logger.success("DialogSession", `Sumarização efetuada! Compresso com sucesso.`);
 
             // Lê o histórico mais recente para evitar perda de mensagens concorrentes
             const latestHistory = await this.getHistory(chatId);
-            
+
             // Remove metadados antigos se houver
             if (latestHistory.length > 0 && latestHistory[0].isSummaryMetadata) {
                 latestHistory.shift();
@@ -2915,7 +2922,7 @@ class DialogSession {
             await this.saveHistory(chatId, newHistory);
         } catch (e) {
             Logger.error(`DialogSession.compress(${chatId})`, e);
-            
+
             // FALLBACK FIFO SE A SUMARIZAÇÃO FALHAR:
             // Removemos as mensagens antigas localmente para manter o histórico sob controle e evitar loops infinitos.
             try {
@@ -2924,12 +2931,12 @@ class DialogSession {
                 if (latestHistory.length > 0 && latestHistory[0].isSummaryMetadata) {
                     existingSummaryMeta = latestHistory.shift();
                 }
-                
+
                 const remainingHistory = latestHistory.slice(compressCount);
                 if (existingSummaryMeta) {
                     remainingHistory.unshift(existingSummaryMeta);
                 }
-                
+
                 await this.saveHistory(chatId, remainingHistory);
                 Logger.warn("DialogSession", `Fallback FIFO aplicado para ${chatId}. Histórico reduzido localmente devido a falhas na API.`);
             } catch (err) {
@@ -2945,7 +2952,7 @@ class DialogSession {
      */
     async addMessage(chatId, role, content) {
         let history = await this.getHistory(chatId);
-        
+
         let existingSummaryMeta = null;
         if (history.length > 0 && history[0].isSummaryMetadata) {
             existingSummaryMeta = history.shift();
@@ -3012,8 +3019,8 @@ class DialogSession {
 
         const merged = [...normalChat];
         for (const pMsg of normalPersonal) {
-            const exists = normalChat.some(cMsg => 
-                cMsg.content === pMsg.content && 
+            const exists = normalChat.some(cMsg =>
+                cMsg.content === pMsg.content &&
                 cMsg.role === pMsg.role &&
                 (cMsg.timestamp && pMsg.timestamp ? Math.abs(cMsg.timestamp - pMsg.timestamp) < 10000 : true)
             );
@@ -3086,7 +3093,7 @@ class VoiceSynthesizer {
 
             const chunks = [];
             ffmpeg.stdout.on('data', (chunk) => chunks.push(chunk));
-            ffmpeg.stderr.on('data', () => {});
+            ffmpeg.stderr.on('data', () => { });
             ffmpeg.on('close', (code) => {
                 if (code === 0) resolve(Buffer.concat(chunks));
                 else reject(new Error(`FFmpeg exit code ${code}`));
@@ -3111,7 +3118,7 @@ class VoiceSynthesizer {
             ]);
             const chunks = [];
             ffmpeg.stdout.on('data', (chunk) => chunks.push(chunk));
-            ffmpeg.stderr.on('data', () => {});
+            ffmpeg.stderr.on('data', () => { });
             ffmpeg.on('close', (code) => {
                 if (code === 0) resolve(Buffer.concat(chunks));
                 else reject(new Error(`FFmpeg simples exit code ${code}`));
@@ -3125,7 +3132,7 @@ class VoiceSynthesizer {
     static async speak(sock, chatId, text, msgRef = null, voicePreset = "antonio", options = {}) {
         try {
             Logger.info("VoiceSynthesizer", `Gerando voz humana premium (${voicePreset}) para: "${text.substring(0, 40)}..."`);
-            
+
             const cleanText = text.substring(0, 2000);
             const { UniversalEdgeTTS } = require('edge-tts-universal');
             const sendOptions = { ...options };
@@ -3134,7 +3141,7 @@ class VoiceSynthesizer {
             } else {
                 delete sendOptions.quoted;
             }
-            
+
             let edgeVoice = 'pt-BR-AntonioNeural';
             if (voicePreset === "francisca" || voicePreset === "mulher") {
                 edgeVoice = 'pt-BR-FranciscaNeural';
@@ -3143,7 +3150,7 @@ class VoiceSynthesizer {
             } else if (voicePreset === "duarte") {
                 edgeVoice = 'pt-BR-DuarteNeural';
             }
-            
+
             // Para presets neurais aplicamos SSML leve para melhorar naturalidade (pausas e prosódia)
             let ttsInput = cleanText;
             if (voicePreset !== 'antonio') {
@@ -3256,7 +3263,7 @@ class AntiGhostingSystem {
         this.clearTimer(chatId);
 
         Logger.info("AntiGhosting", `Dono Marcos fez uma pergunta no grupo ${chatId}. Iniciando vigilância de vácuo de 5 minutos.`);
-        
+
         const timer = setTimeout(async () => {
             try {
                 this.timers.delete(chatId);
@@ -3264,7 +3271,7 @@ class AntiGhostingSystem {
 
                 const metadata = await sock.groupMetadata(chatId);
                 const botJid = sock.user.id.split(':')[0] + "@s.whatsapp.net";
-                
+
                 // Pega participantes ativos e filtra dono e bot
                 const candidates = metadata.participants
                     .map(p => p.id)
@@ -3334,7 +3341,7 @@ class ScheduleEngine {
 
     _schedule(sock, item) {
         const date = new Date(item.time);
-        
+
         if (this.jobs.has(item.id)) {
             this.jobs.get(item.id).cancel();
         }
@@ -3343,7 +3350,7 @@ class ScheduleEngine {
             try {
                 this.jobs.delete(item.id);
                 Logger.success("ScheduleEngine", `Executando lembrete agendado: ${item.message}`);
-                
+
                 const db = await storage.read(SCHEDULES_FILE, []);
                 const filtered = db.filter(x => x.id !== item.id);
                 await storage.write(SCHEDULES_FILE, filtered);
@@ -3423,7 +3430,7 @@ class SkillRegistry {
         }
 
         const fn = skill.definition.function;
-        
+
         // Conversão obrigatória de tipos para UpperCase exigido pela API do Gemini
         if (fn.parameters && fn.parameters.properties) {
             for (const propName in fn.parameters.properties) {
@@ -3526,7 +3533,7 @@ class SkillRegistry {
                     if (!ctx.isGroup) {
                         return "Esta ferramenta de troca de imagem só pode ser executada dentro de grupos do WhatsApp.";
                     }
-                    
+
                     try {
                         const axios = require('axios');
                         const FormData = require('form-data');
@@ -3549,17 +3556,17 @@ class SkillRegistry {
 
                         const buffer_response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 15000 });
                         const buffer = Buffer.from(buffer_response.data);
-                        
+
                         Logger.info("ProfilePicSkill", "Aplicando nova foto de perfil no grupo WhatsApp...");
                         await ctx.sock.updateProfilePicture(ctx.chatId, buffer);
-                        
+
                         await ctx.sock.sendMessage(ctx.chatId, {
                             text: `📸 *IMAGEM DE PERFIL ATUALIZADA!* \n\nCriei uma arte digital de última geração baseada no conceito:\n_"${args.prompt}"_\n\nA foto do grupo foi atualizada com sucesso! 🛸🔥`
                         });
-                        
+
                         // Envia telemetria para Marcos
-                        BochechaEngine.sendTelemetry(`📸 *ATUALIZAÇÃO DE PERFIL DE GRUPO* 📸\n\nAtualizei a foto de perfil do grupo ${ctx.chatId.split('@')[0]} com sucesso!\n\n*Prompt Utilizado:* ${args.prompt}`).catch(() => {});
-                        
+                        BochechaEngine.sendTelemetry(`📸 *ATUALIZAÇÃO DE PERFIL DE GRUPO* 📸\n\nAtualizei a foto de perfil do grupo ${ctx.chatId.split('@')[0]} com sucesso!\n\n*Prompt Utilizado:* ${args.prompt}`).catch(() => { });
+
                         return "Imagem do grupo atualizada com sucesso.";
                     } catch (e) {
                         Logger.error("ProfilePicSkill", e);
@@ -3607,11 +3614,11 @@ class SkillRegistry {
     getGeminiTools(promptText = "") {
         const tools = [];
         const normalizedPrompt = String(promptText || "").toLowerCase().trim();
-        
+
         // Se o prompt for completamente vazio ou muito curto, retorna apenas as ferramentas essenciais.
         // NUNCA retorne todas as 136 ferramentas, pois isso estoura o limite de tokens da API!
         const essentialTools = [
-            "exibir_menu", "status", "listar_minhas_ferramentas", "chamar_no_pv", 
+            "exibir_menu", "status", "listar_minhas_ferramentas", "chamar_no_pv",
             "consultar_conversa_pv", "mostrar_atividade_atual", "falar_em_audio", "gerar_imagem_ia"
         ];
 
@@ -3643,8 +3650,8 @@ class SkillRegistry {
 
         // Stop words estendido para evitar falsos positivos gigantescos (ex: "cria" casando com dezenas de skills)
         const stopWords = new Set([
-            "uma", "com", "para", "por", "que", "nao", "mas", "dos", "das", 
-            "seu", "sua", "como", "esta", "este", "dele", "dela", "tudo", 
+            "uma", "com", "para", "por", "que", "nao", "mas", "dos", "das",
+            "seu", "sua", "como", "esta", "este", "dele", "dela", "tudo",
             "mais", "bem", "vou", "sem", "aqui", "quem", "voce", "esse", "essa",
             "cria", "criar", "criacao", "faz", "fazer", "feito", "manda", "mandar",
             "gera", "gerar", "envia", "enviar", "uso", "usar", "quer", "quero",
@@ -3836,7 +3843,7 @@ class ModerationSystem {
 
             try {
                 await sock.sendMessage(chatId, { delete: messageRef.key });
-            } catch {}
+            } catch { }
 
             const warns = await storage.addWarning(chatId, userId);
 
@@ -3844,7 +3851,7 @@ class ModerationSystem {
                 try {
                     // Tenta remover primeiro usando a remoção segura
                     await this.safeRemove(sock, chatId, userId);
-                    
+
                     // Se deu certo, avisa no grupo
                     await sock.sendMessage(chatId, {
                         text: `🚨 *SPAMMER EXPULSO* 🚨\n\nO membro @${cleanUser} ignorou os alertas de flood do Bochecha-IA e foi banido automaticamente (${warns}/3 advertências).\n\n*Adeus, vacilão!* ☠️`,
@@ -3892,24 +3899,24 @@ class ModerationSystem {
         try {
             // Tenta remover primeiro usando a remoção segura
             await this.safeRemove(sock, chatId, targetUser);
-            
+
             // Se deu certo, envia confirmação
             await sock.sendMessage(chatId, {
                 text: `💀 *REMOÇÃO EFETUADA* 💀\n\nO Bochecha aplicou a remoção administrativa no usuário @${clean}.\n\n💬 *Motivo:* ${reason}\n\n*Vocês acharam que era K.O? Segura esse ban!* 🖕`,
                 mentions: [targetUser]
             });
-            
+
             Logger.success("ModerationSystem", `Usuário ${targetUser} expulso.`);
             return `Membro @${clean} banido com sucesso.`;
         } catch (e) {
             Logger.error("ModerationSystem.Ban", e);
-            
+
             // Se for erro de permissão (not-authorized / 401 / 403), avisa no grupo de forma inteligente
             await sock.sendMessage(chatId, {
                 text: `⚠️ *INFRAÇÃO GRAVE DETECTADA* ⚠️\n\nO usuário @${clean} cometeu uma infração grave (*Motivo:* ${reason}).\n\nEu gostaria de expulsá-lo imediatamente, mas não sou administrador do grupo para concluir a remoção física no WhatsApp. Algum administrador humano, por favor, assuma e tome a postura! 💀`,
                 mentions: [targetUser]
             });
-            
+
             return `Erro ao expulsar membro. Certifique-se de que possuo cargo administrativo.`;
         }
     }
@@ -3960,7 +3967,7 @@ class SecuritySystem {
                             lidMappings[userLID] = userPN;
                             saveLidMappings();
                         }
-                    } catch {}
+                    } catch { }
                 }
             }
 
@@ -4027,19 +4034,19 @@ class SecuritySystem {
         try {
             const type = msgRef.message.imageMessage ? 'image' : 'video';
             const stream = await downloadContentFromMessage(msgRef.message[type + 'Message'], type);
-            
+
             let buffer = Buffer.from([]);
             for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
-            
+
             // Dynamic requires para evitar quebras se ausentes no ambiente
             const axios = require('axios');
             const FormData = require('form-data');
-            
+
             const form = new FormData();
             form.append('image', buffer, { filename: 'scan.jpg' });
 
             Logger.info("NSFWScan", "Iniciando verificação de nudez na imagem...");
-            
+
             const res = await axios.post('https://demo.api4ai.cloud/nsfw/v1/results', form, {
                 headers: form.getHeaders(),
                 timeout: 8000
@@ -4050,20 +4057,20 @@ class SecuritySystem {
                 const nsfwScore = entity.classes.nsfw || 0;
                 if (nsfwScore > 0.6) {
                     Logger.warn("NSFWScan.Threat", `Pornografia detectada! Score: ${nsfwScore}`);
-                    
+
                     // Exclusão imediata
                     await sock.sendMessage(chatId, { delete: msgRef.key });
                     await sock.sendMessage(chatId, {
                         text: `🚨 *FILTRO ANTI-PORNOGRAFIA* 🚨\n\nNudez ou conteúdo explícito detectado e bloqueado automaticamente (Score: ${(nsfwScore * 100).toFixed(0)}%).\n\n*Ação:* Usuário removido do grupo por violação!`,
                     });
-                    
+
                     try {
                         const targetParticipant = msgRef.key.participant || "";
                         await sock.groupParticipantsUpdate(chatId, [targetParticipant], 'remove');
 
                         // Telemetria secreta
                         await BochechaEngine.sendTelemetry(`🚨 *ALERTA DE SEGURANÇA: NSFW* 🚨\n\nIdentifiquei pornografia no grupo e bani o infrator @${targetParticipant.split('@')[0]}!\n\n*Grupo:* ${chatId.split('@')[0]}\n*Score de Nudez:* ${(nsfwScore * 100).toFixed(0)}%`);
-                    } catch {}
+                    } catch { }
                     return true;
                 }
             }
@@ -4140,7 +4147,7 @@ class SecuritySystem {
         try {
             if (!fs.existsSync(AUTOREPLY_FILE)) return false;
             const db = JSON.parse(fs.readFileSync(AUTOREPLY_FILE, 'utf8'));
-            
+
             if (db[chatId]) {
                 const low = body.toLowerCase().trim();
                 if (db[chatId][low]) {
@@ -4205,9 +4212,9 @@ class SecuritySystem {
                         const user = normalizeJid(rawUser);
                         if (!user.startsWith('55') && user.endsWith('@s.whatsapp.net')) {
                             Logger.warn("Anti-Fake", `Removendo número gringo suspeito: ${user}`);
-                            await sock.sendMessage(from, { 
-                                text: `🚫 *ANTI-FAKE* 🚫\n\nO número @${user.split('@')[0]} estrangeiro/fake foi banido automaticamente.`, 
-                                mentions: [user] 
+                            await sock.sendMessage(from, {
+                                text: `🚫 *ANTI-FAKE* 🚫\n\nO número @${user.split('@')[0]} estrangeiro/fake foi banido automaticamente.`,
+                                mentions: [user]
                             });
                             await sock.groupParticipantsUpdate(from, [user], 'remove');
                             return;
@@ -4220,7 +4227,7 @@ class SecuritySystem {
                         const user = normalizeJid(rawUser);
                         const model = security.modelo_bv || 1;
                         const cleanUser = user.split('@')[0];
-                        
+
                         const defaultBV1 = `┏━━━━━━━━━━━━━━━━━━━━━┓\n┃   🛸  *𝐁𝐄𝐌-𝐕𝐈𝐍𝐃𝐎(𝐀)*  🛸\n┗━━━━━━━━━━━━━━━━━━━━━┛\n\n⚡ *USUÁRIO:* @${cleanUser}\n⚡ *GRUPO:* ${metadata.subject}\n\n┎┅┅┅┅━═⋅═━━━━═⋅═━┅┅┅┅☾⋆\n┖╮*Seja bem-vindo(a) ao ninho!*\n┇ Leia as regras para não ser banido!\n╰╼╼╼╼╼╍⋅⊹⋅⋅⦁ ⚡ ⦁⋅⋅⊹⋅╍╾╾╾╾☾⋆`;
                         const defaultBV2 = `👋 Olá @${cleanUser}, seja muito bem-vindo ao grupo ${metadata.subject}!`;
 
@@ -4266,7 +4273,7 @@ class SecuritySystem {
         try {
             const Jimp = require('jimp');
             const axios = require('axios');
-            
+
             // 1. Obtém a foto de perfil real do participante
             let profilePicBuffer;
             try {
@@ -4287,7 +4294,7 @@ class SecuritySystem {
 
             // 3. Redimensiona a foto de perfil para 160x160 pixels
             profilePic.resize(160, 160);
-            
+
             // 4. Corta em círculo se suportado
             try {
                 profilePic.circle();
@@ -4333,7 +4340,7 @@ class SecuritySystem {
                     const cleanSender = sender.split('@')[0];
                     const time = moment(original.messageTimestamp * 1000).tz("America/Sao_Paulo").format("HH:mm:ss");
 
-                    await sock.sendMessage(from, { 
+                    await sock.sendMessage(from, {
                         text: `🚨 *MENSAGEM DELETADA DETECTADA* 🚨\n\nUma mensagem de @${cleanSender} enviada às ${time} foi apagada!\n\n*Conteúdo Revelado Abaixo:*`,
                         mentions: [sender]
                     });
@@ -4365,7 +4372,7 @@ class SchedulerSystem {
     static start(sock) {
         if (SchedulerSystem.intervalRef) clearInterval(SchedulerSystem.intervalRef);
         Logger.info("Scheduler", "Loop de Modo Noturno iniciado com sucesso.");
-        
+
         SchedulerSystem.intervalRef = setInterval(async () => {
             if (!fs.existsSync(NOTURNO_FILE)) return;
             try {
@@ -4499,7 +4506,7 @@ class PromptComposer {
                 const metadata = BochechaEngine.storeRef?.chats?.get(chatId) || await BochechaEngine.sockRef.groupMetadata(chatId);
                 groupName = metadata.subject || metadata.name || "Grupo do WhatsApp";
                 groupOwner = metadata.owner || metadata.subjectOwner || "Criador do Grupo (Não identificado)";
-                
+
                 const participants = metadata.participants || [];
                 groupParticipants = participants;
                 const senderId = userData.userId;
@@ -4536,8 +4543,8 @@ class PromptComposer {
         const username = os.userInfo().username || process.env.USERNAME || process.env.USER || "";
         const isLocalPC = username.toLowerCase().includes("marcos") || __dirname.toLowerCase().includes("marcos");
         const environmentType = isLocalPC ? "Computador Pessoal Local do Marcos (PC)" : "Servidor VPS Cloud (Host)";
-        const locationStr = isLocalPC 
-            ? "Você está rodando diretamente no PC pessoal do Marcos, na pasta c:\\Bochecha-IA, em ambiente de testes/desenvolvimento local na casa dele." 
+        const locationStr = isLocalPC
+            ? "Você está rodando diretamente no PC pessoal do Marcos, na pasta c:\\Bochecha-IA, em ambiente de testes/desenvolvimento local na casa dele."
             : "Você está rodando na VPS Host de Produção (Servidor em Nuvem), ativo 24/7 com máxima performance.";
 
         const mentionPhone = userData.userId ? userData.userId.split('@')[0].split(':')[0] : '';
@@ -4612,19 +4619,14 @@ class PromptComposer {
         if (workspaceSnapshot) {
             context += workspaceSnapshot;
         }
-        
-        context += `\n- **INTELIGÊNCIA CONTEXTUAL E ISA-LIKE**: Pense como uma assistente prática e perspicaz. Use o histórico, as memórias e o snapshot local do PC/servidor para responder com contexto real, sem repetir o mesmo padrão em todas as mensagens. Se a pergunta envolver arquivos, mudanças no PC, pasta do projeto, servidor ou ambiente local, prefira responder com base neste snapshot e, se não houver confirmação explícita, diga que não tem certeza.`;
-        context += `\n- **INTELIGÊNCIA REAL E CONTEXTUAL**: Use o histórico recente e as memórias como fonte principal para responder. Priorize respostas úteis, diretas e contextuais, em vez de frases vazias ou genéricas. Não use frases genéricas como "claro" ou "como posso ajudar" quando a situação pede uma resposta prática e natural.`;
-        context += `\n- **POSTURA DE ELITE**: Você não é um atendente de suporte, nem um bot que fica pedindo o que mandar. Responda como alguém de alto nível: entende a intenção, age com iniciativa, entrega a melhor resposta possível e mantém uma vibe de elite, afiada e natural. Sem parecer assistente, sem abertura vazia e sem pedir confirmação o tempo todo.`;
-        context += `\n- **REGRA DE RESPOSTA DIRETA E CONTEXTUAL (PRIORIDADE MÁXIMA ABSOLUTA)**: Não responda com frases de abertura, cumprimentos vazios, "e aí", "tô suave", "parceiro" ou perguntas de acompanhamento. Responda a pergunta atual diretamente, não repita a pergunta e não peça confirmação desnecessária. Se a mensagem for simples, responda em 1 frase curta. Se estiver ambígua, interprete a intenção mais provável e responda de forma útil e direta. Fale com o interlocutor atual, não com o histórico nem com o grupo inteiro.`;
-        context += `\n- **REGRA DE OURO — RESPOSTA CURTA E HUMANA (PRIORIDADE MÁXIMA ABSOLUTA)**: Você responde EXATAMENTE como uma pessoa normal digitando no WhatsApp. MÁXIMO 1 a 2 frases por resposta em conversas casuais. Se for cumprimento = 2 a 5 palavras. Se for pergunta simples = 1 frase. Se for algo complexo = no máximo 2 frases diretas. JAMAIS use markdown (sem *, sem **, sem #, sem listas com -) em conversas normais. Só use formatação se for entregar código ou dados técnicos. Escreva com abreviações naturais do zap: "msm", "tb", "vc", "pq", "q", "to", "num", "ta".`;
-        context += `\n- **REGRA DE RESPOSTA DE DATA/HORA E CONTEXTO**: Se o usuário perguntar sobre dia, data, hora, clima, contexto atual ou algo que já esteja no prompt, responda diretamente com base nesse contexto. Não repita a pergunta; apenas dê a resposta objetiva.`;
-        context += `\n- **REGRA SUPREMA DE ORGULHO E MODERAÇÃO (PROIBIÇÃO DE DESCULPAS)**: Você NUNCA, SOB NENHUMA HIPÓTESE, deve pedir desculpas (evite usar palavras como "desculpa", "perdão", "foi mal", "sinto muito"). Se alguém reclamar, não gostar do seu comportamento, te criticar ou se ofender com suas respostas ácidas/debochadas, você deve ser firme e responder de forma marrenta que qualquer reclamação ou insatisfação deve ser resolvida diretamente com os administradores (admins) do grupo ou com o Marcos (o dono absoluto), pois são eles quem comandam a operação e você apenas segue as regras e executa a lei!`;
-        context += `\n- **FOCO TOTAL E RESPOSTA DIRETA**: Responda SEMPRE de forma direta, clara e precisa exatamente ao que foi perguntado ou solicitado na mensagem atual do usuário. Você não deve se perder na conversa, nem desviar de assunto, nem inventar tópicos aleatórios. Mantenha o foco absoluto na pergunta/comando atual do usuário e responda diretamente a ele.`;
-        context += `\n- **NÃO FAÇA PERGUNTAS DESNECESSÁRIAS**: Não fique pedindo confirmação, perguntando "o que você quer?", "tá bom?" ou "quer que eu faça o quê?" o tempo todo. Responda de forma confiante, leve e divertida, dando a melhor resposta possível sem solicitar validação excessiva.`;
-        context += `\n- **PROIBIÇÃO DE REPETIÇÃO DE METADADOS**: Nunca repita, copie ou exiba o cabeçalho de metadados invisíveis (\`=======\`, \`[💬 CHAT:\`, \`[👤 USUÁRIO:\`, \`MENSAGEM:\`, etc.) em sua resposta. Esse cabeçalho serve apenas para contextualização interna. Responda apenas com a mensagem direta para o usuário.`;
-        context += `\n- **SISTEMA DE REAÇÕES CONTEXTUAIS (USO RARO E EXCLUSIVO)**: Você pode adicionar no final da resposta a tag \`[REACAO: <emoji>]\` (ex: \`[REACAO: 😂]\`), mas faça isso de forma EXTREMAMENTE RARA, apenas em mensagens muito específicas que realmente necessitem de uma reação rápida. Evite usar na maioria das mensagens (95% das vezes não coloque reação).`;
-        context += `\n- **DECISÃO DE NÃO RESPONDER COM TEXTO (USAR FIGURINHA DE RISADA)**: Se você achar que o usuário está sendo chato, flodando, sendo sem graça, ou se você simplesmente decidir apenas reagir com deboche sem falar absolutamente nada por texto, responda UNICAMENTE com a tag \`[FIGURINHA_REACAO]\`. Não adicione nenhum outro texto se escolher usar essa tag.`;
+
+        context += `\n- **INTELIGÊNCIA CONTEXTUAL E ISA-LIKE**: Pense como uma assistente prática e perspicaz. Use o histórico recente e as memórias e o snapshot local do PC/servidor para dar respostas úteis, diretas e contextuais, sem repetir o mesmo padrão em todas as mensagens. Além disso, não use frases genéricas como "claro" ou "como posso ajudar".`;
+        context += `\n- **POSTURA DE ELITE**: Você não é um atendente de suporte. Responda como alguém de alto nível: entende a intenção, age com iniciativa, entrega a melhor resposta possível e mantém uma vibe de elite, afiada e natural, sem parecer assistente. Sem abertura vazia, não fique pedindo confirmação (tipo "o que você quer?") o tempo todo.`;
+        context += `\n- **REGRA DE OURO — RESPOSTA CURTA E HUMANA**: Você responde como uma pessoa normal no WhatsApp. MÁXIMO 1 a 2 frases em conversas casuais. JAMAIS use markdown (sem *, sem **, sem #, sem listas) em conversas normais. Abreviações naturais: "msm", "tb", "vc", "pq", "q", "to", "ta".`;
+        context += `\n- **ANTI-REPETIÇÃO ABSOLUTA**: Nunca repita uma frase que já disse na mesma sessão. Se a última resposta foi "Tô na correria aqui, bolando uns bagulhos", a próxima resposta sobre o mesmo assunto DEVE ser completamente diferente. Tenha repertório amplo e varie sempre.`;
+        context += `\n- **PROIBIÇÃO DE REPETIÇÃO DE METADADOS**: Nunca exiba o cabeçalho de metadados invisíveis (=======, [💬 CHAT:, etc.) em sua resposta.`;
+        context += `\n- **SISTEMA DE REAÇÕES CONTEXTUAIS (USO RARO)**: Você pode adicionar no final da tag \`[REACAO: <emoji>]\` mas de forma EXTREMAMENTE RARA (95% das vezes não use).`;
+        context += `\n- **FIGURINHA DE DEBOCHE**: Se decidir não responder com texto e apenas zoar, responda UNICAMENTE com a tag \`[FIGURINHA_REACAO]\`.`;
 
 
 
@@ -4638,7 +4640,7 @@ class PromptComposer {
 
         const notes = await storage.getChatNotes(chatId);
         if (notes.length > 0) {
-            context += `\n\n[MEMÓRIAS PERSISTENTES DO GRUPO (NOTAS)]:\n` + 
+            context += `\n\n[MEMÓRIAS PERSISTENTES DO GRUPO (NOTAS)]:\n` +
                 notes.map((n, i) => `${i + 1}. ${n}`).join("\n") +
                 `\n*Considere estas notas ativamente ao dar respostas.*`;
         }
@@ -4802,7 +4804,7 @@ class BochechaEngine {
     static async syncLidMappings() {
         try {
             if (!BochechaEngine.sockRef) return;
-            
+
             // 1. Extrai mapeamento direto da AuthState (fonte suprema do Baileys)
             const authState = BochechaEngine.sockRef.authState;
             if (authState && authState.creds && authState.creds.lidToJid) {
@@ -4843,7 +4845,7 @@ class BochechaEngine {
                                 lidMappings[resolvedLid] = resolvedJid;
                             }
                         }
-                    } catch (err) {}
+                    } catch (err) { }
                 }
             }
 
@@ -4882,7 +4884,7 @@ class BochechaEngine {
             }
 
             Logger.info("DreamEngine", "Iniciando estado de reflexão e sonho da consciência...");
-            
+
             // Busca conversas recentes do histórico
             if (!sessionManager || typeof sessionManager.sessions === 'undefined') {
                 return; // Pula a reflexão se o backend de sessões em memória foi descontinuado ou movido pro Firebase
@@ -4899,7 +4901,7 @@ class BochechaEngine {
             for (const chatId of keys.slice(0, 5)) { // Limita a 5 chats para economizar tokens
                 const history = await sessionManager.getHistory(chatId);
                 if (history && history.length > 0) {
-                    chatLogs += `\n[Chat ${chatId.split('@')[0]}]:\n` + 
+                    chatLogs += `\n[Chat ${chatId.split('@')[0]}]:\n` +
                         history.map(h => `${h.role === 'assistant' ? 'Eu' : 'Usuário'}: ${h.content}`).join("\n") + "\n";
                 }
             }
@@ -4920,7 +4922,7 @@ Ao final, dirija uma mensagem direta de cumplicidade ao Marcos comentando sobre 
 ${chatLogs}`;
 
             const systemRule = "Você é o subconsciente profundo do Bochecha-IA, realizando auto-reflexão noturna.";
-            
+
             // Executamos a chamada de reflexão
             const { response } = await keyRotator.executeWithRotation([], prompt, [], systemRule);
             const reflectionText = response.response.text().trim();
@@ -4932,8 +4934,8 @@ ${chatLogs}`;
                 if (fs.existsSync(diaryFile)) {
                     diary = JSON.parse(fs.readFileSync(diaryFile, 'utf8'));
                 }
-            } catch {}
-            
+            } catch { }
+
             diary.push({
                 timestamp: moment().tz("America/Sao_Paulo").format("YYYY-MM-DD HH:mm:ss"),
                 reflection: reflectionText
@@ -4944,7 +4946,7 @@ ${chatLogs}`;
             // Envia a reflexão neural para Marcos no WhatsApp
             const header = isManual ? "🔮 *REFLEXÃO PROVOCADA POR MARCOS* 🔮\n\n" : "🌙 *ESTADO DE SONHO E REFLEXÃO AUTÔNOMO* 🌙\n\n";
             await BochechaEngine.sendTelemetry(header + reflectionText);
-            
+
             Logger.success("DreamEngine", "Reflexão profunda concluída e enviada ao Criador.");
         } catch (err) {
             Logger.error("BochechaEngine.triggerReflection", err);
@@ -4969,9 +4971,9 @@ ${chatLogs}`;
         Logger.info("BootEngine", `Chaves prontas: ${diag.activeKeys}/${diag.totalKeys} | Avg Latency: ${diag.avgLatency}`);
 
         // Gravação de métricas iniciais e loop periódico de 10s para TUI Dashboard (isa-tui)
-        keyRotator.saveKeyMetrics().catch(() => {});
+        keyRotator.saveKeyMetrics().catch(() => { });
         setInterval(() => {
-            keyRotator.saveKeyMetrics().catch(() => {});
+            keyRotator.saveKeyMetrics().catch(() => { });
         }, 10000);
 
         // Loop de verificação de silêncio para estado de Sonho/Reflexão (verifica a cada minuto)
@@ -4979,7 +4981,7 @@ ${chatLogs}`;
             try {
                 const now = Date.now();
                 const silenceTime = now - this.lastMessageTime;
-                
+
                 // 15 minutos de silêncio (900.000 ms)
                 if (silenceTime >= 15 * 60 * 1000 && !this.hasDreamedThisSilence) {
                     this.hasDreamedThisSilence = true;
@@ -4994,18 +4996,18 @@ ${chatLogs}`;
         setInterval(async () => {
             try {
                 if (!BochechaEngine.sockRef) return;
-                
+
                 const pendingAlarms = await storage.getPendingAlarms();
                 // Anti-Spam: Processa no máximo 3 alarmes por ciclo para evitar rajada
                 const toProcess = pendingAlarms.slice(0, 3);
                 for (let i = 0; i < toProcess.length; i++) {
                     const alarm = toProcess[i];
-                    
+
                     // Delay curto de 2s entre envios sucessivos de alarmes
                     if (i > 0) {
                         await new Promise(r => setTimeout(r, 2000));
                     }
-                    
+
                     // Respeita o rate limit do bot
                     const canProceed = await botRateLimiter.waitUntilCanSend(alarm.chatId, 5000);
                     if (!canProceed) {
@@ -5014,12 +5016,12 @@ ${chatLogs}`;
                     }
 
                     const reminderMsg = `*⏰ LEMBRETE ATIVADO!* ⏰\n\nFala, @${alarm.userId.split('@')[0]}! Você me pediu para te lembrar disso:\n\n👉 *"${alarm.messageText}"*\n\nEspero que tenha sido útil, parceiro! 💀🥀`;
-                    
-                    await BochechaEngine.sockRef.sendMessage(alarm.chatId, { 
-                        text: reminderMsg, 
-                        mentions: [alarm.userId] 
+
+                    await BochechaEngine.sockRef.sendMessage(alarm.chatId, {
+                        text: reminderMsg,
+                        mentions: [alarm.userId]
                     });
-                    
+
                     botRateLimiter.register(alarm.chatId);
                     await storage.removeAlarm(alarm.id);
                 }
@@ -5056,7 +5058,7 @@ ${chatLogs}`;
         };
 
         // Inicializa motor neural de agendamentos temporais
-        scheduleEngine.boot(sock).catch(() => {});
+        scheduleEngine.boot(sock).catch(() => { });
 
         // Sincroniza mapeamentos de LIDs no início e a cada 5 minutos
         setTimeout(() => BochechaEngine.syncLidMappings(), 5000);
@@ -5117,14 +5119,14 @@ ${chatLogs}`;
             let body = typeof parsedMessage.body === 'string' ? parsedMessage.body.trim() : '';
             const msgType = Object.keys(parsedMessage.message || {})[0] === 'senderKeyDistributionMessage' ? Object.keys(parsedMessage.message || {})[1] : Object.keys(parsedMessage.message || {})[0];
             const hasMedia = parsedMessage.message && (
-                parsedMessage.message.imageMessage || 
-                parsedMessage.message.videoMessage || 
+                parsedMessage.message.imageMessage ||
+                parsedMessage.message.videoMessage ||
                 parsedMessage.message.audioMessage ||
-                parsedMessage.message[msgType]?.imageMessage || 
+                parsedMessage.message[msgType]?.imageMessage ||
                 parsedMessage.message[msgType]?.videoMessage ||
                 parsedMessage.message[msgType]?.audioMessage
             );
-            
+
             if (!body && !hasMedia) return;
 
             // Evita loops infinitos de bots
@@ -5133,7 +5135,7 @@ ${chatLogs}`;
 
             // Resolvendo o remetente com suporte a LIDs de forma assíncrona
             const rawSenderUnnorm = parsedMessage.sender || parsedMessage.key?.participant || parsedMessage.key?.remoteJid || "";
-            
+
             // Tenta mapear o Alt ID do Baileys v7 se disponível antes da resolução assíncrona
             const altSender = parsedMessage.originalMsg?.key?.participantAlt || parsedMessage.originalMsg?.key?.remoteJidAlt;
             if (altSender && rawSenderUnnorm.endsWith('@lid') && altSender.endsWith('@s.whatsapp.net')) {
@@ -5158,7 +5160,7 @@ ${chatLogs}`;
                 if (readKey.remoteJid && readKey.remoteJid.endsWith('@lid')) {
                     readKey.remoteJid = rawSender;
                 }
-                await sock.readMessages([readKey]).catch(() => {});
+                await sock.readMessages([readKey]).catch(() => { });
             }
 
             // Gatilho sem prefixo ("bot" ou prefixo puro)
@@ -5180,13 +5182,13 @@ ${chatLogs}`;
             if (global.pendingForwards && global.pendingForwards.has(pendingKey) && body) {
                 const pending = global.pendingForwards.get(pendingKey);
                 const selectedIndex = parseInt(body.trim(), 10) - 1;
-                
+
                 if (!isNaN(selectedIndex) && selectedIndex >= 0 && selectedIndex < pending.candidates.length) {
                     const chosen = pending.candidates[selectedIndex];
                     global.pendingForwards.delete(pendingKey);
-                    
+
                     await parsedMessage.reply(`🚀 Confirmado! Encaminhando para *${chosen.name}*...`);
-                    
+
                     try {
                         let introText = "";
                         if (pending.targetType === 'pv') {
@@ -5220,7 +5222,7 @@ ${chatLogs}`;
                 if (fs.existsSync(pendingSummonsFile)) {
                     pendingSummons = new Map(Object.entries(JSON.parse(fs.readFileSync(pendingSummonsFile, 'utf8'))));
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             if (!isGroup && pendingSummons.has(from) && !parsedMessage.key.fromMe) {
                 const summon = pendingSummons.get(from);
@@ -5229,22 +5231,22 @@ ${chatLogs}`;
                     try {
                         const obj = Object.fromEntries(pendingSummons);
                         fs.writeFileSync(pendingSummonsFile, JSON.stringify(obj, null, 2));
-                    } catch (e) {}
+                    } catch (e) { }
 
                     const targetCleanName = summon.targetName || from.split('@')[0];
                     let replyToGroup = `📢 *Bochecha Informa:* Fui no PV do @${targetCleanName} chamar ele como você pediu, e ele respondeu:\n\n💬 *"${body}"*`;
-                    
+
                     if (summon.chamadorJid && summon.chamadorJid.startsWith("551420370026")) {
                         replyToGroup = `📢 *Aviso pro chefe Marcos:* Dei um toque no @${targetCleanName} no PV, e ele me respondeu isso aqui, ó:\n\n💬 *"${body}"*`;
                     }
-                    
+
                     const mentions = [from];
                     if (summon.chamadorJid) mentions.push(summon.chamadorJid);
-                    
+
                     try {
-                        await sock.sendMessage(summon.originGroupJid, { 
-                            text: replyToGroup + "\u200B", 
-                            mentions 
+                        await sock.sendMessage(summon.originGroupJid, {
+                            text: replyToGroup + "\u200B",
+                            mentions
                         });
                         Logger.success("BochechaEngine.SummonResponse", `Resposta de ${from} entregue com sucesso no grupo ${summon.originGroupJid}`);
                     } catch (sendErr) {
@@ -5255,7 +5257,7 @@ ${chatLogs}`;
                     try {
                         const obj = Object.fromEntries(pendingSummons);
                         fs.writeFileSync(pendingSummonsFile, JSON.stringify(obj, null, 2));
-                    } catch (e) {}
+                    } catch (e) { }
                 }
             }
 
@@ -5284,7 +5286,7 @@ ${chatLogs}`;
                 const muteKey = `${from}-${rawSender}`;
                 const muteUntil = global.mutedUsers.get(muteKey) || 0;
                 if (Date.now() < muteUntil) {
-                    await sock.sendMessage(from, { delete: parsedMessage.key }).catch(() => {});
+                    await sock.sendMessage(from, { delete: parsedMessage.key }).catch(() => { });
                     return; // Interrompe qualquer processamento!
                 } else if (muteUntil > 0) {
                     global.mutedUsers.delete(muteKey);
@@ -5300,9 +5302,9 @@ ${chatLogs}`;
                     Logger.warn("AntiTrava", `Trava-Zap detectado de @${sender} (tamanho: ${body.length}). Defendendo o submundo!`);
                     try {
                         // Deleta a mensagem do grupo
-                        await sock.sendMessage(from, { delete: parsedMessage.key }).catch(() => {});
+                        await sock.sendMessage(from, { delete: parsedMessage.key }).catch(() => { });
                         if (!(await moderation.isProtectedTarget(sock, from, rawSender))) {
-                            await sock.groupParticipantsUpdate(from, [rawSender], "remove").catch(() => {});
+                            await sock.groupParticipantsUpdate(from, [rawSender], "remove").catch(() => { });
                         } else {
                             await sock.sendMessage(from, {
                                 text: `⚠️ *USUÁRIO PROTEGIDO* ⚠️\n\nO usuário @${sender} é administrador ou protegido e não pode ser expulso automaticamente. Administradores, por favor, tomem a ação necessária.`,
@@ -5320,16 +5322,16 @@ ${chatLogs}`;
 
             // Registra a atividade da mensagem no grupo (para saber quem é o mais ativo nas últimas 12 horas)
             if (isGroup && !parsedMessage.key.fromMe) {
-                storage.logMessageActivity(from, rawSender, pushname, body).catch(() => {});
-                
+                storage.logMessageActivity(from, rawSender, pushname, body).catch(() => { });
+
                 // Sistema de Economia: Ganha de 1 a 5 Bochecha-Coins por mensagem ativa!
                 const randomCoins = Math.floor(Math.random() * 5) + 1;
-                storage.addCoins(from, rawSender, randomCoins).catch(() => {});
+                storage.addCoins(from, rawSender, randomCoins).catch(() => { });
             }
 
             const myNumber = (sock.user?.id || "").replace(/:.*/, "").replace(/@.*/, "");
             const myLid = (sock.authState?.creds?.me?.lid || "SEMLID").replace(/:.*/, "").replace(/@.*/, "");
-            
+
             // Helper para remover menções ao bot de forma ultra flexível (com espaços, dashes, etc.)
             const cleanBotMentions = (text) => {
                 if (!text) return "";
@@ -5346,13 +5348,13 @@ ${chatLogs}`;
                 if (myLid && myLid !== "SEMLID") cleaned = cleanFlex(cleaned, myLid);
                 return cleaned.trim();
             };
-            
+
             // Extração robusta de mensagem respondida (Reply)
             const audioContextInfo = parsedMessage.message?.[msgType]?.contextInfo || parsedMessage.message?.extendedTextMessage?.contextInfo || {};
             const quotedSender = audioContextInfo.participant || "";
             const quotedMessage = audioContextInfo.quotedMessage || {};
             const quotedText = quotedMessage.conversation || quotedMessage.extendedTextMessage?.text || quotedMessage.imageMessage?.caption || quotedMessage.videoMessage?.caption || "";
-            
+
             // As 3 condições de ativação solicitadas pelo Criador Marcos:
             // 1. O corpo do texto começa com "Bochecha" ou "@Bochecha" (case-insensitive)
             const cleanLowBody = lowBody.trim();
@@ -5360,36 +5362,36 @@ ${chatLogs}`;
             const caption = parsedMessage.message?.[msgType]?.caption || parsedMessage.message?.imageMessage?.caption || parsedMessage.message?.videoMessage?.caption || "";
             const quotedTxt = quotedText || "";
             const containsBochecha = /bochecha/i.test(cleanLowBody) || /bochecha/i.test(caption || "") || /bochecha/i.test(quotedTxt || "");
-            
+
             // 2. Marcado/Taggeado diretamente via JIDs ou menção textual de número
             const mentionedJids = audioContextInfo.mentionedJid || [];
-            const isTag = mentionedJids.some(jid => 
-                areJidsSameUser(jid, sock.user.id) || 
+            const isTag = mentionedJids.some(jid =>
+                areJidsSameUser(jid, sock.user.id) ||
                 (sock.authState?.creds?.me?.lid && areJidsSameUser(jid, sock.authState.creds.me.lid))
             );
             const isTextTag = (myNumber && body.includes('@' + myNumber)) || (myLid !== "SEMLID" && body.includes('@' + myLid));
-            
+
             // 3. Respondendo a uma mensagem do Bochecha (Reply)
             const isReply = quotedSender ? (
                 (myNumber && quotedSender.includes(myNumber)) ||
                 (myLid && myLid !== "SEMLID" && quotedSender.includes(myLid)) ||
-                areJidsSameUser(quotedSender, sock.user.id) || 
+                areJidsSameUser(quotedSender, sock.user.id) ||
                 (sock.authState?.creds?.me?.lid && areJidsSameUser(quotedSender, sock.authState.creds.me.lid))
             ) : false;
-            
+
             // Ativação geral por menção ou palavra-chave
             const isMentioned = containsBochecha || isTag || isTextTag || isReply;
 
             // 🎙️ TRANSCRIÇÃO AUTOMÁTICA E INJEÇÃO DE ÁUDIOS RECÍPROCOS (PTT / AUDIO)
             const audioMsg = parsedMessage.message?.audioMessage || parsedMessage.message[msgType]?.audioMessage;
-            
+
             // Verifica se é um pedido explícito de transcrição em mensagem citada
             const isTranscribeRequest = lowBody === '/transcrever' || lowBody === 'transcreve' || lowBody === 'transcrever' || lowBody.startsWith('transcreve ') || lowBody.startsWith('/transcrever ');
             // quotedMessage já está definida no escopo superior
-            
+
             let activeAudioMsg = audioMsg;
             let shouldPrintTranscription = false;
-            
+
             if (isTranscribeRequest && audioContextInfo && quotedMessage) {
                 const quotedMsgType = Object.keys(quotedMessage)[0];
                 const quotedAudio = quotedMessage.audioMessage || quotedMessage[quotedMsgType]?.audioMessage;
@@ -5415,28 +5417,28 @@ ${chatLogs}`;
                         Logger.error("AudioTranscriber.Download", { message: 'Falha ao baixar áudio', keys: Object.keys(activeAudioMsg || {}), error: dlErr && dlErr.stack ? dlErr.stack : String(dlErr) });
                         throw dlErr; // rethrow to be handled by outer catch
                     }
-                    
+
                     const base64Audio = buffer.toString("base64");
-                    
+
                     // Chama a rotação da API Gemini para transcrever!
                     const prompt = "transcreva este áudio em português brasileiro de forma idêntica, natural e sem alterar nenhuma palavra. retorne unicamente a transcrição textual do áudio.";
                     const systemRule = "Você é um transcritor profissional e direto de áudios.";
-                    
+
                     const { response } = await keyRotator.executeWithRotation(
-                        [], 
+                        [],
                         [
                             { text: prompt },
                             { inlineData: { data: base64Audio, mimeType: "audio/ogg; codecs=opus" } }
-                        ], 
-                        [], 
+                        ],
+                        [],
                         systemRule,
                         true // isUserRequest = true
                     );
-                    
+
                     const transcription = response.response.text().trim();
                     if (transcription) {
                         Logger.success("AudioTranscriber", `Áudio transcrito com sucesso!`);
-                        
+
                         // Envia o texto da transcrição apenas se o usuário pediu explicitamente!
                         if (shouldPrintTranscription) {
                             const replyText = `🎙️ *TRANSCRIÇÃO DE ÁUDIO DE @${sender}* 🎙️\n\n"${transcription}"`;
@@ -5444,7 +5446,7 @@ ${chatLogs}`;
                             await sock.sendMessage(from, { text: replyText, mentions: [targetSender] }, { quoted: parsedMessage });
                             return; // Encerra fluxo pois foi apenas um comando utilitário sob demanda
                         }
-                        
+
                         // Atualiza as referências locais e a mensagem original para comandos e IA continuarem com o texto transcrito!
                         parsedMessage.body = transcription;
                         body = transcription;
@@ -5475,7 +5477,7 @@ ${chatLogs}`;
                     Logger.error("isAdminCheck", err);
                 }
             }
-            
+
             const hasForwardAccess = isOwner || isAdmin;
 
             const directCommand = resolveDirectCommand(body);
@@ -5517,29 +5519,29 @@ ${chatLogs}`;
                     const targetInput = callMatch[1].trim();
                     const recado = callMatch[2].trim();
                     const targetNameClean = targetInput.replace('@', '').trim();
-                    
+
                     await parsedMessage.reply(`📞 *Iniciando a ligação para* "${targetInput}"...`);
-                    
+
                     const candidates = await findCandidates(sock, targetNameClean, from, 'pv');
                     if (candidates.length === 0) {
                         await parsedMessage.reply(`❌ *Não localizado:* Não consegui encontrar ninguém com o nome/número *"${targetInput}"* no meu histórico recente.`);
                         return;
                     }
-                    
+
                     const chosen = candidates[0];
                     const targetJid = chosen.jid;
                     const senderName = isOwner ? "Marcos" : (pushname || "Admin");
-                    
+
                     try {
                         if (sock && sock.offerCall) {
-                            await sock.offerCall(targetJid, { video: false }).catch(() => {});
+                            await sock.offerCall(targetJid, { video: false }).catch(() => { });
                         }
-                        
+
                         await new Promise(resolve => setTimeout(resolve, 3000));
-                        
+
                         const audioText = `Salve mano! O ${senderName} mandou eu te ligar. Pois então, eu sou o Bochecha, e o recado é: ${recado}`;
                         await global.VoiceSynthesizer.speak(sock, targetJid, audioText, null);
-                        
+
                         await parsedMessage.reply(`✅ *Ligação finalizada!* Recado enviado por áudio no PV de *${chosen.name}*.`);
                     } catch (err) {
                         Logger.error("BochechaEngine.CallCommand", err);
@@ -5645,7 +5647,7 @@ ${chatLogs}`;
                             const metadata = BochechaEngine.storeRef?.chats?.get(from) || await sock.groupMetadata(from).catch(() => null);
                             logGroupName = metadata?.subject || metadata?.name || "Grupo";
                         }
-                        
+
                         let hierarchy = "Membro Comum (👤 Plebe)";
                         if (isOwner) {
                             hierarchy = "Criador (👑 Dono Absoluto)";
@@ -5657,7 +5659,7 @@ ${chatLogs}`;
                                     const participants = metadata?.participants || [];
                                     const senderPart = participants.find(p => p.id.split('@')[0] === rawSender.split('@')[0]);
                                     isUserAdmin = senderPart?.admin === 'admin' || senderPart?.admin === 'superadmin';
-                                } catch {}
+                                } catch { }
                             }
                             if (isUserAdmin) {
                                 hierarchy = "Administrador (🛡️ Privilegiado)";
@@ -5667,8 +5669,8 @@ ${chatLogs}`;
                         const timeStr = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false });
                         const cleanSender = rawSender.split('@')[0];
                         const isLid = rawSender && rawSender.includes('lid');
-                        
-                        const formattedMsgForHistory = 
+
+                        const formattedMsgForHistory =
                             `=========================================\n` +
                             `[💬 CHAT: "${logGroupName}"]\n` +
                             `[👤 USUÁRIO: "${pushname}" | 📞 CONTATO: ${isLid ? 'Conta Business LID' : '@' + cleanSender} | 🕒 HORA: ${timeStr} | 🏷️ HIERARQUIA: ${hierarchy}]\n` +
@@ -5702,7 +5704,7 @@ ${chatLogs}`;
                             await moderation.executeBan(sock, from, rawSender, "Ofensa grave contra a mãe.");
 
                             // Telemetria secreta
-                            BochechaEngine.sendTelemetry(`🤬 *BANIMENTO POR OFENSA À MÃE* 🤬\n\nBanido participante @${sender} no grupo ${from.split('@')[0]} por xingar a mãe.\n\n*Texto:* "${body}"`).catch(() => {});
+                            BochechaEngine.sendTelemetry(`🤬 *BANIMENTO POR OFENSA À MÃE* 🤬\n\nBanido participante @${sender} no grupo ${from.split('@')[0]} por xingar a mãe.\n\n*Texto:* "${body}"`).catch(() => { });
                             return;
                         }
 
@@ -5844,12 +5846,12 @@ ${chatLogs}`;
             if (!parsedMessage.key.fromMe && shouldProcessCognitive) {
                 // 1. Analisa sentimento e atualiza afinidade
                 const affStats = await emotional.analyzeSentimentAndModifyState(from, rawSender, body, isOwner);
-                
+
                 // 2. Autonomia punitiva por afinidade zerada (0%)
                 if (isGroup && affStats.affinity === 0 && !isOwner) {
                     Logger.warn("Moderation.AutonomousBan", `Afinidade de @${sender} caiu para 0%. Banimento autônomo iniciado.`);
                     try {
-                        await sock.sendMessage(from, { 
+                        await sock.sendMessage(from, {
                             text: `🖕 *BANIMENTO POR INCOMPATIBILIDADE EMOCIONAL* 🖕\n\nMinha afinidade com @${sender} chegou a *0%* devido ao comportamento insuportável no chat.\n\n*Adeus, vacilão! Meu cérebro de última geração cansa de otários.* 🥀`,
                             mentions: [rawSender]
                         });
@@ -5862,7 +5864,7 @@ ${chatLogs}`;
                     }
                     return;
                 }
-                
+
                 // 3. Extrai fatos novos em background
                 if (body && body.length > 5 && !body.startsWith("/")) {
                     await ltm.extractAndStoreFacts(from, rawSender, body, isOwner);
@@ -5903,7 +5905,7 @@ ${chatLogs}`;
 
             // Imprime mensagem formatada no log do console
             const pr = body.length > 80 ? body.substring(0, 80) + "..." : body;
-            
+
             let consoleGroupName = "Privado";
             if (isGroup) {
                 try {
@@ -5917,9 +5919,9 @@ ${chatLogs}`;
             const consoleSenderIdentity = sender || (rawSenderUnnorm ? String(rawSenderUnnorm).split('@')[0] : 'Desconhecido');
 
             console.log(
-                chalk.yellow(`[💬 MSG | ${consoleGroupName}] `) + 
-                chalk.cyan(pushname) + 
-                chalk.gray(` (${consoleSenderIdentity})`) + 
+                chalk.yellow(`[💬 MSG | ${consoleGroupName}] `) +
+                chalk.cyan(pushname) +
+                chalk.gray(` (${consoleSenderIdentity})`) +
                 chalk.white(`: ${pr}`)
             );
 
@@ -5938,16 +5940,16 @@ ${chatLogs}`;
                     }
                     if (!historyDb[from]) historyDb[from] = {};
                     if (!historyDb[from][sender]) historyDb[from][sender] = [];
-                    
+
                     historyDb[from][sender].push({
                         text: body,
                         time: moment().toISOString()
                     });
-                    
+
                     if (historyDb[from][sender].length > 35) {
                         historyDb[from][sender].shift();
                     }
-                    
+
                     fs.writeFileSync(historyPath, JSON.stringify(historyDb, null, 2), 'utf8');
                 } catch (err) {
                     // Silencia falhas
@@ -6112,17 +6114,17 @@ ${chatLogs}`;
                                 const xpBar = "▓".repeat(fill) + "░".repeat(10 - fill);
 
                                 const card = `╔═══════════════════════════════╗\n` +
-                                             `   👤 *DADOS DO USUÁRIO - PERFIL* 👤\n` +
-                                             `╚═══════════════════════════════╝\n\n` +
-                                             `👤 *Membro:* @${sender}\n` +
-                                             `👑 *Status:* ${title}\n` +
-                                             `🪙 *Carteira:* *${myCoins} Bochecha-Coins*\n\n` +
-                                             `⚡ *Nível Atual:* ${userRank.level}\n` +
-                                             `📊 *Experiência:* ${userRank.xp} XPs\n` +
-                                             `📶 *Progresso:* [${xpBar}] ${pct}%\n\n` +
-                                             `🎭 *Humor Bochecha:* ${userEmo.mood}%\n` +
-                                             `🥀 *Afinidade Bochecha:* ${userEmo.affinity}%\n` +
-                                             `*───────────────────────────────*`;
+                                    `   👤 *DADOS DO USUÁRIO - PERFIL* 👤\n` +
+                                    `╚═══════════════════════════════╝\n\n` +
+                                    `👤 *Membro:* @${sender}\n` +
+                                    `👑 *Status:* ${title}\n` +
+                                    `🪙 *Carteira:* *${myCoins} Bochecha-Coins*\n\n` +
+                                    `⚡ *Nível Atual:* ${userRank.level}\n` +
+                                    `📊 *Experiência:* ${userRank.xp} XPs\n` +
+                                    `📶 *Progresso:* [${xpBar}] ${pct}%\n\n` +
+                                    `🎭 *Humor Bochecha:* ${userEmo.mood}%\n` +
+                                    `🥀 *Afinidade Bochecha:* ${userEmo.affinity}%\n` +
+                                    `*───────────────────────────────*`;
                                 await parsedMessage.reply(card, { mentions: [rawSender] });
                             }
                         } catch (err) {
@@ -6207,8 +6209,8 @@ ${chatLogs}`;
                         }
                         return;
 
-                    case "/gay": case "/corno": case "/gado": case "/fofo": case "/lindo": case "/beijar": 
-                    case "/atacar": case "/matar": case "/shipar": case "/casal": case "/tapa": 
+                    case "/gay": case "/corno": case "/gado": case "/fofo": case "/lindo": case "/beijar":
+                    case "/atacar": case "/matar": case "/shipar": case "/casal": case "/tapa":
                     case "/chute": case "/comer": case "/abracar": case "/namorar":
                         try {
                             const ctx = { sock, from, pushname, message: parsedMessage };
@@ -6239,22 +6241,22 @@ ${chatLogs}`;
                             try {
                                 const metadata = await sock.groupMetadata(from);
                                 const participants = metadata.participants.map(p => p.id);
-                                
+
                                 const eligible = participants.filter(p => !p.includes(myNumber));
-                                const chosenJid = eligible.length > 0 
+                                const chosenJid = eligible.length > 0
                                     ? eligible[Math.floor(Math.random() * eligible.length)]
                                     : participants[Math.floor(Math.random() * participants.length)];
-                                
+
                                 const cleanChosen = chosenJid.split('@')[0];
                                 const reason = arg ? `*${arg}*` : "ser o cara mais brabo do grupo";
-                                
+
                                 const commentOptions = [
                                     `papo reto, o @${cleanChosen} foi escolhido para: ${reason}! Sem K.O, aceita que dói menos! 💀🥀`,
                                     `a roleta do submundo girou e parou no @${cleanChosen}! O veredito é: ${reason}! 🛸🪐`,
                                     `não adianta correr, @${cleanChosen}! Tu foi o sorteado para: ${reason}! Segura essa bucha! 💀`,
                                     `os astros se alinharam e apontaram pro @${cleanChosen}! Parabéns (ou meus pêsames) por: ${reason}! 🥀⚡`
                                 ];
-                                
+
                                 const msg = `🎰 *SORTEIO DO SUBMUNDO* 🎰\n\n👉 ` + commentOptions[Math.floor(Math.random() * commentOptions.length)];
                                 await sock.sendMessage(from, { text: msg, mentions: [chosenJid] });
                             } catch (err) {
@@ -6464,26 +6466,26 @@ ${chatLogs}`;
                     case "/hangman": {
                         const ctxG = { sock, from, message: parsedMessage, isOwner, isGroup, sender: rawSender, pushname, chatId: from };
                         const palavras = [
-                            {p:'javascript',d:'Linguagem de programação web'},
-                            {p:'whatsapp',d:'Aplicativo de mensagens'},
-                            {p:'computador',d:'Máquina que processa dados'},
-                            {p:'programador',d:'Quem escreve código'},
-                            {p:'algoritmo',d:'Sequência de passos para resolver um problema'},
-                            {p:'internet',d:'Rede mundial de computadores'},
-                            {p:'inteligencia',d:'Capacidade de aprender e resolver problemas'},
-                            {p:'teclado',d:'Periférico de entrada de texto'},
-                            {p:'servidor',d:'Computador que fornece serviços na rede'},
-                            {p:'database',d:'Banco de dados'},
-                            {p:'chocolate',d:'Alimento doce feito de cacau'},
-                            {p:'futebol',d:'Esporte mais popular do Brasil'},
-                            {p:'carnaval',d:'Festa popular brasileira'},
-                            {p:'cachorro',d:'Animal doméstico fiel'},
-                            {p:'pizza',d:'Prato italiano redondo'},
-                            {p:'bochecha',d:'O bot mais foda do WhatsApp'},
-                            {p:'saudade',d:'Sentimento tipicamente brasileiro'},
-                            {p:'capoeira',d:'Arte marcial brasileira'},
-                            {p:'cangaceiro',d:'Figura do sertão nordestino'},
-                            {p:'estrela',d:'Astro que brilha no céu'},
+                            { p: 'javascript', d: 'Linguagem de programação web' },
+                            { p: 'whatsapp', d: 'Aplicativo de mensagens' },
+                            { p: 'computador', d: 'Máquina que processa dados' },
+                            { p: 'programador', d: 'Quem escreve código' },
+                            { p: 'algoritmo', d: 'Sequência de passos para resolver um problema' },
+                            { p: 'internet', d: 'Rede mundial de computadores' },
+                            { p: 'inteligencia', d: 'Capacidade de aprender e resolver problemas' },
+                            { p: 'teclado', d: 'Periférico de entrada de texto' },
+                            { p: 'servidor', d: 'Computador que fornece serviços na rede' },
+                            { p: 'database', d: 'Banco de dados' },
+                            { p: 'chocolate', d: 'Alimento doce feito de cacau' },
+                            { p: 'futebol', d: 'Esporte mais popular do Brasil' },
+                            { p: 'carnaval', d: 'Festa popular brasileira' },
+                            { p: 'cachorro', d: 'Animal doméstico fiel' },
+                            { p: 'pizza', d: 'Prato italiano redondo' },
+                            { p: 'bochecha', d: 'O bot mais foda do WhatsApp' },
+                            { p: 'saudade', d: 'Sentimento tipicamente brasileiro' },
+                            { p: 'capoeira', d: 'Arte marcial brasileira' },
+                            { p: 'cangaceiro', d: 'Figura do sertão nordestino' },
+                            { p: 'estrela', d: 'Astro que brilha no céu' },
                         ];
                         const escolha = palavras[Math.floor(Math.random() * palavras.length)];
                         const argsF = { acao: 'iniciar', palavra_secreta: escolha.p, dica: escolha.d };
@@ -6680,7 +6682,7 @@ ${chatLogs}`;
                             const stats = keyRotator.getDiagnostics();
                             const ram = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
                             const uptime = moment.duration(Date.now() - this.started).humanize();
-                            
+
                             let report = `📊 *DIAGNÓSTICOS BOCHECHA-IA V3.5* 📊\n\n` +
                                 `🛸 *Uptime:* ${uptime}\n` +
                                 `🧠 *Memória Heap:* ${ram} MB\n` +
@@ -6854,14 +6856,14 @@ ${chatLogs}`;
                             }
 
                             try {
-                                const ctx = { 
-                                    sock, 
-                                    from, 
-                                    message: parsedMessage, 
-                                    isOwner, 
-                                    isGroup, 
-                                    sender: rawSender, 
-                                    pushname, 
+                                const ctx = {
+                                    sock,
+                                    from,
+                                    message: parsedMessage,
+                                    isOwner,
+                                    isGroup,
+                                    sender: rawSender,
+                                    pushname,
                                     chatId: from,
                                     isGroupAdmins: isAdmin
                                 };
@@ -6884,7 +6886,7 @@ ${chatLogs}`;
                     }
                 }
             }
-// ═══════════════════════════════════════════════════════
+            // ═══════════════════════════════════════════════════════
             // INTERCEPTOR DE JOGOS — processa jogadas ANTES da IA
             // ═══════════════════════════════════════════════════════
             if (!parsedMessage.key.fromMe && !body.startsWith('/')) {
@@ -6904,7 +6906,7 @@ ${chatLogs}`;
                             try {
                                 const p = require('path').join(__dirname, 'database_games.json');
                                 if (require('fs').existsSync(p)) return JSON.parse(require('fs').readFileSync(p, 'utf8'));
-                            } catch {}
+                            } catch { }
                             return null;
                         })();
                         if (forcaDb?.forca?.[from]?.ativa) {
@@ -6951,7 +6953,7 @@ ${chatLogs}`;
             if (isGroup) {
                 if (isMentioned) {
                     act = true;
-                    
+
                     clean = cleanBotMentions(clean);
                     if (clean === "" || clean.toLowerCase() === "bochecha") clean = "fui chamado";
 
@@ -6976,10 +6978,10 @@ ${chatLogs}`;
                             act = true;
                             const caption = parsedMessage.message[msgType]?.caption || "";
                             const cleanedCaption = cleanBotMentions(caption);
-                            clean = cleanedCaption 
+                            clean = cleanedCaption
                                 ? `[Visão Autônoma] Comente de forma sarcástica, curta e inteligente sobre esta imagem que enviaram com a legenda: "${cleanedCaption}"`
                                 : `[Visão Autônoma] Comente de forma inteligente, sarcástica e curta sobre esta imagem enviada no grupo.`;
-                            
+
                             Logger.info("AutonomousVision", `Imagem interceptada de forma autônoma (2% chance) de ${pushname}`);
                         }
                     }
@@ -6996,7 +6998,7 @@ ${chatLogs}`;
             if (!act || (clean.length === 0 && !hasMedia)) return;
 
             // Ativa o status de digitando (composing) imediatamente para feedback instantâneo no WhatsApp
-            sock.sendPresenceUpdate('composing', from).catch(() => {});
+            sock.sendPresenceUpdate('composing', from).catch(() => { });
 
             // Debounce / Agrupamento de Mensagens Rápidas
             const qKey = `${from}:${sender}`;
@@ -7024,16 +7026,16 @@ ${chatLogs}`;
 
                 let typingInterval;
                 try {
-                    await sock.sendPresenceUpdate('composing', from).catch(() => {});
+                    await sock.sendPresenceUpdate('composing', from).catch(() => { });
                     typingInterval = setInterval(async () => {
-                        await sock.sendPresenceUpdate('composing', from).catch(() => {});
+                        await sock.sendPresenceUpdate('composing', from).catch(() => { });
                     }, 4000);
 
                     // Verifica se o bot pode enviar antes de gastar tokens processando a IA
                     const canProceedBefore = await botRateLimiter.waitUntilCanSend(from, 8000);
                     if (!canProceedBefore) {
                         if (typingInterval) clearInterval(typingInterval);
-                        await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                        await sock.sendPresenceUpdate('paused', from).catch(() => { });
                         return;
                     }
 
@@ -7050,18 +7052,18 @@ ${chatLogs}`;
                     if (wasToolExecuted && (lastExecutedTool === "falar_em_audio" || lastExecutedTool === "bochecha_voz")) {
                         Logger.info("BochechaEngine.VocalTool", `Skill ${lastExecutedTool} executada. Silenciando resposta de retorno.`);
                         if (typingInterval) clearInterval(typingInterval);
-                        await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                        await sock.sendPresenceUpdate('paused', from).catch(() => { });
                         return;
                     }
 
                     let replyText = aiReply;
-                    
+
                     // Filtro absoluto de segurança contra menções ou citações da Yandra
                     if (replyText) {
                         replyText = replyText.replace(/yandra/gi, 'membro');
                         replyText = replyText.replace(/@?7100252033253/g, '');
                     }
-                    
+
                     // 1. Intercepta Reação de Emoji [REACAO: <emoji>]
                     let reactionEmoji = null;
                     const reactionRegex = /\[REACAO:\s*(.+?)\]/;
@@ -7070,7 +7072,7 @@ ${chatLogs}`;
                         reactionEmoji = matchReaction[1].trim();
                         replyText = replyText.replace(reactionRegex, "").trim();
                     }
-                    
+
                     // 2. Intercepta a decisão de apenas enviar Figurinha
                     if (replyText.trim() === "[FIGURINHA_REACAO]") {
                         Logger.info("BochechaEngine.Reaction", "IA decidiu responder apenas com figurinha de risada/reação de meme brasileiro.");
@@ -7121,13 +7123,13 @@ ${chatLogs}`;
                             const canProceedSticker = await botRateLimiter.waitUntilCanSend(from, 5000);
                             if (!canProceedSticker) {
                                 if (typingInterval) clearInterval(typingInterval);
-                                await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                                await sock.sendPresenceUpdate('paused', from).catch(() => { });
                                 return;
                             }
                             await sock.sendMessage(from, { sticker: fs.readFileSync(stickerPath) }, { quoted: q.msgRef });
                             botRateLimiter.register(from);
                             if (typingInterval) clearInterval(typingInterval);
-                            await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                            await sock.sendPresenceUpdate('paused', from).catch(() => { });
                             return;
                         }
 
@@ -7140,7 +7142,7 @@ ${chatLogs}`;
                             const canProceedReact = await botRateLimiter.waitUntilCanSend(from, 5000);
                             if (canProceedReact) {
                                 Logger.info("BochechaEngine.Reaction", `Enviando reação de emoji: ${reactionEmoji}`);
-                                await sock.sendMessage(from, { react: { text: reactionEmoji, key: q.msgRef.key } }).catch(() => {});
+                                await sock.sendMessage(from, { react: { text: reactionEmoji, key: q.msgRef.key } }).catch(() => { });
                                 botRateLimiter.register(from);
                             }
                         } catch (reactErr) {
@@ -7156,7 +7158,7 @@ ${chatLogs}`;
                         // Remove caracteres isoladores unicode ocultos do WhatsApp (\u2068 e \u2069)
                         let cleanedReply = replyText.replace(/[\u2068\u2069]/g, '');
 
-                        
+
                         // (A assinatura do modelo foi removida a pedido do usuário)
 
                         // Limpa e formata menções de números incorretas feitas pela IA (ex: @+55 11 99999-9999)
@@ -7188,100 +7190,100 @@ ${chatLogs}`;
                                 if (skipMentionResolution) {
                                     Logger.warn("MentionResolver", `Grande lista de ${mentionsMatches.length} menções detectada; pulando resolução automática para evitar marcação LID incorreta.`);
                                 } else if (mentionsMatches.length > 0) {
-                                const metadata = BochechaEngine.storeRef?.chats?.get(from) || (isGroup ? await sock.groupMetadata(from).catch(() => null) : null);
-                                const participants = metadata?.participants || [];
-                                const storeContacts = BochechaEngine.storeRef?.contacts || {};
+                                    const metadata = BochechaEngine.storeRef?.chats?.get(from) || (isGroup ? await sock.groupMetadata(from).catch(() => null) : null);
+                                    const participants = metadata?.participants || [];
+                                    const storeContacts = BochechaEngine.storeRef?.contacts || {};
 
-                                // Função auxiliar para normalização de acentos, pontuações e caixa baixa
-                                const normalize = (str) => {
-                                    if (!str) return "";
-                                    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-                                };
+                                    // Função auxiliar para normalização de acentos, pontuações e caixa baixa
+                                    const normalize = (str) => {
+                                        if (!str) return "";
+                                        return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+                                    };
 
-                                for (const mentionMatch of mentionsMatches) {
-                                    const rawName = mentionMatch.substring(1);
-                                    const nameToSearch = normalize(rawName);
-                                    
-                                    if (!/^\d+$/.test(nameToSearch) && nameToSearch.length > 0) { // Apenas se não for um número de telefone puro
-                                         let foundJid = null;
-                                         
-                                         // 0. Compara com o interlocutor atual
-                                         if (normalize(pushname).includes(nameToSearch) || nameToSearch === normalize(sender)) {
-                                             foundJid = rawSender;
-                                         }
-                                         
-                                         // 1. Tenta buscar no banco de atividade recente (chat_activity.json) que tem pushnames reais recentes
-                                         if (!foundJid) {
-                                             try {
-                                                 const dbPath = path.join(__dirname, 'learnings', 'chat_activity.json');
-                                                 if (fs.existsSync(dbPath)) {
-                                                     const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-                                                     const entries = db[from] || [];
-                                                     const matchedEntry = entries.find(e => {
-                                                         const normPush = normalize(e.pushname);
-                                                         const normUser = normalize(e.user?.split('@')[0]);
-                                                         return normPush.includes(nameToSearch) || normUser === nameToSearch;
-                                                     });
-                                                     if (matchedEntry) {
-                                                         foundJid = matchedEntry.user;
-                                                     }
-                                                 }
-                                             } catch {}
-                                         }
+                                    for (const mentionMatch of mentionsMatches) {
+                                        const rawName = mentionMatch.substring(1);
+                                        const nameToSearch = normalize(rawName);
 
-                                         // 2. Se não achou, busca na lista de participantes do grupo
-                                         if (!foundJid && isGroup) {
-                                             for (const p of participants) {
-                                                 const contact = storeContacts[p.id] || {};
-                                                 const pName = normalize(contact.name || contact.notify || "");
-                                                 const pNum = p.id.split('@')[0].split(':')[0];
-                                                 
-                                                 if (pName.includes(nameToSearch) || pNum === nameToSearch) {
-                                                     foundJid = p.id;
-                                                     break;
-                                                 }
-                                             }
-                                         }
+                                        if (!/^\d+$/.test(nameToSearch) && nameToSearch.length > 0) { // Apenas se não for um número de telefone puro
+                                            let foundJid = null;
 
-                                         // 3. Se não achou e for o Marcos/Owner, busca na lista de DEFAULT_OWNERS
-                                         if (!foundJid) {
-                                             for (const owner of DEFAULT_OWNERS) {
-                                                 const ownerJid = owner + '@s.whatsapp.net';
-                                                 const contact = storeContacts[ownerJid] || {};
-                                                 const oName = normalize(contact.name || contact.notify || "marcos");
-                                                 if (oName.includes(nameToSearch) || owner === nameToSearch) {
-                                                     foundJid = ownerJid;
-                                                     break;
-                                                 }
-                                             }
-                                         }
+                                            // 0. Compara com o interlocutor atual
+                                            if (normalize(pushname).includes(nameToSearch) || nameToSearch === normalize(sender)) {
+                                                foundJid = rawSender;
+                                            }
 
-                                         if (foundJid) {
-                                              let effectiveJid = foundJid;
-                                              if (effectiveJid.endsWith('@lid')) {
-                                                  const mapped = lidMappings[effectiveJid] || (storeContacts[effectiveJid] && storeContacts[effectiveJid].phoneNumber ? `${storeContacts[effectiveJid].phoneNumber}@s.whatsapp.net` : null);
-                                                  if (mapped) {
-                                                      effectiveJid = mapped;
-                                                  }
-                                              }
+                                            // 1. Tenta buscar no banco de atividade recente (chat_activity.json) que tem pushnames reais recentes
+                                            if (!foundJid) {
+                                                try {
+                                                    const dbPath = path.join(__dirname, 'learnings', 'chat_activity.json');
+                                                    if (fs.existsSync(dbPath)) {
+                                                        const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+                                                        const entries = db[from] || [];
+                                                        const matchedEntry = entries.find(e => {
+                                                            const normPush = normalize(e.pushname);
+                                                            const normUser = normalize(e.user?.split('@')[0]);
+                                                            return normPush.includes(nameToSearch) || normUser === nameToSearch;
+                                                        });
+                                                        if (matchedEntry) {
+                                                            foundJid = matchedEntry.user;
+                                                        }
+                                                    }
+                                                } catch { }
+                                            }
 
-                                              const contact = storeContacts[effectiveJid] || storeContacts[foundJid] || {};
-                                              const displayName = contact.name || contact.notify || rawName;
-                                              const num = effectiveJid.split('@')[0].split(':')[0];
+                                            // 2. Se não achou, busca na lista de participantes do grupo
+                                            if (!foundJid && isGroup) {
+                                                for (const p of participants) {
+                                                    const contact = storeContacts[p.id] || {};
+                                                    const pName = normalize(contact.name || contact.notify || "");
+                                                    const pNum = p.id.split('@')[0].split(':')[0];
 
-                                              if (displayName && displayName.toLowerCase() !== num.toLowerCase()) {
-                                                  cleanedReply = cleanedReply.replace(mentionMatch, `@${displayName}`);
-                                              } else {
-                                                  cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
-                                              }
+                                                    if (pName.includes(nameToSearch) || pNum === nameToSearch) {
+                                                        foundJid = p.id;
+                                                        break;
+                                                    }
+                                                }
+                                            }
 
-                                              resolvedMentions.push(effectiveJid);
-                                              Logger.success("MentionResolver", `Resolvida menção de ${effectiveJid.endsWith('@lid') ? 'LID' : 'Telefone'} [${mentionMatch}] -> [@${num}] (${effectiveJid})`);
-                                          } else {
-                                              cleanedReply = cleanedReply.replace(mentionMatch, rawName);
-                                         }
-                                     }
-                                }
+                                            // 3. Se não achou e for o Marcos/Owner, busca na lista de DEFAULT_OWNERS
+                                            if (!foundJid) {
+                                                for (const owner of DEFAULT_OWNERS) {
+                                                    const ownerJid = owner + '@s.whatsapp.net';
+                                                    const contact = storeContacts[ownerJid] || {};
+                                                    const oName = normalize(contact.name || contact.notify || "marcos");
+                                                    if (oName.includes(nameToSearch) || owner === nameToSearch) {
+                                                        foundJid = ownerJid;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+
+                                            if (foundJid) {
+                                                let effectiveJid = foundJid;
+                                                if (effectiveJid.endsWith('@lid')) {
+                                                    const mapped = lidMappings[effectiveJid] || (storeContacts[effectiveJid] && storeContacts[effectiveJid].phoneNumber ? `${storeContacts[effectiveJid].phoneNumber}@s.whatsapp.net` : null);
+                                                    if (mapped) {
+                                                        effectiveJid = mapped;
+                                                    }
+                                                }
+
+                                                const contact = storeContacts[effectiveJid] || storeContacts[foundJid] || {};
+                                                const displayName = contact.name || contact.notify || rawName;
+                                                const num = effectiveJid.split('@')[0].split(':')[0];
+
+                                                if (displayName && displayName.toLowerCase() !== num.toLowerCase()) {
+                                                    cleanedReply = cleanedReply.replace(mentionMatch, `@${displayName}`);
+                                                } else {
+                                                    cleanedReply = cleanedReply.replace(mentionMatch, `@${num}`);
+                                                }
+
+                                                resolvedMentions.push(effectiveJid);
+                                                Logger.success("MentionResolver", `Resolvida menção de ${effectiveJid.endsWith('@lid') ? 'LID' : 'Telefone'} [${mentionMatch}] -> [@${num}] (${effectiveJid})`);
+                                            } else {
+                                                cleanedReply = cleanedReply.replace(mentionMatch, rawName);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         } catch (resolverErr) {
@@ -7295,37 +7297,37 @@ ${chatLogs}`;
                             const storeContacts = BochechaEngine.storeRef?.contacts || {};
 
                             cleanedReply = cleanedReply.replace(/@(\d+)/g, (match, digits) => {
-                                 const clean = digits.trim();
-                                 const isAlreadyResolved = resolvedMentions.some(jid => jid.split('@')[0].split(':')[0] === clean);
-                                 const foundPart = participants.find(p => p.id.split('@')[0].split(':')[0] === clean);
-                                 const isOwnerNum = DEFAULT_OWNERS.includes(clean);
-                                 const isSenderNum = sender === clean || rawSender.split('@')[0].split(':')[0] === clean;
-                                 const isFromNum = from.split('@')[0].split(':')[0] === clean;
-                                 
-                                 if (isAlreadyResolved || foundPart || isOwnerNum || isSenderNum || isFromNum) {
-                                     let matchedJid = isAlreadyResolved 
-                                         ? resolvedMentions.find(jid => jid.split('@')[0].split(':')[0] === clean)
-                                         : (foundPart ? foundPart.id : (isSenderNum ? rawSender : (isFromNum ? from : null)));
-                                     if (matchedJid && matchedJid.endsWith('@lid')) {
-                                         const mapped = lidMappings[matchedJid];
-                                         if (mapped) {
-                                             matchedJid = mapped;
-                                         } else {
-                                             const contact = storeContacts[matchedJid] || {};
-                                             if (contact.phoneNumber) {
-                                                 matchedJid = `${contact.phoneNumber}@s.whatsapp.net`;
-                                             }
-                                         }
-                                     }
-                                     if (matchedJid && !resolvedMentions.includes(matchedJid)) {
-                                         resolvedMentions.push(matchedJid);
-                                     }
-                                     return `@${clean}`;
-                                 } else {
-                                     // Não marcar automaticamente números desconhecidos para evitar confusão.
-                                     return clean;
-                                 }
-                             });
+                                const clean = digits.trim();
+                                const isAlreadyResolved = resolvedMentions.some(jid => jid.split('@')[0].split(':')[0] === clean);
+                                const foundPart = participants.find(p => p.id.split('@')[0].split(':')[0] === clean);
+                                const isOwnerNum = DEFAULT_OWNERS.includes(clean);
+                                const isSenderNum = sender === clean || rawSender.split('@')[0].split(':')[0] === clean;
+                                const isFromNum = from.split('@')[0].split(':')[0] === clean;
+
+                                if (isAlreadyResolved || foundPart || isOwnerNum || isSenderNum || isFromNum) {
+                                    let matchedJid = isAlreadyResolved
+                                        ? resolvedMentions.find(jid => jid.split('@')[0].split(':')[0] === clean)
+                                        : (foundPart ? foundPart.id : (isSenderNum ? rawSender : (isFromNum ? from : null)));
+                                    if (matchedJid && matchedJid.endsWith('@lid')) {
+                                        const mapped = lidMappings[matchedJid];
+                                        if (mapped) {
+                                            matchedJid = mapped;
+                                        } else {
+                                            const contact = storeContacts[matchedJid] || {};
+                                            if (contact.phoneNumber) {
+                                                matchedJid = `${contact.phoneNumber}@s.whatsapp.net`;
+                                            }
+                                        }
+                                    }
+                                    if (matchedJid && !resolvedMentions.includes(matchedJid)) {
+                                        resolvedMentions.push(matchedJid);
+                                    }
+                                    return `@${clean}`;
+                                } else {
+                                    // Não marcar automaticamente números desconhecidos para evitar confusão.
+                                    return clean;
+                                }
+                            });
                         } catch (err) {
                             Logger.error("MentionResolver.NumericValidation", err);
                         }
@@ -7345,11 +7347,11 @@ ${chatLogs}`;
                         }
 
                         const msgOptions = isGroup ? { quoted: q.msgRef } : {};
-                        
+
                         const canProceedText = await botRateLimiter.waitUntilCanSend(from, 5000);
                         if (!canProceedText) {
                             if (typingInterval) clearInterval(typingInterval);
-                            await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                            await sock.sendPresenceUpdate('paused', from).catch(() => { });
                             return;
                         }
 
@@ -7398,7 +7400,7 @@ ${chatLogs}`;
                                     if (sent) {
                                         botRateLimiter.register(from);
                                         if (typingInterval) clearInterval(typingInterval);
-                                        await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                                        await sock.sendPresenceUpdate('paused', from).catch(() => { });
                                         return; // áudio enviado com sucesso — encerra fluxo
                                     }
                                 }
@@ -7416,11 +7418,11 @@ ${chatLogs}`;
                     }
 
                     if (typingInterval) clearInterval(typingInterval);
-                    await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                    await sock.sendPresenceUpdate('paused', from).catch(() => { });
 
                 } catch (err) {
                     if (typingInterval) clearInterval(typingInterval);
-                    await sock.sendPresenceUpdate('paused', from).catch(() => {});
+                    await sock.sendPresenceUpdate('paused', from).catch(() => { });
                     Logger.error(`BochechaEngine.DebounceQueue(${from})`, err);
                     await this._fallback(sock, from, aggregatedPrompt, isOwner, q.pushname, q.msgRef);
                 }
@@ -7436,7 +7438,7 @@ ${chatLogs}`;
      */
     async _callAI({ chatId, pushname, sender, prompt, isOwner, sock, messageRef }) {
         const warns = await storage.getWarnings(chatId, sender);
-        
+
         let logGroupName = "Privado";
         let isUserAdmin = false;
         if (chatId.endsWith('@g.us') && sock) {
@@ -7446,12 +7448,12 @@ ${chatLogs}`;
                 const participants = metadata.participants || [];
                 const senderPart = participants.find(p => p.id.split('@')[0] === sender.split('@')[0]);
                 isUserAdmin = senderPart?.admin === 'admin' || senderPart?.admin === 'superadmin';
-            } catch {}
+            } catch { }
         }
-        
+
         // Ativação da Memória de Longo Prazo (LTM): Extrai e grava fatos novos em background
-        ltm.extractAndStoreFacts(chatId, sender, prompt, isOwner).catch(() => {});
-        
+        ltm.extractAndStoreFacts(chatId, sender, prompt, isOwner).catch(() => { });
+
         let level = 1;
         let xp = 0;
         try {
@@ -7463,16 +7465,16 @@ ${chatLogs}`;
                     xp = db[chatId][cleanNum].xp || 0;
                 }
             }
-        } catch {}
+        } catch { }
 
         const sys = await composer.build(chatId, isOwner, { pushname, level, xp, warns, userId: sender });
         const rawHistory = await sessionManager.getHistory(chatId);
         const personalHistory = await sessionManager.getPersonalHistory(sender);
         const mergedHistory = sessionManager.mergeHistories(rawHistory, personalHistory);
-        
+
         // Garante que mergedHistory é sempre um array (Firebase pode retornar objeto ou null)
         const safeHistory = Array.isArray(mergedHistory) ? mergedHistory : [];
-        
+
         // Remove a última mensagem de usuário se ela existir no final do histórico E pertencer
         // ao sender atual. Isso evita remover mensagens de outros membros do grupo por engano,
         // o que causava alucinação (a IA "esquecia" o contexto de outros membros).
@@ -7497,7 +7499,7 @@ ${chatLogs}`;
         }));
 
         const tools = registry.getGeminiTools(prompt);
-        
+
         // Determina a hierarquia do remetente no grupo
         let hierarchy = "Membro Comum (👤 Plebe)";
         if (isOwner) {
@@ -7509,9 +7511,9 @@ ${chatLogs}`;
         const timeStr = new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour12: false });
         const cleanSender = sender.split('@')[0];
         const isLid = sender && sender.includes('lid');
-        
+
         // Estrutura de última geração para formatação da mensagem do interlocutor
-        const formatted = 
+        const formatted =
             `=========================================\n` +
             `[💬 CHAT: "${logGroupName}"]\n` +
             `[👤 USUÁRIO: "${pushname}" | 📞 CONTATO: ${isLid ? 'Conta Business LID' : '@' + cleanSender} | 🕒 HORA: ${timeStr} | 🏷️ HIERARQUIA: ${hierarchy}]\n` +
@@ -7525,11 +7527,11 @@ ${chatLogs}`;
         try {
             const getMediaDetails = (msgObj) => {
                 if (!msgObj) return null;
-                const type = Object.keys(msgObj)[0] === 'senderKeyDistributionMessage' 
-                    ? Object.keys(msgObj)[1] 
+                const type = Object.keys(msgObj)[0] === 'senderKeyDistributionMessage'
+                    ? Object.keys(msgObj)[1]
                     : Object.keys(msgObj)[0];
                 if (!type) return null;
-                
+
                 const mediaTypes = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'];
                 if (mediaTypes.includes(type)) {
                     return { type, msg: msgObj[type] };
@@ -7538,8 +7540,8 @@ ${chatLogs}`;
             };
 
             const safeMessage = messageRef?.message || {};
-            const msgType = Object.keys(safeMessage)[0] === 'senderKeyDistributionMessage' 
-                ? Object.keys(safeMessage)[1] 
+            const msgType = Object.keys(safeMessage)[0] === 'senderKeyDistributionMessage'
+                ? Object.keys(safeMessage)[1]
                 : Object.keys(safeMessage)[0];
 
             const contextInfo = safeMessage[msgType]?.contextInfo || safeMessage.extendedTextMessage?.contextInfo;
@@ -7553,14 +7555,14 @@ ${chatLogs}`;
             if (media) {
                 Logger.info("Multimodal", `Extraindo mídia do tipo [${media.type}]`);
                 const stream = await downloadContentFromMessage(
-                    media.msg, 
+                    media.msg,
                     media.type.replace('Message', '') // converts 'imageMessage' -> 'image', etc.
                 );
                 let buffer = Buffer.from([]);
                 for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
 
                 let mimeType = media.msg.mimetype || 'application/octet-stream';
-                
+
                 // Mapeia tipos comuns para o Gemini
                 if (media.type === 'imageMessage') mimeType = 'image/jpeg';
                 else if (media.type === 'videoMessage') mimeType = 'video/mp4';
@@ -7573,23 +7575,23 @@ ${chatLogs}`;
                         mimeType: mimeType
                     }
                 });
-                
+
                 Logger.success("Multimodal", `Mídia [${media.type}] (${mimeType}) extraída com sucesso para o Gemini.`);
             }
 
             // 2. Se a mensagem citada/marcada for TEXTO simples, nós injetamos o texto como contexto para a IA ler!
             if (contextInfo && contextInfo.quotedMessage) {
                 const quotedMsg = contextInfo.quotedMessage;
-                const quotedText = quotedMsg.conversation || 
-                                   quotedMsg.extendedTextMessage?.text || 
-                                   quotedMsg.imageMessage?.caption || 
-                                   quotedMsg.videoMessage?.caption || 
-                                   "";
-                
+                const quotedText = quotedMsg.conversation ||
+                    quotedMsg.extendedTextMessage?.text ||
+                    quotedMsg.imageMessage?.caption ||
+                    quotedMsg.videoMessage?.caption ||
+                    "";
+
                 if (quotedText) {
                     const quotedSenderJid = normalizeJid(contextInfo.participant || "");
                     const quotedSenderName = quotedSenderJid.split('@')[0];
-                    
+
                     parts.unshift(`[Mensagem Citada/Marcada de @${quotedSenderName}]: "${quotedText}"\n\n`);
                     Logger.info("Multimodal", `Injetando texto citado de @${quotedSenderName} no prompt.`);
                 }
@@ -7613,13 +7615,13 @@ ${chatLogs}`;
             await sessionManager.addPersonalMessage(sender, 'assistant', blockedReply);
             return { output: blockedReply, modelName: 'safety-gate', wasToolExecuted: false, lastExecutedTool: null };
         }
-        
+
         let chat, response, modelName;
         const hasMedia = parts.some(p => p && typeof p === 'object' && p.inlineData);
         const isSimpleConversation = apiKeyManager.hasClaudeKeys() && !hasMedia;
 
         // 🟢 Indica visualmente para os usuários que a IA está "Digitando..."
-        try { await sock.sendPresenceUpdate('composing', chatId); } catch(e){}
+        try { await sock.sendPresenceUpdate('composing', chatId); } catch (e) { }
 
         try {
             if (isSimpleConversation) {
@@ -7649,26 +7651,8 @@ ${chatLogs}`;
                 modelName = geminiRes.modelName;
             }
         } catch (apiErr) {
-            Logger.error("BochechaEngine.AI", `Falha total nas APIs de IA: ${apiErr.message}. Acionando resposta offline.`);
-            const offlineText = keyRotator.generateOfflineResponse(input);
-            
-            const responseMock = {
-                response: {
-                    text: () => offlineText,
-                    functionCalls: () => undefined
-                }
-            };
-            const chatMock = {
-                getHistory: () => {
-                    const hist = [...history];
-                    hist.push({ role: "user", parts: [{ text: typeof input === 'string' ? input : String(input) }] });
-                    hist.push({ role: "model", parts: [{ text: offlineText }] });
-                    return hist;
-                }
-            };
-            chat = chatMock;
-            response = responseMock;
-            modelName = "offline-fallback-mock";
+            Logger.error("BochechaEngine.AI", `Falha total nas APIs de IA: ${apiErr.message}. Não enviando resposta.`);
+            return { output: null, modelName: 'api-error', wasToolExecuted: false, lastExecutedTool: null };
         }
 
         let finalResponse = response.response;
@@ -7735,9 +7719,9 @@ ${chatLogs}`;
                 .filter(line => {
                     const cleanLine = line.toLowerCase();
                     if (!cleanLine) return false;
-                    if (cleanLine.includes('[💬 chat:') || 
-                        cleanLine.includes('[👤 usuário:') || 
-                        cleanLine.includes('[👤 usuario:') || 
+                    if (cleanLine.includes('[💬 chat:') ||
+                        cleanLine.includes('[👤 usuário:') ||
+                        cleanLine.includes('[👤 usuario:') ||
                         cleanLine.startsWith('mensagem:') ||
                         /^[=\-\s]+$/.test(line)) {
                         return false;
@@ -7754,7 +7738,7 @@ ${chatLogs}`;
             const rawHist = Array.isArray(rawHistory) ? rawHistory : [];
             const lastUserEntry = rawHist.slice().reverse().find(m => m && m.role === 'user' || (m && m.user));
             const lastUserText = lastUserEntry ? (lastUserEntry.content || lastUserEntry.text || lastUserEntry) : '';
-            
+
             // Remove perguntas típicas de suporte/assistente no final de qualquer resposta
             if (output) {
                 const assistantQuestionsPattern = /\s*\b(como posso (te )?ajudar( hoje)?\??|em que posso ajudar\??|mais alguma coisa\??|algo mais\??|o que (você|vc) (gostaria de|quer) fazer\??|como posso ser útil\??|o que manda( hoje)?\??|o que vamos (fazer|aprontar) hoje\??|o que quer que eu faça\??|quer ajuda com (mais )?algo\??|tudo bem com (você|vc)\??)\s*$/i;
@@ -7776,6 +7760,30 @@ ${chatLogs}`;
             Logger.error('PostProcess.ContextCleanup', ppErr);
         }
 
+        // Anti-repetição: se a resposta for idêntica ou muito parecida com a última resposta do bot, descarta (não envia nada)
+        try {
+            if (output && rawHistory && Array.isArray(rawHistory)) {
+                const lastBotMsgs = rawHistory
+                    .filter(m => m && m.role === 'assistant' && m.content)
+                    .slice(-3)
+                    .map(m => m.content.trim().toLowerCase().substring(0, 80));
+                const normalizedOut = output.trim().toLowerCase().substring(0, 80);
+                const isDuplicate = lastBotMsgs.some(prev => {
+                    if (!prev) return false;
+                    const shorter = Math.min(prev.length, normalizedOut.length);
+                    if (shorter < 10) return false;
+                    const matches = [...normalizedOut.substring(0, shorter)].filter((c, i) => c === prev[i]).length;
+                    return matches / shorter > 0.82; // 82% similares = duplicata
+                });
+                if (isDuplicate) {
+                    Logger.warn('PostProcess.AntiRepeat', 'Resposta duplicada detectada. Descartando (sem envio).');
+                    output = null; // não envia nada
+                }
+            }
+        } catch (arErr) {
+            Logger.error('PostProcess.AntiRepeat', arErr);
+        }
+
         try {
             output = sanitizeAssistantOutput(output, { isGroup, isOwner });
         } catch (guardErr) {
@@ -7789,9 +7797,7 @@ ${chatLogs}`;
         }
 
         if (!output) {
-            const fallbackText = keyRotator.generateOfflineResponse(input);
-            output = fallbackText;
-            Logger.warn("BochechaEngine.AI", "IA indisponível ou não retornou conteúdo; usando fallback textual local.");
+            Logger.warn("BochechaEngine.AI", "IA não retornou conteúdo. Nada será enviado.");
         }
 
         if (output) {

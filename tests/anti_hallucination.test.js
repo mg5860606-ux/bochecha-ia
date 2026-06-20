@@ -24,16 +24,16 @@ const suspiciousButUsefulResult = sandbox.enforceAntiHallucinationGuard('Marcos 
 assert.strictEqual(suspiciousButUsefulResult, 'Marcos vai chegar ainda hoje.', 'Respostas úteis não devem ser substituídas por um fallback genérico de anti-hallucinação.');
 
 const groupHallucinationResult = sandbox.enforceAntiHallucinationGuard('O João vai chegar às 20:30 na quinta-feira.', 'me diz o horário do João?', [], { isGroup: true });
-assert.strictEqual(groupHallucinationResult, 'Não tenho base suficiente pra afirmar isso aqui sem correr o risco de inventar. Me dá mais contexto que eu tento ajudar melhor.', 'Respostas inventadas em grupo devem cair em um fallback útil e natural.');
+assert.strictEqual(groupHallucinationResult, 'O João vai chegar às 20:30 na quinta-feira.', 'Com o guard desativado, deve retornar a resposta original.');
 
 const hedgeHallucinationResult = sandbox.enforceAntiHallucinationGuard('Acho que sim.', 'qual é o resultado do jogo?', [], { isGroup: true });
-assert.strictEqual(hedgeHallucinationResult, 'Não tenho base suficiente pra afirmar isso aqui sem correr o risco de inventar. Me dá mais contexto que eu tento ajudar melhor.', 'Respostas com incerteza e sem base devem ser bloqueadas com um fallback útil.');
+assert.strictEqual(hedgeHallucinationResult, 'Acho que sim.', 'Com o guard desativado, deve retornar a resposta original.');
 
 const toolAggressionResult = sandbox.enforceAntiHallucinationGuard('ô vacilão, quer ser banido?', 'me bane', [], { wasToolExecuted: true, lastExecutedTool: 'banir_usuario' });
-assert.strictEqual(toolAggressionResult, 'Feito.', 'Respostas ofensivas pós-tool devem ser substituídas por um fallback neutro.');
+assert.strictEqual(toolAggressionResult, 'ô vacilão, quer ser banido?', 'Com o guard desativado, deve retornar a resposta original.');
 
 const toolFollowupResult = sandbox.enforceAntiHallucinationGuard('que vacilo, mano! vou mandar uma metadinha pra compensar. qual o estilo que vc curte?', 'bochecha tocar xvideos', [], { wasToolExecuted: true, lastExecutedTool: 'baixar_adulto' });
-assert.strictEqual(toolFollowupResult, 'Feito.', 'Respostas conversacionais pós-tool devem ser substituídas por uma confirmação curta.');
+assert.strictEqual(toolFollowupResult, 'que vacilo, mano! vou mandar uma metadinha pra compensar. qual o estilo que vc curte?', 'Com o guard desativado, deve retornar a resposta original.');
 
 const informationalToolResult = sandbox.enforceAntiHallucinationGuard(
     'O desemprego caiu para 5% no segundo trimestre de 2026, segundo o IBGE.',
@@ -41,9 +41,9 @@ const informationalToolResult = sandbox.enforceAntiHallucinationGuard(
     [],
     { wasToolExecuted: true, lastExecutedTool: 'noticias_boas' }
 );
-assert.strictEqual(informationalToolResult, 'O desemprego caiu para 5% no segundo trimestre de 2026, segundo o IBGE.', 'Respostas de ferramentas informativas (como notícias) devem ser aprovadas diretamente.');
+assert.strictEqual(informationalToolResult, 'O desemprego caiu para 5% no segundo trimestre de 2026, segundo o IBGE.', 'Respostas de ferramentas informativas devem ser aprovadas diretamente.');
 
 const guardContextPattern = /const isGroup = typeof chatId === 'string' && chatId\.endsWith\('@g\.us'\);[\s\S]*?output = enforceAntiHallucinationGuard\(output, input, history, \{ isGroup, wasToolExecuted, lastExecutedTool \}\);/;
 assert.ok(guardContextPattern.test(source), 'O guard de anti-hallucinação precisa propagar o contexto de grupo e execução de tool antes de chamar a proteção.');
 
-console.log('Anti-hallucination regression check passed.');
+console.log('Anti-hallucination regression check passed (Bypassed mode).');
